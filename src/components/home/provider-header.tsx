@@ -17,7 +17,13 @@ import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
 import { getProfileLogo } from '@/services/cmds'
 import { profileDisplayName } from '@/utils/profile-name'
+import { providerImageView } from '@/utils/provider-image'
 import { clockSkew, missedUpdates } from '@/utils/subscription-status'
+
+// Чаще спрашивать незачем: после неудачной загрузки бэкенд столько же не идёт
+// за картинкой снова (`logo_cache::RETRY_AFTER`).
+const LOGO_RETRY_MS = 10 * 60_000
+const LOGO_SX = { width: 42, height: 42, borderRadius: '12px', flex: 'none' }
 
 interface Props {
   profile: IProfileItem
@@ -59,16 +65,15 @@ export const ProviderHeader = ({ profile, showSettings }: Props) => {
   // `clod://profile-picture` — по нему эта же запись перечитывается
   // (`use-layout-events`), когда новая картинка уже на диске. Ревалидация
   // заменяет одну запись, а не добавляет новую, поэтому память не растёт.
-  const { data: cachedLogo, isLoading: logoLoading } = useSWR(
+  const { data: cachedLogo } = useSWR(
     profile.uid ? ['profileLogo', profile.uid] : null,
     ([, uid]) => getProfileLogo(uid as string),
-    { revalidateOnFocus: false },
+    {
+      revalidateOnFocus: false,
+      refreshInterval: (data) => (data || !profile.logo ? 0 : LOGO_RETRY_MS),
+    },
   )
-
-  // Пока кэш читается — не показываем ничего: подставить сюда URL из заголовка
-  // значило бы сходить на хост провайдера ровно в тот момент, которого мы и
-  // хотели избежать. URL остаётся фолбэком только когда кэша нет совсем.
-  const logo = logoLoading ? undefined : (cachedLogo ?? profile.logo)
+  const logo = providerImageView(profile.logo, cachedLogo ?? '')
 
   const expire = profile.extra?.expire ?? 0
   const countdown = useExpiryCountdown(expire, clockSkew(profile) ?? 0)
@@ -83,18 +88,14 @@ export const ProviderHeader = ({ profile, showSettings }: Props) => {
     <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
       {/* clod: плитка — это лого бренда провайдера; нет лого — нет плитки.
           Буквенный фолбэк спотыкался об эмодзи в имени (пол-суррогата → «?») */}
-      {logo ? (
+      {logo === 'pending' ? (
+        <Box sx={{ ...LOGO_SX, bgcolor: 'action.hover' }} />
+      ) : logo ? (
         <Box
           component="img"
-          src={logo}
+          src={logo.src}
           alt=""
-          sx={{
-            width: 42,
-            height: 42,
-            borderRadius: '12px',
-            objectFit: 'cover',
-            flex: 'none',
-          }}
+          sx={{ ...LOGO_SX, objectFit: 'cover' }}
         />
       ) : null}
       <Box sx={{ flex: 1, minWidth: 0 }}>
