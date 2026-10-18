@@ -3,10 +3,10 @@ import { Box, ListItemButton, Typography, styled } from '@mui/material'
 import { memo, type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useIconCache } from '@/hooks/use-icon-cache'
 import { useVerge } from '@/hooks/use-verge'
 import { groupType, SELECTABLE_GROUP_TYPES } from '@/utils/proxy-groups'
 
+import { GroupIcon } from './group-icon'
 import { GroupNow } from './proxy-group-now'
 import { ProxyGroupTools } from './proxy-group-tools'
 import { ProxyHead } from './proxy-head'
@@ -63,11 +63,6 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
   const selectable = isChainMode || SELECTABLE_GROUP_TYPES.has(groupType(group))
   const { verge } = useVerge()
   const enable_group_icon = verge?.enable_group_icon ?? true
-  const iconCachePath = useIconCache({
-    icon: group.icon,
-    cacheKey: group.name.replaceAll(' ', ''),
-    enabled: enable_group_icon,
-  })
 
   const showType = headState?.showType
   const proxyColItemsMemo = useMemo(() => {
@@ -140,28 +135,8 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-            {enable_group_icon && group.icon?.trim().startsWith('http') && (
-              <img
-                src={iconCachePath === '' ? group.icon : iconCachePath}
-                alt="group icon"
-                width="32px"
-                style={{ marginRight: '12px', borderRadius: '6px' }}
-              />
-            )}
-            {enable_group_icon && group.icon?.trim().startsWith('data') && (
-              <img
-                src={group.icon}
-                alt="group icon"
-                width="32px"
-                style={{ marginRight: '12px', borderRadius: '6px' }}
-              />
-            )}
-            {enable_group_icon && group.icon?.trim().startsWith('<svg') && (
-              <img
-                src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(group.icon)}`}
-                alt="group icon"
-                width="32px"
-              />
+            {enable_group_icon && (
+              <GroupIcon icon={group.icon} name={group.name} />
             )}
             <Box sx={{ flex: '0 1 auto', minWidth: 0 }}>
               <StyledPrimary>{group.name}</StyledPrimary>

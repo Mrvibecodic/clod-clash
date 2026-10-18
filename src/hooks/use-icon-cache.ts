@@ -7,7 +7,6 @@ import { useQuery } from '@/services/query-client'
 export interface UseIconCacheOptions {
   icon?: string | null
   cacheKey?: string
-  enabled?: boolean
 }
 
 const getFileNameFromUrl = (url: string) => {
@@ -15,28 +14,20 @@ const getFileNameFromUrl = (url: string) => {
   return lastSlashIndex >= 0 ? url.slice(lastSlashIndex + 1) : url
 }
 
-export const useIconCache = ({
-  icon,
-  cacheKey,
-  enabled = true,
-}: UseIconCacheOptions) => {
+export const useIconCache = ({ icon, cacheKey }: UseIconCacheOptions) => {
   const iconValue = icon?.trim() ?? ''
   const cacheKeyValue = cacheKey?.trim() ?? ''
 
   const isEnabled = useMemo(() => {
-    return enabled && iconValue.startsWith('http') && cacheKeyValue !== ''
-  }, [enabled, iconValue, cacheKeyValue])
+    return iconValue.startsWith('http') && cacheKeyValue !== ''
+  }, [iconValue, cacheKeyValue])
 
   const { data } = useQuery({
     queryKey: ['icon-cache', iconValue, cacheKeyValue],
     queryFn: async () => {
-      try {
-        const fileName = `${cacheKeyValue}-${getFileNameFromUrl(iconValue)}`
-        const iconPath = await downloadIconCache(iconValue, fileName)
-        return convertFileSrc(iconPath)
-      } catch {
-        return ''
-      }
+      const fileName = `${cacheKeyValue}-${getFileNameFromUrl(iconValue)}`
+      const iconPath = await downloadIconCache(iconValue, fileName)
+      return convertFileSrc(iconPath)
     },
     enabled: isEnabled,
     refetchOnWindowFocus: false,
