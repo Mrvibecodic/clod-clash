@@ -1,3 +1,32 @@
+use crate::utils::network::{NetworkManager, ProxyType};
+
+/// Срок запроса и потолок картинки провайдера (логотип, значок группы).
+const IMAGE_TIMEOUT_SECS: u64 = 15;
+pub const MAX_IMAGE_BYTES: usize = 2 * 1024 * 1024;
+
+const NOT_PUBLIC: &str = "image url must be a public https address";
+
+/// Запрос картинки провайдера: адрес — публичный https и до запроса, и после
+/// переадресаций; адрес в локальной сети не получает ни одного запроса.
+pub async fn request_image(
+    url: &str,
+    proxy: ProxyType,
+    headers: reqwest::header::HeaderMap,
+) -> anyhow::Result<reqwest::Response> {
+    let url = reqwest::Url::parse(url)?;
+    if !is_public_https(&url) {
+        anyhow::bail!(NOT_PUBLIC);
+    }
+    let client = NetworkManager::new()
+        .create_request(proxy, Some(IMAGE_TIMEOUT_SECS), None)
+        .await?;
+    let response = client.get(url).headers(headers).send().await?;
+    if !is_public_https(response.url()) {
+        anyhow::bail!(NOT_PUBLIC);
+    }
+    Ok(response)
+}
+
 pub fn is_public_https(url: &reqwest::Url) -> bool {
     if url.scheme() != "https" {
         return false;
@@ -35,7 +64,37 @@ pub const fn is_public_v4(ip: std::net::Ipv4Addr) -> bool {
 #[allow(clippy::expect_used)]
 #[cfg(test)]
 mod tests {
-    use super::is_public_https;
+    use super::{NOT_PUBLIC, is_public_https, request_image};
+    use crate::utils::network::ProxyType;
+
+    #[test]
+    fn every_provider_image_goes_through_the_one_request() {
+        for (file, source) in [
+            ("logo_cache.rs", include_str!("../module/logo_cache.rs")),
+            ("icon.rs", include_str!("../feat/icon.rs")),
+        ] {
+            let code = crate::utils::source_scan::production_code(source);
+            assert!(code.contains("request_image("), "{file}");
+            assert!(!code.contains("create_request("), "{file}");
+        }
+    }
+
+    #[tokio::test]
+    async fn an_image_in_the_local_network_is_refused_before_any_request() {
+        for raw in [
+            "https://127.0.0.1/logo.png",
+            "https://192.168.1.1/logo.png",
+            "https://router.local/logo.png",
+            "http://cdn.example.com/logo.png",
+        ] {
+            let refused = request_image(raw, ProxyType::None, reqwest::header::HeaderMap::new()).await;
+            assert_eq!(
+                refused.err().map(|err| err.to_string()).as_deref(),
+                Some(NOT_PUBLIC),
+                "{raw}"
+            );
+        }
+    }
 
     #[test]
     fn a_redirect_into_the_local_network_is_refused() {

@@ -4,6 +4,7 @@ use crate::{
     utils::{
         dirs, help,
         network::{NetworkManager, ProxyType},
+        public_url::{MAX_IMAGE_BYTES, request_image},
         retry::try_strategies,
     },
 };
@@ -20,11 +21,7 @@ use std::{
 };
 use tokio::fs;
 
-const MAX_LOGO_BYTES: usize = 2 * 1024 * 1024;
-
 const MAX_BACKGROUND_BYTES: usize = 4 * 1024 * 1024;
-
-const TIMEOUT_SECS: u64 = 15;
 
 const KNOWN_EXTENSIONS: &[&str] = &["png", "svg", "jpg", "webp", "avif", "gif", "ico", "bmp"];
 
@@ -85,7 +82,7 @@ impl Picture {
 
     const fn max_bytes(self) -> usize {
         match self {
-            Self::Logo => MAX_LOGO_BYTES,
+            Self::Logo => MAX_IMAGE_BYTES,
             Self::Background => MAX_BACKGROUND_BYTES,
         }
     }
@@ -247,21 +244,19 @@ async fn download(picture: Picture, uid: &str, url: &str) -> Result<bool> {
         .unwrap_or_default();
     let (conditional, stem) = (&conditional, stem.as_str());
     try_strategies(ProxyType::Localhost, [ProxyType::System], |proxy| async move {
-        let client = NetworkManager::new()
-            .create_request(proxy, Some(TIMEOUT_SECS), None)
-            .await?;
-        let mut request = client.get(url).header(reqwest::header::ACCEPT, "image/*");
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            reqwest::header::ACCEPT,
+            reqwest::header::HeaderValue::from_static("image/*"),
+        );
         for (name, value) in conditional {
-            request = request.header(name, *value);
+            headers.insert(name.clone(), reqwest::header::HeaderValue::from_str(value)?);
         }
-        let response = request.send().await?;
+        let response = request_image(url, proxy, headers).await?;
         match reply_to(!conditional.is_empty(), response.status()) {
             Reply::Unchanged => return Ok(false),
             Reply::Refused => bail!("logo request returned {}", response.status()),
             Reply::Fresh => {}
-        }
-        if !crate::utils::public_url::is_public_https(response.url()) {
-            bail!("logo redirected somewhere we will not read from");
         }
 
         let content_type = response
