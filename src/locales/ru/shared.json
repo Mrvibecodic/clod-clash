@@ -35,7 +35,8 @@
     "from": "От",
     "password": "Пароль",
     "downloaded": "Скачано",
-    "uploaded": "Отдано"
+    "uploaded": "Отдано",
+    "direct": "Напрямую"
   },
   "statuses": {
     "enabled": "Включено",

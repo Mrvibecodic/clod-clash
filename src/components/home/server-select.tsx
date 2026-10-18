@@ -63,7 +63,7 @@ import {
   SELECTABLE_GROUP_TYPES,
   visibleGroups,
 } from '@/utils/proxy-groups'
-import { hidesType, typeText } from '@/utils/proxy-label'
+import { hidesType, nodeName, typeText } from '@/utils/proxy-label'
 import { serverBehind } from '@/utils/server-behind'
 import { noServersSeverity } from '@/utils/subscription-status'
 
@@ -215,6 +215,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     }
   }
 
+  const direct = t('shared.labels.direct')
   const renderRow = (node: ProxyNode) => {
     const record = records[node.name]
     const type = groupType(record ?? node)
@@ -278,7 +279,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           <CountryFlag name={node.name} />
         )}
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap>{nameWithoutFlag(node.name)}</Typography>
+          <Typography noWrap>{serverName(node.name, direct)}</Typography>
           <Typography
             variant="caption"
             color={
@@ -292,18 +293,15 @@ export const ServerSelect = ({ open, onClose }: Props) => {
             {description ??
               (behind
                 ? t('home.components.serverSelect.now', {
-                    server: serverName(
-                      behind.server,
-                      t('home.components.serverSelect.direct'),
-                    ),
+                    server: serverName(behind.server, direct),
                   })
                 : selected
                   ? isGroup && leaf
-                    ? `${t('home.components.serverSelect.inUse')} · ${serverName(leaf, t('home.components.serverSelect.direct'))}`
+                    ? `${t('home.components.serverSelect.inUse')} · ${serverName(leaf, direct)}`
                     : t('home.components.serverSelect.inUse')
                   : isGroup && !hidesType(record, current?.hide_badges)
                     ? leaf
-                      ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
+                      ? `${typeLabel(type)} · ${serverName(leaf, direct)}`
                       : typeLabel(type)
                     : typeText(node, current?.hide_badges))}
           </Typography>
@@ -476,7 +474,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                           lineHeight: 1.2,
                         }}
                       >
-                        {nameWithoutFlag(leaf)}
+                        {serverName(leaf, direct)}
                       </Typography>
                     </Box>
                   ) : null}
@@ -622,7 +620,7 @@ const testNodesOf = (
 const nodesSignature = (nodes: IProxyItem[]) =>
   nodes.map((node) => node.name).join('\n')
 const serverName = (name: string, direct: string) =>
-  name === 'DIRECT' ? direct : nameWithoutFlag(name)
+  nameWithoutFlag(nodeName(name, direct))
 
 const CORE_MEASURED_TYPES = new Set(['urltest', 'fallback', 'loadbalance'])
 
@@ -819,7 +817,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
           group: nameWithoutFlag(behind.via),
         })
       : leaf
-        ? nameWithoutFlag(leaf)
+        ? serverName(leaf, t('shared.labels.direct'))
         : undefined)
   // clod:freeze — значок того узла, через который сейчас идёт трафик.
   const frozen =
@@ -879,10 +877,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography noWrap sx={{ fontSize: 14, fontWeight: 700 }}>
           {current
-            ? serverName(
-                behind?.server ?? current,
-                t('home.components.serverSelect.direct'),
-              )
+            ? serverName(behind?.server ?? current, t('shared.labels.direct'))
             : statusRow
               ? t('home.components.serverStatus.noServers')
               : t('home.components.serverSelect.none')}

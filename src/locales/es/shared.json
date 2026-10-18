@@ -35,7 +35,8 @@
     "from": "De",
     "password": "Contraseña",
     "downloaded": "Descargado",
-    "uploaded": "Subido"
+    "uploaded": "Subido",
+    "direct": "Directo"
   },
   "statuses": {
     "enabled": "Habilitado",

@@ -7,6 +7,7 @@ import {
   featureChips,
   hidesType,
   labelFor,
+  nodeName,
   own,
   typeChips,
   typeText,
@@ -207,5 +208,31 @@ describe('ambiguousNames with inline providers', () => {
       [...ambiguousNames([...fromProfile, ['X', undefined]])],
       ['X'],
     )
+  })
+})
+
+describe('nodeName', () => {
+  it('names the core DIRECT with the translated word', () => {
+    assert.equal(nodeName('DIRECT', 'Напрямую'), 'Напрямую')
+  })
+
+  it('leaves every other name as it is', () => {
+    for (const name of ['REJECT', 'direct', 'DIRECT-1', 'Proxy']) {
+      assert.equal(nodeName(name, 'Напрямую'), name)
+    }
+  })
+
+  it('every place that shows a chosen node names DIRECT the same way', () => {
+    for (const file of [
+      '../components/home/server-select.tsx',
+      '../components/proxy/proxy-item.tsx',
+      '../components/proxy/proxy-item-mini.tsx',
+      '../components/proxy/proxy-render.tsx',
+      '../components/proxy/proxy-chain.tsx',
+    ]) {
+      const source = readFileSync(new URL(file, import.meta.url), 'utf8')
+      assert.match(source, /nodeName\(/, file)
+      assert.match(source, /'shared\.labels\.direct'/, file)
+    }
   })
 })

@@ -35,7 +35,8 @@
     "from": "来自",
     "password": "密码",
     "downloaded": "下载量",
-    "uploaded": "上传量"
+    "uploaded": "上传量",
+    "direct": "直连"
   },
   "statuses": {
     "enabled": "已启用",

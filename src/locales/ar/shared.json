@@ -35,7 +35,8 @@
     "from": "من",
     "password": "كلمة المرور",
     "downloaded": "تم التنزيل",
-    "uploaded": "تم الرفع"
+    "uploaded": "تم الرفع",
+    "direct": "مباشر"
   },
   "statuses": {
     "enabled": "ممكّن",

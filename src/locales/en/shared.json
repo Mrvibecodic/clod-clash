@@ -35,7 +35,8 @@
     "from": "From",
     "password": "Password",
     "downloaded": "Downloaded",
-    "uploaded": "Uploaded"
+    "uploaded": "Uploaded",
+    "direct": "Direct"
   },
   "statuses": {
     "enabled": "Enabled",

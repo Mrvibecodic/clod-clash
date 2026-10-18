@@ -72,6 +72,9 @@ export const featureChips = (
         .filter((feature) => proxy[feature])
         .map((feature) => feature.toUpperCase())
 
+export const nodeName = (name: string, direct: string) =>
+  name === 'DIRECT' ? direct : name
+
 export const typeText = (
   node: { type?: string; label?: IProxyLabel; all?: unknown },
   hidden = false,

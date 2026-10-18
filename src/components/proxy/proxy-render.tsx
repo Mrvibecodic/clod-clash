@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useVerge } from '@/hooks/use-verge'
 import { groupType, SELECTABLE_GROUP_TYPES } from '@/utils/proxy-groups'
+import { nodeName } from '@/utils/proxy-label'
 
 import { GroupIcon } from './group-icon'
 import { GroupNow } from './proxy-group-now'
@@ -149,7 +150,13 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
                   minWidth: 0,
                 }}
               >
-                <GroupNow type={group.type} now={group.now} strong />
+                <GroupNow
+                  type={group.type}
+                  now={
+                    group.now && nodeName(group.now, t('shared.labels.direct'))
+                  }
+                  strong
+                />
               </Box>
             </Box>
             <Box

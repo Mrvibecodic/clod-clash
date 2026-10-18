@@ -35,7 +35,8 @@
     "from": "출처",
     "password": "비밀번호",
     "downloaded": "다운로드됨",
-    "uploaded": "업로드됨"
+    "uploaded": "업로드됨",
+    "direct": "직접 연결"
   },
   "statuses": {
     "enabled": "사용",

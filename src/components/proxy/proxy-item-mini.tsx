@@ -1,9 +1,10 @@
 import { Box, ListItemButton, Typography } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 
 import { CodeChip } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import { SHAPE } from '@/pages/_theme'
-import { featureChips, typeChips } from '@/utils/proxy-label'
+import { featureChips, nodeName, typeChips } from '@/utils/proxy-label'
 
 import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
@@ -43,12 +44,15 @@ export const ProxyItemMini = (props: Props) => {
     description,
     frozen,
   } = props
+  const { t } = useTranslation()
 
   const { delayValue, isPreset, onDelay } = useProxyDelayState(
     proxy,
     group.name,
   )
 
+  const direct = t('shared.labels.direct')
+  const name = nodeName(proxy.name, direct)
   const chip = [
     ...typeChips(proxy, hideBadges),
     ...featureChips(proxy, hideBadges),
@@ -74,7 +78,7 @@ export const ProxyItemMini = (props: Props) => {
       ]}
     >
       <Box
-        title={`${proxy.name}\n${proxy.now ?? ''}`}
+        title={`${name}\n${proxy.now ? nodeName(proxy.now, direct) : ''}`}
         sx={{ overflow: 'hidden', flex: 1, minWidth: 0 }}
       >
         <Typography
@@ -83,7 +87,7 @@ export const ProxyItemMini = (props: Props) => {
           noWrap
           sx={{ color: 'text.primary', fontWeight: selected ? 600 : 400 }}
         >
-          {proxy.name}
+          {name}
         </Typography>
 
         {showType && (
@@ -97,7 +101,10 @@ export const ProxyItemMini = (props: Props) => {
             }}
           >
             {proxy.all ? (
-              <GroupNow type={chip} now={proxy.now} />
+              <GroupNow
+                type={chip}
+                now={proxy.now && nodeName(proxy.now, direct)}
+              />
             ) : (
               <>
                 {chip && (

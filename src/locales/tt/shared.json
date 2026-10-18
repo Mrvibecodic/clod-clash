@@ -35,7 +35,8 @@
     "from": "Каян",
     "password": "Пароль",
     "downloaded": "Йөкләнгән",
-    "uploaded": "Чыгарылган"
+    "uploaded": "Чыгарылган",
+    "direct": "Туры"
   },
   "statuses": {
     "enabled": "Кушылган",

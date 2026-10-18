@@ -35,7 +35,8 @@
     "from": "Von",
     "password": "Passwort",
     "downloaded": "Heruntergeladen",
-    "uploaded": "Hochgeladen"
+    "uploaded": "Hochgeladen",
+    "direct": "Direkt"
   },
   "statuses": {
     "enabled": "Aktiviert",

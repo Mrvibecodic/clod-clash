@@ -35,7 +35,8 @@
     "from": "Dari",
     "password": "Kata Sandi",
     "downloaded": "Diunduh",
-    "uploaded": "Diunggah"
+    "uploaded": "Diunggah",
+    "direct": "Langsung"
   },
   "statuses": {
     "enabled": "Diaktifkan",

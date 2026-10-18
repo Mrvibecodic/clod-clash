@@ -8,10 +8,11 @@ import {
   type SxProps,
   type Theme,
 } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 
 import { CodeChip, TypeChip } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
-import { featureChips, typeChips } from '@/utils/proxy-label'
+import { featureChips, nodeName, typeChips } from '@/utils/proxy-label'
 
 import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
@@ -51,11 +52,14 @@ export const ProxyItem = (props: Props) => {
     description,
     frozen,
   } = props
+  const { t } = useTranslation()
 
   const { delayValue, isPreset, onDelay } = useProxyDelayState(
     proxy,
     group.name,
   )
+  const direct = t('shared.labels.direct')
+  const name = nodeName(proxy.name, direct)
   const chip = [
     ...typeChips(proxy, hideBadges),
     ...featureChips(proxy, hideBadges),
@@ -79,7 +83,7 @@ export const ProxyItem = (props: Props) => {
         ]}
       >
         <ListItemText
-          title={proxy.name}
+          title={name}
           secondary={
             <>
               <Box
@@ -91,7 +95,7 @@ export const ProxyItem = (props: Props) => {
                   color: 'text.primary',
                 }}
               >
-                {proxy.name}
+                {name}
               </Box>
               {showType && proxy.all ? (
                 <>
@@ -110,7 +114,7 @@ export const ProxyItem = (props: Props) => {
                         component="span"
                         sx={{ fontSize: 13, color: 'text.primary' }}
                       >
-                        {proxy.now}
+                        {nodeName(proxy.now, direct)}
                       </Box>
                     </>
                   )}

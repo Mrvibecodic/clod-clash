@@ -35,7 +35,8 @@
     "from": "از",
     "password": "رمز عبور",
     "downloaded": "دانلود شده",
-    "uploaded": "بارگذاری شده"
+    "uploaded": "بارگذاری شده",
+    "direct": "مستقیم"
   },
   "statuses": {
     "enabled": "توانایی فعال شد",

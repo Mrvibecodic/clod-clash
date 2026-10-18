@@ -139,7 +139,6 @@ export interface TranslationResources {
         }
         serverSelect: {
           autoHint: string
-          direct: string
           empty: string
           favorite: string
           inUse: string
@@ -1704,6 +1703,7 @@ export interface TranslationResources {
         }
       }
       labels: {
+        direct: string
         downloaded: string
         expireTime: string
         from: string

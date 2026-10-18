@@ -59,7 +59,7 @@ import {
 } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
 import { delayText, delayTone, failedDelay } from '@/utils/delay-color'
-import { typeText } from '@/utils/proxy-label'
+import { nodeName, typeText } from '@/utils/proxy-label'
 
 interface ParsedChainConfig {
   proxies?: Array<{
@@ -226,7 +226,7 @@ const SortableItem = ({
           whiteSpace: 'nowrap',
         }}
       >
-        {proxy.name}
+        {nodeName(proxy.name, t('shared.labels.direct'))}
       </Typography>
 
       {label && (

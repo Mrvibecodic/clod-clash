@@ -35,7 +35,8 @@
     "from": "から",
     "password": "パスワード",
     "downloaded": "ダウンロード量",
-    "uploaded": "アップロード量"
+    "uploaded": "アップロード量",
+    "direct": "直接接続"
   },
   "statuses": {
     "enabled": "有効",
