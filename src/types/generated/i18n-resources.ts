@@ -52,7 +52,6 @@ export interface TranslationResources {
           fallback: string
         }
         summary: {
-          direct: string
           noProcess: string
           now: string
           processes: string

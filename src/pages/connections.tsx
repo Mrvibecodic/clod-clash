@@ -262,7 +262,7 @@ const ConnectionsPage = () => {
     groupBy: IConnectionGroupBy
     keys: ReadonlySet<string>
   }>()
-  const directLabel = t('connections.components.summary.direct')
+  const directLabel = t('shared.labels.direct')
   const otherGroupLabel = t('connections.components.group.other')
   const listItems = useMemo(() => {
     if (isTableLayout || groupBy === 'none') return null

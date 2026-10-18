@@ -1,4 +1,6 @@
-import { outboundClass, outboundName } from './connection-text'
+import { nodeName } from '@/utils/proxy-label'
+
+import { outboundClass } from './connection-text'
 
 export const HostText = ({ host, port }: { host?: string; port: string }) => (
   <>
@@ -52,7 +54,7 @@ export const ChainText = ({
     <span className="cc-chain" title={[...chains].reverse().join(' › ')}>
       {parts}
       <span className={`cc-last ${outboundClass(last)}`}>
-        {outboundName(last, directLabel)}
+        {nodeName(last, directLabel)}
       </span>
     </span>
   )

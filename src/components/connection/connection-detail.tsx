@@ -23,11 +23,12 @@ import { closeConnection } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
 import parseTraffic, { parseSpeed } from '@/utils/parse-traffic'
+import { nodeName } from '@/utils/proxy-label'
 
 import { HostText, RuleText, SpeedText } from './connection-parts'
 import { RelativeTime } from './connection-relative-time'
 import { getConnectionHostParts } from './connection-row-view'
-import { connTextSx, outboundClass, outboundName } from './connection-text'
+import { connTextSx, outboundClass } from './connection-text'
 
 export interface ConnectionDetailRef {
   open: (id: string) => void
@@ -188,7 +189,7 @@ const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
   const { t } = useTranslation()
   const { metadata } = data
   const steps = [...data.chains].reverse()
-  const directLabel = t('connections.components.summary.direct')
+  const directLabel = t('shared.labels.direct')
   const Destination = metadata.destinationIP
     ? metadata.destinationIP
     : metadata.remoteDestination
@@ -297,7 +298,7 @@ const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
               className={`${i === steps.length - 1 ? 'cc-step-last' : ''} ${outboundClass(step)}`}
               sx={stepSx}
             >
-              {outboundName(step, directLabel)}
+              {nodeName(step, directLabel)}
             </Box>
           </Fragment>
         ))}

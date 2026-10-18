@@ -136,7 +136,7 @@ export const ConnectionSummary = memo(function ConnectionSummary({
     () =>
       summarizeConnections(connections, {
         noProcess: t('connections.components.summary.noProcess'),
-        direct: t('connections.components.summary.direct'),
+        direct: t('shared.labels.direct'),
         unknownRoute: t('connections.components.summary.unknownRoute'),
       }),
     [connections, t],
@@ -187,7 +187,7 @@ export const ConnectionSummary = memo(function ConnectionSummary({
       <SummaryCard title={t('connections.components.summary.routes')}>
         <SummaryBars
           entries={stats.routes}
-          accent={t('connections.components.summary.direct')}
+          accent={t('shared.labels.direct')}
         />
       </SummaryCard>
     </Box>

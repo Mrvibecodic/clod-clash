@@ -1,8 +1,9 @@
 // Подсчёты для вкладки «Соединения»: группировка строк таблицы и сводка над
 // ней. Вынесены из компонентов отдельным модулем, чтобы их можно было
 // проверить тестами: React и i18n сюда не импортируются намеренно.
+import { nodeName } from '../../utils/proxy-label.ts'
+
 const TOP_ITEMS = 4
-const DIRECT_OUTBOUND = 'DIRECT'
 
 export interface ConnectionGroup {
   key: string
@@ -59,7 +60,7 @@ export const connectionGroupKey = (
       return getConnectionProcess(connection)
     case 'chain': {
       const outbound = connection.chains[0] ?? ''
-      return outbound === DIRECT_OUTBOUND ? directLabel : outbound
+      return nodeName(outbound, directLabel)
     }
     case 'rule':
       return getConnectionRule(connection)
@@ -152,10 +153,9 @@ export const summarizeConnections = (
     // chains[0] — реальный исход соединения: ядро дописывает цепочку изнутри
     // наружу, поэтому первый элемент и есть узел, через который ушёл трафик.
     const outbound = connection.chains[0] ?? ''
-    const routeKey =
-      outbound === DIRECT_OUTBOUND
-        ? labels.direct
-        : outbound || labels.unknownRoute
+    const routeKey = outbound
+      ? nodeName(outbound, labels.direct)
+      : labels.unknownRoute
     routeTotals.set(routeKey, (routeTotals.get(routeKey) ?? 0) + rowTotal)
   }
 

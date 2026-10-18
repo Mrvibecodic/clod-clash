@@ -807,7 +807,7 @@ export const ConnectionTable = (props: Props) => {
   const otherGroupLabel = t('connections.components.group.other')
   const cellLabels = useMemo<CellLabels>(
     () => ({
-      direct: t('connections.components.summary.direct'),
+      direct: t('shared.labels.direct'),
       fallback: t('connections.components.rule.fallback'),
     }),
     [t],

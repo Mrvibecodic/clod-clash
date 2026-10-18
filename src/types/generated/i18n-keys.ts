@@ -31,7 +31,6 @@ export const translationKeys = [
   'connections.components.summary.processes',
   'connections.components.summary.routes',
   'connections.components.summary.shown',
-  'connections.components.summary.direct',
   'connections.components.summary.noProcess',
   'connections.components.summary.unknownRoute',
   'connections.components.actions.active',

@@ -142,7 +142,7 @@ export const ConnectionRowItem = memo(
                 <span className="cc-mg" style={metaGroupStyle}>
                   <ChainText
                     chains={row.chainList}
-                    directLabel={t('connections.components.summary.direct')}
+                    directLabel={t('shared.labels.direct')}
                   />
                 </span>
               )}

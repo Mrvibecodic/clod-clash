@@ -91,6 +91,3 @@ export const connTileSx = ({ palette }: Theme) => ({
 
 export const outboundClass = (name: string) =>
   name === DIRECT ? 'cc-direct' : name.startsWith('REJECT') ? 'cc-reject' : ''
-
-export const outboundName = (name: string, directLabel: string) =>
-  name === DIRECT ? directLabel : name
