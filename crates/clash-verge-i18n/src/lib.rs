@@ -71,6 +71,20 @@ pub fn set_locale(language: &str) {
     rust_i18n::set_locale(&lang);
 }
 
+/// Разделитель дробной части на языке приложения — тот же, что окну даёт
+/// `Intl` (`setTrafficLocale` в `src/utils/parse-traffic.ts`).
+pub fn decimal_separator() -> &'static str {
+    separator_of(&rust_i18n::locale())
+}
+
+fn separator_of(language: &str) -> &'static str {
+    match language {
+        "de" | "es" | "id" | "ru" | "tr" | "tt" => ",",
+        "fa" => "\u{66b}",
+        _ => ".",
+    }
+}
+
 #[inline]
 pub fn translate(key: &str) -> Cow<'_, str> {
     rust_i18n::t!(key)
@@ -114,6 +128,28 @@ mod test {
             );
         }
         assert_eq!(resolve_supported_language("tt").as_deref(), Some("tt"));
+    }
+
+    #[test]
+    fn each_language_gets_the_decimal_separator_the_window_uses() {
+        let cases = [
+            ("ar", "."),
+            ("de", ","),
+            ("en", "."),
+            ("es", ","),
+            ("fa", "\u{66b}"),
+            ("id", ","),
+            ("jp", "."),
+            ("ko", "."),
+            ("ru", ","),
+            ("tr", ","),
+            ("tt", ","),
+            ("zh", "."),
+            ("zhtw", "."),
+        ];
+        for (language, separator) in cases {
+            assert_eq!(super::separator_of(language), separator, "{language}");
+        }
     }
 
     #[test]

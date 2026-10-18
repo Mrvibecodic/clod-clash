@@ -34,8 +34,7 @@ const TRAY_BASELINE_OFFSET_GLYPH_HEIGHT_RATIO: f64 = 3.0;
 /// Tauri tray-icon масштабирует иконку до 18pt; здесь дополнительно резервируется место
 /// под иконку, отступ между иконкой и текстом и системные поля
 const TRAY_STATUS_ITEM_EXTRA_WIDTH: f64 = 30.0;
-/// Минимальная ширина для типичного 6-символьного текста скорости, чтобы короткий
-/// текст вроде 0B/s не вызывал постоянное сжатие элемента статус-бара
+/// Нижняя граница ширины элемента статус-бара под текст скорости
 const TRAY_STATUS_ITEM_MIN_LENGTH: f64 = 58.0;
 /// NSVariableStatusItemLength из AppKit. После очистки заголовка скорости
 /// восстанавливает системное автоопределение по размеру иконки
@@ -55,7 +54,9 @@ fn format_tray_speed(up: u64, down: u64) -> String {
     // строк, символы стрелок больше не отображаются.
     let up_str = format_bytes_per_second(up);
     let down_str = format_bytes_per_second(down);
-    format!("{:>6}\n{:>6}", up_str, down_str)
+    // Ширина — по самой длинной записи («0.977 KB/s»): моноширинный текст
+    // одной длины не дёргает ширину элемента статус-бара.
+    format!("{:>10}\n{:>10}", up_str, down_str)
 }
 
 fn build_attributes(button_height: f64) -> Retained<NSDictionary<NSString, AnyObject>> {

@@ -1,72 +1,80 @@
-//! Утилита форматирования сетевой скорости
+//! Скорость текстом — по тому же правилу, что в окне (`src/utils/parse-traffic.ts`):
+//! три значащие цифры, от тысячи — уже следующая единица, единица английская
+//! и через пробел, разделитель дробной части — по языку приложения.
 
-/// Порог повышения единицы отображения скорости: гарантирует, что значение не превысит
-/// три цифры (соглашение уровня отображения, не связано с основанием пересчёта)
-const SPEED_DISPLAY_THRESHOLD: f64 = 1000.0;
-/// Порядок единиц отображения скорости
-const SPEED_UNITS: [&str; 5] = ["B/s", "K/s", "M/s", "G/s", "T/s"];
-/// Предварительно вычисленные степени 1024, чтобы не пересчитывать pow во время выполнения
-const SCALES: [f64; 5] = [
-    1.0,
-    1024.0,
-    1024.0 * 1024.0,
-    1024.0 * 1024.0 * 1024.0,
-    1024.0 * 1024.0 * 1024.0 * 1024.0,
-];
+const UNITS: [&str; 7] = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
 
-/// Форматирует байты/сек в читаемую строку скорости
-///
-/// # Arguments
-/// * `bytes_per_sec` - байт в секунду
+/// Скорость текстом: «1.20 MB/s», «0.977 KB/s» (с запятой — по языку).
+#[cfg(target_os = "macos")]
 pub fn format_bytes_per_second(bytes_per_sec: u64) -> String {
-    if bytes_per_sec < SPEED_DISPLAY_THRESHOLD as u64 {
-        return format!("{bytes_per_sec}B/s");
+    speed_text(bytes_per_sec, clash_verge_i18n::decimal_separator())
+}
+
+/// Делит нацело с округлением половины вверх, как `toPrecision` в окне.
+const fn rounded_ratio(numerator: u128, denominator: u128) -> u128 {
+    (numerator * 2 + denominator) / (denominator * 2)
+}
+
+fn speed_text(bytes_per_sec: u64, separator: &str) -> String {
+    let bytes = u128::from(bytes_per_sec);
+    let last = UNITS.len() - 1;
+    let mut exp = bytes.checked_ilog2().map_or(0, |log| log as usize / 10).min(last);
+    if exp < last && bytes * 2 >= 1999 << (10 * exp) {
+        exp += 1;
+    }
+    let scale = 1_u128 << (10 * exp);
+
+    let mut decimals = match [100, 10, 1].iter().position(|&digits| bytes >= digits * scale) {
+        Some(decimals) => decimals,
+        None if bytes == 0 => 2,
+        None => 3,
+    };
+    let mut shown = rounded_ratio(bytes * 10_u128.pow(decimals as u32), scale);
+    if shown >= 1000 && decimals > 0 {
+        decimals -= 1;
+        shown = rounded_ratio(bytes * 10_u128.pow(decimals as u32), scale);
     }
 
-    let mut unit_index = (bytes_per_sec.ilog2() / 10) as usize;
-    unit_index = unit_index.min(SPEED_UNITS.len() - 1);
-
-    let mut value = bytes_per_sec as f64 / SCALES[unit_index];
-
-    if value.round() >= SPEED_DISPLAY_THRESHOLD && unit_index < SPEED_UNITS.len() - 1 {
-        unit_index += 1;
-        value = bytes_per_sec as f64 / SCALES[unit_index];
-    }
-
-    if value < 9.95 {
-        format!("{value:.1}{}", SPEED_UNITS[unit_index])
+    let digits = format!("{shown:0>width$}", width = decimals + 1);
+    let (whole, fraction) = digits.split_at(digits.len() - decimals);
+    let number = if fraction.is_empty() {
+        whole.to_owned()
     } else {
-        format!("{:.0}{}", value.round(), SPEED_UNITS[unit_index])
-    }
+        format!("{whole}{separator}{fraction}")
+    };
+    format!("{number} {}/s", UNITS[exp])
 }
 
 #[cfg(test)]
 mod tests {
-    use super::format_bytes_per_second;
+    use super::speed_text;
 
+    /// Те же примеры, что в `src/utils/parse-traffic.test.ts`: строка меню и
+    /// окно пишут одну скорость одинаково.
     #[test]
-    fn format_handles_byte_boundaries() {
-        assert_eq!(format_bytes_per_second(0), "0B/s");
-        assert_eq!(format_bytes_per_second(999), "999B/s");
-        // 1000 >= SPEED_DISPLAY_THRESHOLD, повышаем до K/s (гарантирует не более трёх цифр)
-        assert_eq!(format_bytes_per_second(1000), "1.0K/s");
-        assert_eq!(format_bytes_per_second(1024), "1.0K/s");
-    }
-
-    #[test]
-    fn format_handles_decimal_and_integer_rules() {
-        assert_eq!(format_bytes_per_second(9 * 1024), "9.0K/s");
-        // 9.999 K/s: rounded_1dp = 10.0, условию < 10 не удовлетворяет, показываем целое "10K/s"
-        assert_eq!(format_bytes_per_second(10 * 1024 - 1), "10K/s");
-        assert_eq!(format_bytes_per_second(10 * 1024), "10K/s");
-        assert_eq!(format_bytes_per_second(123 * 1024), "123K/s");
-    }
-
-    #[test]
-    fn format_handles_unit_promotion_after_rounding() {
-        // 999.5 K/s округляется до 1000, ≥ SPEED_DISPLAY_THRESHOLD, повышаем до 1.0M/s
-        assert_eq!(format_bytes_per_second(999 * 1024 + 512), "1.0M/s");
-        assert_eq!(format_bytes_per_second(1024 * 1024), "1.0M/s");
-        assert_eq!(format_bytes_per_second(1536 * 1024), "1.5M/s");
+    fn the_menu_bar_writes_speed_as_the_window_does() {
+        let cases = [
+            (0, "0.00 B/s"),
+            (5, "5.00 B/s"),
+            (512, "512 B/s"),
+            (999, "999 B/s"),
+            (1000, "0.977 KB/s"),
+            (1023, "0.999 KB/s"),
+            (1024, "1.00 KB/s"),
+            (1152, "1.13 KB/s"),
+            (10_235, "10.0 KB/s"),
+            (102_348, "99.9 KB/s"),
+            (1_023_385, "999 KB/s"),
+            (1_023_590, "0.976 MB/s"),
+            (1_042_432, "0.994 MB/s"),
+            (1_258_291, "1.20 MB/s"),
+            (13_314_398_618, "12.4 GB/s"),
+            (u64::MAX, "16.0 EB/s"),
+        ];
+        for (bytes, shown) in cases {
+            assert_eq!(speed_text(bytes, "."), shown, "{bytes}");
+        }
+        assert_eq!(speed_text(1_258_291, ","), "1,20 MB/s");
+        assert_eq!(speed_text(512, ","), "512 B/s");
     }
 }
