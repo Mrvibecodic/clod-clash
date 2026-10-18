@@ -543,7 +543,7 @@
       },
       "tooltips": {
         "proxyGuard": "Diğer yazılımların işletim sisteminin vekil ayarlarını değiştirmesini önlemek için etkinleştirin",
-        "proxyHost": "Diğer adresler WSL ve Docker'ın istemci üzerinden geçmesi içindir ve yalnızca yerel ağ paylaşımı açıkken çalışır. Paylaşım kapalıyken istemci 127.0.0.1 kullanır. PAC modunda her zaman 127.0.0.1 kullanılır."
+        "proxyHost": "Other addresses let WSL and Docker go through the client. Such an address is written to the system only while LAN sharing is on, this computer has the address and the subscription's LAN sharing lists let it in; otherwise the client uses 127.0.0.1. In PAC mode 127.0.0.1 is always used."
       },
       "messages": {
         "durationTooShort": "Vekil Koruyucu Süresi 1 Saniyeden Az Olamaz",

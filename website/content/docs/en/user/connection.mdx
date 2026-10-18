@@ -11,7 +11,10 @@ into the system settings: your own from "Port Config", otherwise the one from th
 subscription, otherwise `7897`. Browsers and most programs go through it.
 
 A different address ("Proxy Host" in the "System Proxy Setting" window) is written only
-when sharing to the local network is turned on — for example, for WSL and Docker.
+when sharing to the local network is turned on — for example, for WSL and Docker. If this
+computer doesn't have that address right now, or the subscription's LAN sharing lists
+(`lan-allowed-ips`, `lan-disallowed-ips`) don't let it in, `127.0.0.1` is written instead and
+a notification appears; once the address fits again, the proxy goes back to it.
 
 This is the simplest mode: no administrator rights are needed, the network as a whole is
 not affected, and the setting is removed when you exit the app.

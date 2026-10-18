@@ -543,7 +543,7 @@
       },
       "tooltips": {
         "proxyGuard": "Aktivieren Sie diese Option, um zu verhindern, dass andere Software die Proxy-Einstellungen des Betriebssystems ändert.",
-        "proxyHost": "Andere Adressen lassen WSL und Docker über den Client laufen und funktionieren nur bei aktivierter LAN-Freigabe. Solange die Freigabe aus ist, verwendet der Client 127.0.0.1. Im PAC-Modus wird immer 127.0.0.1 verwendet."
+        "proxyHost": "Other addresses let WSL and Docker go through the client. Such an address is written to the system only while LAN sharing is on, this computer has the address and the subscription's LAN sharing lists let it in; otherwise the client uses 127.0.0.1. In PAC mode 127.0.0.1 is always used."
       },
       "messages": {
         "durationTooShort": "Das Intervall des Proxy-Daemons darf nicht weniger als 1 Sekunde betragen.",

@@ -543,7 +543,7 @@
       },
       "tooltips": {
         "proxyGuard": "Aktifkan untuk mencegah perangkat lunak lain mengubah pengaturan proksi sistem operasi",
-        "proxyHost": "Alamat lain memungkinkan WSL dan Docker melewati klien dan hanya berfungsi saat berbagi LAN aktif. Selama berbagi nonaktif, klien memakai 127.0.0.1. Dalam mode PAC selalu dipakai 127.0.0.1."
+        "proxyHost": "Other addresses let WSL and Docker go through the client. Such an address is written to the system only while LAN sharing is on, this computer has the address and the subscription's LAN sharing lists let it in; otherwise the client uses 127.0.0.1. In PAC mode 127.0.0.1 is always used."
       },
       "messages": {
         "durationTooShort": "Durasi Daemon Proksi Tidak Boleh Kurang dari 1 Detik",
