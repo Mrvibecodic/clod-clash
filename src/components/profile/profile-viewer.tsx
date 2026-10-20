@@ -36,6 +36,7 @@ import {
   patchProfile,
   setSecureChannel,
 } from '@/services/cmds'
+import { showNotice } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { chanFingerprint } from '@/utils/chan-fingerprint'
 import { profileDate } from '@/utils/date-text'
@@ -348,6 +349,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         const isActivating = isUpdate && form.uid === (profiles?.current ?? '')
 
         let changed = true
+        let alreadyAdded = false
         if (isUpdate) {
           if (!form.uid || !openedRef.current)
             throw new Error(
@@ -366,7 +368,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         } else {
           // Подписку бэкенд сам качает по всем маршрутам (напрямую, через ядро,
           // через системный прокси) со своим потолком времени.
-          await createProfile(item, fileDataRef.current)
+          alreadyAdded = !(await createProfile(item, fileDataRef.current))
         }
 
         onChange(isActivating && changed)
@@ -374,8 +376,14 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         fileDataRef.current = null
 
         // clod: при добавлении окно не закрывается — показываем второй шаг с
-        // тем, что нашлось по ссылке. При правке закрываем как раньше.
-        if (openType === 'new') {
+        // тем, что нашлось по ссылке. При правке закрываем как раньше; уже
+        // добавленную подписку второй раз не добавляем — тоже закрываем.
+        if (alreadyAdded) {
+          setOpen(false)
+          showNotice.info(
+            'shared.feedback.notifications.importSubscriptionExists',
+          )
+        } else if (openType === 'new') {
           const fresh = await getProfiles().catch(() => undefined)
           if (session !== sessionRef.current) return
           const items = fresh?.items ?? []

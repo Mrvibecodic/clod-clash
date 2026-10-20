@@ -180,6 +180,16 @@ impl IProfiles {
         self.items.as_ref()
     }
 
+    /// Подписка с этим адресом уже есть: вторая копия не нужна.
+    pub fn remote_with_address(&self, url: &str) -> Option<String> {
+        let address = PrfItem::address_of(url)?;
+        self.get_items()?
+            .iter()
+            .find(|item| item.itype.as_deref() == Some("remote") && item.url.as_deref() == Some(address.as_str()))?
+            .uid
+            .clone()
+    }
+
     pub fn get_item(&self, uid: impl AsRef<str>) -> Result<&PrfItem> {
         let uid_str = uid.as_ref();
 
@@ -1412,6 +1422,35 @@ pub fn activate_selected_nodes() {
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn a_subscription_already_added_is_found_by_its_address() {
+        let item = |uid: &str, itype: &str, url: &str| PrfItem {
+            uid: Some(uid.into()),
+            itype: Some(itype.into()),
+            url: Some(url.into()),
+            ..PrfItem::default()
+        };
+        let profiles = IProfiles {
+            items: Some(vec![
+                item("L1", "local", "https://panel.example/sub"),
+                item("R1", "remote", "https://panel.example/sub?flag=1"),
+            ]),
+            ..IProfiles::default()
+        };
+        assert_eq!(
+            profiles
+                .remote_with_address("https://panel.example/sub&flag=1")
+                .as_deref(),
+            Some("R1")
+        );
+        assert_eq!(profiles.remote_with_address("https://panel.example/sub"), None);
+        assert_eq!(profiles.remote_with_address("https://other.example/sub?flag=1"), None);
+        assert_eq!(
+            IProfiles::default().remote_with_address("https://panel.example/sub?flag=1"),
+            None
+        );
+    }
 
     fn selected(group: &str, node: &str) -> PrfSelected {
         PrfSelected {

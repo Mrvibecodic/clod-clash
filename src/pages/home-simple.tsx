@@ -54,9 +54,14 @@ const HomeSimplePage = () => {
     resetAddStage()
     setAdding(true)
     try {
-      await importProfile(url)
+      const added = await importProfile(url)
       await mutateProfiles()
       setSubUrl('')
+      if (!added) {
+        showNotice.info(
+          'shared.feedback.notifications.importSubscriptionExists',
+        )
+      }
     } catch (error) {
       showNotice.error(error)
     } finally {

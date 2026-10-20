@@ -73,8 +73,10 @@ pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
 }
 
 /// Импорт конфига
+///
+/// `false` — подписка с этим адресом уже была: второй не добавлено.
 #[tauri::command]
-pub async fn import_profile(url: std::string::String, option: Option<PrfOption>) -> CmdResult {
+pub async fn import_profile(url: std::string::String, option: Option<PrfOption>) -> CmdResult<bool> {
     logging!(
         info,
         Type::Cmd,
@@ -82,30 +84,38 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
         help::mask_url(&url)
     );
 
-    // Лестница маршрутов со своим бюджетом времени на адрес — та же, что у
-    // обновления: заблокированный домен подписки достижим через уже поднятый туннель.
-    let item = &mut match PrfItem::from_url_for_new(&url, None, None, option.as_ref()).await {
-        Ok(fetched) => {
-            logging!(
-                info,
-                Type::Cmd,
-                "[импорт подписки] загрузка завершена, сохранение конфига"
-            );
-            fetched.item
+    let added = feat::add_subscription_once(&url, async || -> CmdResult<Option<String>> {
+        // Лестница маршрутов со своим бюджетом времени на адрес — та же, что у
+        // обновления: заблокированный домен подписки достижим через уже поднятый туннель.
+        let item = &mut match PrfItem::from_url_for_new(&url, None, None, option.as_ref()).await {
+            Ok(fetched) => {
+                logging!(
+                    info,
+                    Type::Cmd,
+                    "[импорт подписки] загрузка завершена, сохранение конфига"
+                );
+                fetched.item
+            }
+            Err(e) => {
+                logging!(error, Type::Cmd, "[импорт подписки] не удалось загрузить: {}", e);
+                return Err(super::public_error_text(&profile_import_error(&e)));
+            }
+        };
+
+        if let Err(e) = feat::add_profile(item).await {
+            logging!(error, Type::Cmd, "[импорт подписки] не удалось сохранить конфиг: {}", e);
+            return Err(format!("не удалось импортировать подписку: {}", super::public_error_text(&e)).into());
         }
-        Err(e) => {
-            logging!(error, Type::Cmd, "[импорт подписки] не удалось загрузить: {}", e);
-            return Err(super::public_error_text(&profile_import_error(&e)));
-        }
+        logging!(info, Type::Cmd, "[импорт подписки] файл конфига сохранён");
+        Ok(item.uid.clone())
+    })
+    .await;
+    let added = match added {
+        feat::Adding::AlreadyAdded => return Ok(false),
+        feat::Adding::Added(added) => added?,
     };
 
-    if let Err(e) = feat::add_profile(item).await {
-        logging!(error, Type::Cmd, "[импорт подписки] не удалось сохранить конфиг: {}", e);
-        return Err(format!("не удалось импортировать подписку: {}", super::public_error_text(&e)).into());
-    }
-    logging!(info, Type::Cmd, "[импорт подписки] файл конфига сохранён");
-
-    if let Some(uid) = &item.uid {
+    if let Some(uid) = &added {
         logging!(
             info,
             Type::Cmd,
@@ -121,7 +131,7 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
         "[импорт подписки] импорт завершён: {}",
         help::mask_url(&url)
     );
-    Ok(())
+    Ok(true)
 }
 
 /// Подписка добавлена: окну — перечитать, окну лимита устройств — отказ панели,
@@ -175,19 +185,29 @@ pub async fn create_profile_from_file(item: PrfItem, path: String) -> CmdResult 
         return Err("profile file is too large".into());
     }
     let data = tokio::fs::read_to_string(&source).await.stringify_err()?;
-    create_profile(item, Some(data.into())).await
+    create_profile(item, Some(data.into())).await.map(|_| ())
 }
 
 /// Создаёт новый profile
 /// Создаёт новый конфиг
+///
+/// `false` — подписка с этим адресом уже была: второй не добавлено.
 #[tauri::command]
-pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResult {
-    let added = async {
+pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResult<bool> {
+    let remote_url = item.url.clone().filter(|_| item.itype.as_deref() == Some("remote"));
+    let add = async move || {
         let mut created = PrfItem::from(&item, file_data).await?;
         feat::add_profile(&mut created).await?;
         anyhow::Ok(created.uid)
     };
-    match added.await {
+    let added = match remote_url {
+        Some(url) => match feat::add_subscription_once(&url, add).await {
+            feat::Adding::AlreadyAdded => return Ok(false),
+            feat::Adding::Added(added) => added,
+        },
+        None => add().await,
+    };
+    match added {
         Ok(created) => {
             // Отправляем уведомление об изменении конфига
             if let Some(uid) = &created {
@@ -199,7 +219,7 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
                 );
                 announce_the_added(uid).await;
             }
-            Ok(())
+            Ok(true)
         }
         Err(err) => match err.to_string().as_str() {
             "the file already exists" => Err("the file already exists".into()),
@@ -872,6 +892,7 @@ mod tests {
         let commands = include_str!("profile.rs");
         for signature in ["pub async fn import_profile(", "pub async fn create_profile("] {
             let body = crate::utils::source_scan::fn_body(commands, signature).unwrap_or_default();
+            assert!(body.contains("feat::add_subscription_once("), "{signature}");
             assert!(body.contains("feat::add_profile("), "{signature}");
             assert!(body.contains("announce_the_added("), "{signature}");
         }
@@ -880,6 +901,7 @@ mod tests {
             "async fn import_subscription(",
         )
         .unwrap_or_default();
+        assert!(deep_link.contains("feat::add_subscription_once("), "{deep_link}");
         assert!(deep_link.contains("feat::add_profile("), "{deep_link}");
         assert!(!deep_link.contains("profiles_save_file_safe"), "{deep_link}");
     }

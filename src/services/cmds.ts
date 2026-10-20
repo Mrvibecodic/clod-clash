@@ -33,11 +33,12 @@ export async function patchProfilesConfig(profiles: IProfilesConfig) {
   return invoke<ValidationOutcome>('patch_profiles_config', { profiles })
 }
 
+/** `false` — подписка с этим адресом уже была, второй не добавлено. */
 export async function createProfile(
   item: Partial<IProfileItem>,
   fileData?: string | null,
 ) {
-  return invoke<void>('create_profile', { item, fileData })
+  return invoke<boolean>('create_profile', { item, fileData })
 }
 
 export async function createProfileFromFile(item: IProfileItem, path: string) {
@@ -63,8 +64,9 @@ export async function saveProfileFile(index: string, fileData: string) {
   )
 }
 
+/** `false` — подписка с этим адресом уже была, второй не добавлено. */
 export async function importProfile(url: string, option?: IProfileOption) {
-  return invoke<void>('import_profile', { url, option })
+  return invoke<boolean>('import_profile', { url, option })
 }
 
 /** clod:chan — включить (с пробой) или выключить защищённый канал подписки. */

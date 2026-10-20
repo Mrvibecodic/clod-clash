@@ -4,8 +4,9 @@ use smartstring::alias::String;
 use tauri::Url;
 
 use crate::{
-    config::{Config, IProfiles, PrfItem},
+    config::{Config, PrfItem},
     core::handle,
+    feat::Adding,
     utils::help,
 };
 use clash_verge_logging::{Type, logging};
@@ -89,54 +90,31 @@ fn decode_subscription_url(raw_url: &str) -> std::string::String {
 }
 
 async fn import_subscription(url: &str, name: Option<&String>) {
-    // Сверка «уже добавлена» и добавление — одним шагом: две ссылки разом
-    // (нажатие во время старта) иначе обе не нашли бы подписку и добавили её.
-    static IMPORT: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-    let _one_at_a_time = IMPORT.lock().await;
-    let (had_current_profile, added) = {
-        let profiles = Config::profiles().await.latest_arc();
-        (profiles.current.is_some(), already_added(&profiles, url))
-    };
-
-    if let Some(uid) = added {
-        logging!(
-            info,
-            Type::Config,
-            "the subscription from the link is already added: {uid}"
-        );
-        if !had_current_profile {
-            crate::feat::toggle_proxy_profile(uid).await;
+    let added = crate::feat::add_subscription_once(url, async || {
+        let had_current_profile = Config::profiles().await.latest_arc().current.is_some();
+        let mut item = fetch_profile_item(url, name).await?;
+        let uid = item.uid.clone().unwrap_or_default();
+        if let Err(e) = crate::feat::add_profile(&mut item).await {
+            logging!(error, Type::Config, "failed to import subscription url: {:?}", e);
+            handle::Handle::notice_message("import_sub_url::error", e.to_string());
+            return None;
         }
-        handle::Handle::notice_message("import_sub_url::exists", "");
-        return;
-    }
+        Some((uid, had_current_profile))
+    })
+    .await;
 
-    let Some(mut item) = fetch_profile_item(url, name).await else {
-        return;
+    let (uid, had_current_profile) = match added {
+        Adding::AlreadyAdded => {
+            handle::Handle::notice_message("import_sub_url::exists", "");
+            return;
+        }
+        Adding::Added(None) => return,
+        Adding::Added(Some(added)) => added,
     };
-
-    let uid = item.uid.clone().unwrap_or_default();
-    if let Err(e) = crate::feat::add_profile(&mut item).await {
-        logging!(error, Type::Config, "failed to import subscription url: {:?}", e);
-        handle::Handle::notice_message("import_sub_url::error", e.to_string());
-        return;
-    }
     handle::Handle::notice_message("import_sub_url::ok", "");
     crate::feat::announce_device_refusal(&uid).await;
 
     post_import_updates(&uid, had_current_profile).await;
-}
-
-/// Подписка с этим адресом уже есть: ссылку открыли ещё раз — вторая копия
-/// не нужна.
-fn already_added(profiles: &IProfiles, url: &str) -> Option<String> {
-    let address = PrfItem::address_of(url)?;
-    profiles
-        .get_items()?
-        .iter()
-        .find(|item| item.itype.as_deref() == Some("remote") && item.url.as_deref() == Some(address.as_str()))?
-        .uid
-        .clone()
 }
 
 async fn fetch_profile_item(url: &str, name: Option<&String>) -> Option<PrfItem> {
@@ -198,36 +176,8 @@ async fn refresh_core_config() {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{already_added, extract_subscription_info};
-    use crate::config::{IProfiles, PrfItem};
+    use super::extract_subscription_info;
     use tauri::Url;
-
-    #[test]
-    fn a_link_to_a_subscription_already_added_finds_it() {
-        let item = |uid: &str, itype: &str, url: &str| PrfItem {
-            uid: Some(uid.into()),
-            itype: Some(itype.into()),
-            url: Some(url.into()),
-            ..PrfItem::default()
-        };
-        let profiles = IProfiles {
-            items: Some(vec![
-                item("L1", "local", "https://panel.example/sub"),
-                item("R1", "remote", "https://panel.example/sub?flag=1"),
-            ]),
-            ..IProfiles::default()
-        };
-        assert_eq!(
-            already_added(&profiles, "https://panel.example/sub&flag=1").as_deref(),
-            Some("R1")
-        );
-        assert_eq!(already_added(&profiles, "https://panel.example/sub"), None);
-        assert_eq!(already_added(&profiles, "https://other.example/sub?flag=1"), None);
-        assert_eq!(
-            already_added(&IProfiles::default(), "https://panel.example/sub?flag=1"),
-            None
-        );
-    }
 
     fn subscription_url(link: &str) -> Option<std::string::String> {
         let parsed = Url::parse(link).expect("deep link parses");

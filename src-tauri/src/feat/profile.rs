@@ -594,6 +594,32 @@ async fn announce_the_failure(uid: &String, status: &str, message: &str) {
 
 /// Добавить подписку: запись в реестр, реестр на диск, расписание. Что сказать
 /// человеку о неудаче, решает вызывающий.
+pub enum Adding<T> {
+    Added(T),
+    AlreadyAdded,
+}
+
+/// Подписку по ссылке — из окна или ссылкой-приглашением — добавляет одно
+/// правило: уже добавленная не дублируется и становится текущей, если текущей
+/// нет. Сверка и добавление — одним шагом: две ссылки разом иначе обе не
+/// нашли бы подписку и добавили её.
+pub async fn add_subscription_once<T>(url: &str, add: impl AsyncFnOnce() -> T) -> Adding<T> {
+    static ADDING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _one_at_a_time = ADDING.lock().await;
+    let (had_current_profile, added) = {
+        let profiles = Config::profiles().await.latest_arc();
+        (profiles.current.is_some(), profiles.remote_with_address(url))
+    };
+    let Some(uid) = added else {
+        return Adding::Added(add().await);
+    };
+    logging!(info, Type::Config, "the subscription is already added: {uid}");
+    if !had_current_profile {
+        toggle_proxy_profile(uid).await;
+    }
+    Adding::AlreadyAdded
+}
+
 pub async fn add_profile(item: &mut PrfItem) -> Result<()> {
     crate::config::profiles_append_item_safe(item).await?;
     crate::config::profiles::profiles_save_file_safe().await?;
