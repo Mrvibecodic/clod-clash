@@ -195,14 +195,16 @@ impl Hotkey {
             }
             HotkeyFunction::ToggleSystemProxy => {
                 AsyncHandler::spawn(async move || {
-                    let is_proxy_enabled = feat::toggle_system_proxy().await;
-                    notify_event(NotificationEvent::SystemProxyToggled(is_proxy_enabled)).await;
+                    if let feat::Toggled::To(is_proxy_enabled) = feat::toggle_system_proxy().await {
+                        notify_event(NotificationEvent::SystemProxyToggled(is_proxy_enabled)).await;
+                    }
                 });
             }
             HotkeyFunction::ToggleTunMode => {
                 AsyncHandler::spawn(async move || {
-                    let is_tun_enable = feat::toggle_tun_mode().await;
-                    notify_event(NotificationEvent::TunModeToggled(is_tun_enable)).await;
+                    if let feat::Toggled::To(is_tun_enable) = feat::toggle_tun_mode().await {
+                        notify_event(NotificationEvent::TunModeToggled(is_tun_enable)).await;
+                    }
                 });
             }
             HotkeyFunction::EntryLightweightMode => {

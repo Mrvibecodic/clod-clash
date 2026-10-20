@@ -14,6 +14,10 @@ notifications:
     title: Tun (کارت شبکه مجازی)
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
+  tunSetup:
+    busy: "The service setup is already running — wait for it to finish and try again"
+    pending: "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed"
+    volumeWithoutRights: "TUN is not available for a copy on a FAT/exFAT drive — move the app to an NTFS drive"
   lightweightModeEntered:
     title: حالت سبک
     body: به حالت سبک وارد شد.

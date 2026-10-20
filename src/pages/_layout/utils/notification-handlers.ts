@@ -240,6 +240,18 @@ export const handleNoticeMessage = (
       showNotice.error(
         'settings.sections.system.notifications.tunMode.serviceSilent',
       ),
+    'tun::setup_busy': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.tunMode.setupBusy',
+      ),
+    'tun::setup_pending': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.tunMode.setupPending',
+      ),
+    'tun::volume_without_rights': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.tunMode.volumeWithoutRights',
+      ),
     'tun::start_failed': () =>
       showNotice.error(
         'settings.sections.system.notifications.tunMode.autoDisabled',

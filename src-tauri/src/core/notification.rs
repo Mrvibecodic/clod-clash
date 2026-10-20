@@ -445,17 +445,18 @@ mod tests {
         "tun::no_traffic",
         "tun::rights_declined",
         "tun::service_silent",
+        "tun::setup_busy",
         "tun::setup_done",
         "tun::setup_failed",
+        "tun::setup_pending",
         "tun::setup_started",
         "tun::start_failed",
+        "tun::volume_without_rights",
         "update::breaking_changes",
         "update::install_failed",
         "update_failed",
         "update_with_clash_proxy",
     ];
-    const COMMAND_MARKERS: &[&str] = &["tun::setup_busy", "tun::setup_pending", "tun::volume_without_rights"];
-
     fn rust_sources(dir: &Path, found: &mut Vec<PathBuf>) {
         let Ok(entries) = std::fs::read_dir(dir) else {
             return;
@@ -736,7 +737,7 @@ mod tests {
             let source = std::fs::read_to_string(path).unwrap_or_default();
             for status in statuses_in(&source) {
                 assert!(
-                    NOTICE_STATUSES.contains(&status.as_str()) || COMMAND_MARKERS.contains(&status.as_str()),
+                    NOTICE_STATUSES.contains(&status.as_str()),
                     "{}: статус {status} не объявлен в NOTICE_STATUSES",
                     path.display()
                 );

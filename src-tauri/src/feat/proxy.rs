@@ -65,6 +65,15 @@ pub async fn close_connections_via(previous_proxy: &str) -> usize {
     closed
 }
 
+/// Чем кончилось нажатие переключателя в трее или горячей клавишей.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Toggled {
+    /// Настройку переключили; внутри — что теперь стоит.
+    To(bool),
+    /// Ничего не переключали; причину, если она есть, уже сказали.
+    Untouched,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SystemProxyStep {
     LeaveEverythingAlone,
@@ -98,7 +107,7 @@ fn exit_is_under_way() -> bool {
     }
 }
 
-pub async fn toggle_system_proxy() -> bool {
+pub async fn toggle_system_proxy() -> Toggled {
     // Направление — по тому, что стоит в системе, как у кнопки в окне: прокси
     // мог снять кто-то другой, и тогда нажатие должно его включить.
     let current = crate::core::sysopt::Sysopt::global().our_proxy_is_on().await;
@@ -111,7 +120,7 @@ pub async fn toggle_system_proxy() -> bool {
     };
 
     match system_proxy_step(exit_is_under_way(), current, auto_close_connection, tun_carries_traffic) {
-        SystemProxyStep::LeaveEverythingAlone => return current,
+        SystemProxyStep::LeaveEverythingAlone => return Toggled::Untouched,
         SystemProxyStep::DropConnectionsThenSwitch => {
             if let Err(err) = handle::Handle::mihomo().close_all_connections().await {
                 logging!(error, Type::ProxyMode, "Failed to close all connections: {err}");
@@ -134,45 +143,67 @@ pub async fn toggle_system_proxy() -> bool {
     match patch_result {
         Ok(_) => {
             handle::Handle::refresh_verge();
-            Config::verge()
-                .await
-                .latest_arc()
-                .enable_system_proxy
-                .unwrap_or(requested)
+            Toggled::To(
+                Config::verge()
+                    .await
+                    .latest_arc()
+                    .enable_system_proxy
+                    .unwrap_or(requested),
+            )
         }
         Err(err) => {
             logging!(error, Type::ProxyMode, "{err}");
             if crate::core::sysopt::Sysopt::global().write_failed() {
                 handle::Handle::notice_message("sysproxy::write_failed", err.to_string());
             }
-            current
+            Toggled::Untouched
         }
     }
 }
 
-/// Что записать по нажатию «TUN» в трее или клавишей; `None` — ничего.
-/// Включается, как в окне, только при готовой службе: отказ в правах, неудача
-/// установки, уже идущая или отложенная подготовка TUN не включают.
-async fn tun_switch_to(exiting: bool, active: bool, prepare: impl AsyncFnOnce() -> SetupAnswer) -> Option<bool> {
+/// Что записать по нажатию «TUN» в трее или клавишей; `Err` — ничего, с
+/// причиной отказа, которую человеку ещё не сказали. Включается, как в окне,
+/// только при готовой службе: отказ в правах, неудача установки, уже идущая
+/// или отложенная подготовка TUN не включают.
+async fn tun_switch_to(
+    exiting: bool,
+    active: bool,
+    prepare: impl AsyncFnOnce() -> SetupAnswer,
+) -> Result<bool, Option<&'static str>> {
     if exiting {
-        return None;
+        return Err(None);
     }
     if active {
-        return Some(false);
+        return Ok(false);
     }
-    (prepare().await == SetupAnswer::Ready).then_some(true)
+    match prepare().await {
+        SetupAnswer::Ready => Ok(true),
+        SetupAnswer::NotReady => Err(None),
+        SetupAnswer::Refused(marker) => Err(Some(marker)),
+    }
 }
 
-pub async fn toggle_tun_mode() -> bool {
+pub async fn toggle_tun_mode() -> Toggled {
     let desired = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
     let active = crate::feat::tun::is_active_with(desired);
 
-    let Some(enable) = tun_switch_to(exit_is_under_way(), active, async || {
+    let enable = match tun_switch_to(exit_is_under_way(), active, async || {
         crate::feat::tun::ensure_ready(true).await.answer()
     })
     .await
-    else {
-        return active;
+    {
+        Ok(enable) => enable,
+        Err(untold) => {
+            if let Some(marker) = untold {
+                crate::core::notification::tell_the_outcome(
+                    marker,
+                    std::string::String::new(),
+                    crate::utils::notification::NotificationEvent::TunSetupRefused { marker },
+                )
+                .await;
+            }
+            return Toggled::Untouched;
+        }
     };
 
     match super::patch_verge(
@@ -187,7 +218,7 @@ pub async fn toggle_tun_mode() -> bool {
     {
         Ok(_) => {
             handle::Handle::refresh_verge();
-            enable
+            Toggled::To(enable)
         }
         Err(err) => {
             logging!(error, Type::ProxyMode, "{err}");
@@ -195,7 +226,7 @@ pub async fn toggle_tun_mode() -> bool {
             // после удавшегося перезапуска ядра `patch_verge` сохраняет её и
             // всё равно возвращает ошибку. Отвечаем тем, что реально записано,
             // иначе уведомление скажет «TUN выключен» при работающем TUN.
-            Config::verge().await.data_arc().enable_tun_mode.unwrap_or(desired)
+            Toggled::To(Config::verge().await.data_arc().enable_tun_mode.unwrap_or(desired))
         }
     }
 }
@@ -254,7 +285,11 @@ mod tests {
         hops.iter().map(|hop| (*hop).to_owned()).collect()
     }
 
-    async fn tun_switch(exiting: bool, active: bool, answer: SetupAnswer) -> (Option<bool>, bool) {
+    async fn tun_switch(
+        exiting: bool,
+        active: bool,
+        answer: SetupAnswer,
+    ) -> (Result<bool, Option<&'static str>>, bool) {
         let asked = std::sync::atomic::AtomicBool::new(false);
         let target = tun_switch_to(exiting, active, async || {
             asked.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -269,7 +304,7 @@ mod tests {
         for active in [false, true] {
             assert_eq!(
                 tun_switch(true, active, SetupAnswer::Ready).await,
-                (None, false),
+                (Err(None), false),
                 "active={active}: во время выхода подготовка службы не запускается"
             );
         }
@@ -277,18 +312,22 @@ mod tests {
 
     #[tokio::test]
     async fn the_tray_switches_tun_on_only_when_the_service_is_ready() {
-        assert_eq!(tun_switch(false, false, SetupAnswer::Ready).await, (Some(true), true));
-        assert_eq!(tun_switch(false, true, SetupAnswer::Ready).await, (Some(false), false));
+        assert_eq!(tun_switch(false, false, SetupAnswer::Ready).await, (Ok(true), true));
+        assert_eq!(tun_switch(false, true, SetupAnswer::Ready).await, (Ok(false), false));
     }
 
     #[tokio::test]
-    async fn a_refused_service_setup_leaves_tun_off_as_in_the_window() {
-        for answer in [
-            SetupAnswer::NotReady,
-            SetupAnswer::Refused("tun::setup_busy"),
-            SetupAnswer::Refused("tun::setup_pending"),
+    async fn a_refused_service_setup_leaves_tun_off_and_names_the_reason_as_in_the_window() {
+        for (answer, untold) in [
+            (SetupAnswer::NotReady, None),
+            (SetupAnswer::Refused("tun::setup_busy"), Some("tun::setup_busy")),
+            (SetupAnswer::Refused("tun::setup_pending"), Some("tun::setup_pending")),
         ] {
-            assert_eq!(tun_switch(false, false, answer).await, (None, true), "{answer:?}");
+            assert_eq!(
+                tun_switch(false, false, answer).await,
+                (Err(untold), true),
+                "{answer:?}: TUN не включается, а причину отказа окно показало бы"
+            );
         }
     }
 

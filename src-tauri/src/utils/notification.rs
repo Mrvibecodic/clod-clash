@@ -11,6 +11,10 @@ pub enum NotificationEvent<'a> {
     },
     SystemProxyToggled(bool),
     TunModeToggled(bool),
+    /// TUN из трея или клавишей не включён: подготовка службы отказала.
+    TunSetupRefused {
+        marker: &'a str,
+    },
     LightweightModeEntered,
     ProfilesReactivated,
     ProfilesNotReactivated {
@@ -60,6 +64,17 @@ fn notify(title: Cow<'_, str>, body: Cow<'_, str>) {
     app_handle.notification().builder().title(title).body(body).show().ok();
 }
 
+/// Слова для метки отказа подготовки TUN — те же, что у окна.
+fn tun_setup_refusal_text(marker: &str) -> Option<Cow<'static, str>> {
+    Some(match marker {
+        "tun::setup_busy" => clash_verge_i18n::t!("notifications.tunSetup.busy"),
+        "tun::setup_pending" => clash_verge_i18n::t!("notifications.tunSetup.pending"),
+        "tun::volume_without_rights" => clash_verge_i18n::t!("notifications.tunSetup.volumeWithoutRights"),
+        crate::core::notification::EXIT_REFUSAL_STATUS => clash_verge_i18n::t!("common.exitInProgress"),
+        _ => return None,
+    })
+}
+
 pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
     match event {
         NotificationEvent::DashboardToggled => {
@@ -94,6 +109,11 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
             };
             let body = clash_verge_i18n::t!(key);
             notify(title, body);
+        }
+        NotificationEvent::TunSetupRefused { marker } => {
+            if let Some(body) = tun_setup_refusal_text(marker) {
+                notify(clash_verge_i18n::t!("notifications.tunModeToggled.title"), body);
+            }
         }
         NotificationEvent::LightweightModeEntered => {
             let title = clash_verge_i18n::t!("notifications.lightweightModeEntered.title");
@@ -207,7 +227,28 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
 #[allow(clippy::expect_used)]
 #[cfg(test)]
 mod tests {
+    use super::tun_setup_refusal_text;
+    use crate::feat::tun::{SetupAnswer, SetupOutcome};
+
     const LOCALES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../crates/clash-verge-i18n/locales");
+
+    #[test]
+    fn every_refusal_of_the_tun_setup_has_words_for_the_system_notification() {
+        for outcome in [
+            SetupOutcome::AlreadyReady,
+            SetupOutcome::Installed,
+            SetupOutcome::Declined,
+            SetupOutcome::Busy,
+            SetupOutcome::Failed,
+            SetupOutcome::Pending,
+            SetupOutcome::Exiting,
+            SetupOutcome::Unserviceable,
+        ] {
+            if let SetupAnswer::Refused(marker) = outcome.answer() {
+                assert!(tun_setup_refusal_text(marker).is_some(), "{outcome:?}: {marker}");
+            }
+        }
+    }
 
     #[test]
     fn the_log_open_failure_speaks_every_language() {
