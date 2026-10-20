@@ -1,12 +1,13 @@
 # Update Log
 
-The bilingual changelog. Each `## v{version}` section (ended by `---`)
-contains an English part and a Russian part separated by `<!-- lang:en -->`
-and `<!-- lang:ru -->` markers. The release workflow injects the whole
-section into `latest.json` (updater notes) and into the GitHub release
-body; the app's update dialog picks the part matching the UI language
-(Russian UI → ru, anything else → en). Sections without markers are shown
-as-is.
+Каждая секция `## v{версия}` (заканчивается `---`) пишется только по-русски,
+без маркеров языка, и только о том, что заметит пользователь; каждый пункт
+списка — одной строкой, без переносов. Workflow выпуска вставляет секцию
+целиком в `latest.json` (`notes` апдейтера) и в тело релиза на GitHub, окно
+обновления показывает её как есть. В старых секциях (по v0.1.12-alpha.2)
+встречаются английская и русская части с маркерами `<!-- lang:en -->` и
+`<!-- lang:ru -->`: окно показывает из них часть на языке интерфейса. Их не
+переписывать.
 
 ## v0.1.13
 

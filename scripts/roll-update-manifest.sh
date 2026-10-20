@@ -90,7 +90,7 @@ notes=$(awk -v ver="## v$VERSION" '
 ' UPDATELOG.md)
 if [ -z "$notes" ]; then
   echo "::warning::UPDATELOG.md has no section for v$VERSION"
-  notes="New version $VERSION is available."
+  notes="Доступна новая версия $VERSION."
 fi
 
 # tauri-action пишет манифест, пока релиз ещё черновик, со ссылками
