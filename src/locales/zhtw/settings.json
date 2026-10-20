@@ -576,7 +576,7 @@
         "autoRedirect": "自動重導"
       },
       "tooltips": {
-        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated",
         "autoRedirect": "自動配置 nftables/iptables 的 TCP 重導"
       },
       "messages": {

@@ -576,7 +576,7 @@
         "autoRedirect": "Auto Redirect"
       },
       "tooltips": {
-        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated",
         "autoRedirect": "پیکربندی خودکار ریدایرکت‌های TCP در nftables/iptables"
       },
       "messages": {
