@@ -137,7 +137,12 @@ pub fn refuse_while_exiting() -> anyhow::Result<()> {
 }
 
 pub async fn quit_at(pace: ExitPace, cancel_if_core_stays: bool) {
-    if !handle::Handle::global().begin_exiting(cancel_if_core_stays) {
+    let begun = if cancel_if_core_stays {
+        handle::Handle::global().begin_exiting(true)
+    } else {
+        handle::Handle::global().begin_exiting_for_good()
+    };
+    if !begun {
         logging!(info, Type::System, "выход уже идёт, повторный запрос пропущен");
         handle::Handle::notice_message(crate::core::notification::EXIT_REFUSAL_STATUS, "");
         return;
@@ -199,7 +204,6 @@ fn cancel_the_exit(reason: String) {
         Type::System,
         "выход отменён: ядро не остановилось ({reason}); приложение остаётся работать"
     );
-    handle::Handle::global().clear_is_exiting();
     AsyncHandler::spawn(move || async move {
         utils::notification::notify_event(utils::notification::NotificationEvent::QuitCancelled).await;
         handle::Handle::notice_message("app_quit::core_still_running", reason);
@@ -447,7 +451,11 @@ async fn clean_core_first(pace: ExitPace) -> Result<CleanupOutcome, String> {
             core_alive: true,
         } => {
             logging!(warn, Type::Window, "Warning: не удалось остановить ядро: {reason}");
-            return Err(reason);
+            if handle::Handle::global().call_off_the_exit() {
+                return Err(reason);
+            }
+            logging!(warn, Type::Window, "выход не отменяем: его просит система");
+            false
         }
         ExitStop::Failed {
             reason,

@@ -1,11 +1,7 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use clash_verge_logging::{Type, logging};
 use tokio::signal::windows;
 
 use crate::Shutdown;
-
-static IS_CLEANING_UP: AtomicBool = AtomicBool::new(false);
 
 pub async fn listen<F, Fut>(f: F)
 where
@@ -41,17 +37,6 @@ where
                 pace = Shutdown::SessionEnding;
             }
         }
-
-        if IS_CLEANING_UP.load(Ordering::SeqCst) {
-            logging!(
-                info,
-                Type::SystemSignal,
-                "Already shutting down, ignoring repeated signal: {}",
-                signal_name
-            );
-            continue;
-        }
-        IS_CLEANING_UP.store(true, Ordering::SeqCst);
 
         logging!(info, Type::SystemSignal, "Caught Windows signal: {}", signal_name);
 

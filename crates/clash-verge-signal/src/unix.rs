@@ -1,11 +1,7 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use clash_verge_logging::{Type, logging};
 use tokio::signal::unix::{SignalKind, signal};
 
 use crate::Shutdown;
-
-static IS_CLEANING_UP: AtomicBool = AtomicBool::new(false);
 
 pub async fn listen<F, Fut>(f: F)
 where
@@ -55,17 +51,6 @@ where
             }
         }
 
-        if IS_CLEANING_UP.load(Ordering::SeqCst) {
-            logging!(
-                info,
-                Type::SystemSignal,
-                "Already shutting down, ignoring repeated signal: {}",
-                signal_name
-            );
-            continue;
-        }
-        IS_CLEANING_UP.store(true, Ordering::SeqCst);
-
         logging!(info, Type::SystemSignal, "Caught signal {}", signal_name);
 
         f(pace).await;
@@ -98,5 +83,33 @@ mod tests {
 
         let pace = tokio::time::timeout(Duration::from_secs(5), receiver.recv()).await;
         assert!(matches!(pace, Ok(Some(Shutdown::SessionEnding))), "{pace:?}");
+    }
+
+    /// Повторный сигнал тоже доходит до приложения: решает, идёт ли уже
+    /// выход, оно само, а не крейт по своему одноразовому признаку.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_second_signal_reaches_the_handler_too() {
+        let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(super::listen(move |pace| {
+            let sender = sender.clone();
+            async move {
+                let _ = sender.send(pace);
+            }
+        }));
+        tokio::task::yield_now().await;
+
+        for round in 1..=2 {
+            let killed = std::process::Command::new("kill")
+                .arg("-HUP")
+                .arg(std::process::id().to_string())
+                .status()
+                .map(|status| status.success());
+            assert!(matches!(killed, Ok(true)), "{killed:?}");
+            let pace = tokio::time::timeout(Duration::from_secs(5), receiver.recv()).await;
+            assert!(
+                matches!(pace, Ok(Some(Shutdown::SessionEnding))),
+                "сигнал {round}: {pace:?}"
+            );
+        }
     }
 }
