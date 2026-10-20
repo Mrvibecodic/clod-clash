@@ -210,6 +210,7 @@ pub async fn apply_window_size_for_mode(window: &WebviewWindow, simple: bool) {
     let (width, height) = stored
         .map(|(w, h)| (f64::from(w), f64::from(h)))
         .unwrap_or_else(|| default_mode_size(simple));
+    forget_the_last_fit();
     logging_error!(
         Type::Window,
         window.set_size(tauri::LogicalSize::new(
@@ -287,29 +288,20 @@ const fn clamp_fit_height(content: f64, ceiling: f64) -> f64 {
     content.clamp(MINIMAL_HEIGHT, ceiling.max(MINIMAL_HEIGHT))
 }
 
-/// Последняя высота, которую подгон поставил окну, и высота до неё.
-#[derive(Clone, Copy)]
-struct FitAttempt {
-    target: f64,
-    before: f64,
-    at: std::time::Instant,
+/// Последняя высота, которую подгон поставил окну.
+static LAST_FIT: parking_lot::Mutex<Option<f64>> = parking_lot::Mutex::new(None);
+
+/// Своя смена размера окна приложением (новое окно, размер режима) — не
+/// система: после неё подгон снова сажает окно на содержимое.
+fn forget_the_last_fit() {
+    *LAST_FIT.lock() = None;
 }
 
-static LAST_FIT: parking_lot::Mutex<Option<FitAttempt>> = parking_lot::Mutex::new(None);
-
-/// Сколько после нашей подгонки возврат прежней высоты считается отказом
-/// системы, а не новым её действием (Snap, смена монитора).
-const REFUSAL_WINDOW: Duration = Duration::from_secs(1);
-
-/// Система сразу вернула высоту, которая была до нашей подгонки, — тайлинг
-/// не даёт окну её менять. Повторять ту же высоту значило бы бороться с ним
-/// бесконечно и мерцать; новая высота содержимого — уже другая попытка.
-fn the_system_refused(last: Option<FitAttempt>, target: f64, current: f64, now: std::time::Instant) -> bool {
-    last.is_some_and(|attempt| {
-        (attempt.target - target).abs() < 1.0
-            && (attempt.before - current).abs() < 1.0
-            && now.saturating_duration_since(attempt.at) < REFUSAL_WINDOW
-    })
+/// Содержимое то же, а высота окна уже не та, что поставил подгон: её
+/// поставила система (Snap, плитки, отказ тайлинга). Перебивать её значило бы
+/// выбивать окно из раскладки; новая высота содержимого — уже другая попытка.
+fn the_system_set_the_height(last_fit: Option<f64>, target: f64, current: f64) -> bool {
+    last_fit.is_some_and(|fitted| (fitted - target).abs() < 1.0 && (fitted - current).abs() >= 1.0)
 }
 
 /// Посадить окно на высоту содержимого. Возвращает потолок рабочей области
@@ -341,15 +333,10 @@ pub async fn fit_window_to_content(window: &WebviewWindow, content_height: f64) 
     if (current.height - target).abs() < 1.0 {
         return Some(ceiling);
     }
-    let now = std::time::Instant::now();
-    if the_system_refused(*LAST_FIT.lock(), target, current.height, now) {
+    if the_system_set_the_height(*LAST_FIT.lock(), target, current.height) {
         return Some(ceiling);
     }
-    *LAST_FIT.lock() = Some(FitAttempt {
-        target,
-        before: current.height,
-        at: now,
-    });
+    *LAST_FIT.lock() = Some(target);
     logging_error!(
         Type::Window,
         window.set_size(tauri::LogicalSize::new(current.width, target))
@@ -360,31 +347,24 @@ pub async fn fit_window_to_content(window: &WebviewWindow, content_height: f64) 
 
 #[cfg(test)]
 mod fit_tests {
-    use super::{FitAttempt, MINIMAL_HEIGHT, REFUSAL_WINDOW, clamp_fit_height, the_system_refused};
-    use std::time::{Duration, Instant};
+    use super::{MINIMAL_HEIGHT, clamp_fit_height, the_system_set_the_height};
 
-    /// Тайлинг вернул прежнюю высоту сразу — ту же высоту не повторяем; новую
-    /// высоту содержимого, позднее действие системы и первую попытку — ставим.
+    /// Высоту, которую поставила система, подгон не перебивает, пока не
+    /// сменилось содержимое; первую подгонку и новое содержимое — ставит.
     #[test]
-    fn a_height_the_system_just_refused_is_not_forced_again() {
-        let at = Instant::now();
-        let last = Some(FitAttempt {
-            target: 600.0,
-            before: 900.0,
-            at,
-        });
-        let soon = at + Duration::from_millis(200);
-        assert!(the_system_refused(last, 600.0, 900.0, soon));
-        assert!(!the_system_refused(last, 640.0, 900.0, soon), "содержимое стало другим");
+    fn a_height_the_system_set_is_kept_until_the_content_changes() {
+        let fitted = Some(600.0);
         assert!(
-            !the_system_refused(last, 600.0, 700.0, soon),
-            "система поставила новую высоту"
+            the_system_set_the_height(fitted, 600.0, 900.0),
+            "тайлинг вернул прежнюю"
         );
+        assert!(the_system_set_the_height(fitted, 600.0, 1040.0), "Snap во всю высоту");
         assert!(
-            !the_system_refused(last, 600.0, 900.0, at + REFUSAL_WINDOW),
-            "позднее действие системы — снова подгоняем"
+            !the_system_set_the_height(fitted, 640.0, 1040.0),
+            "содержимое стало другим"
         );
-        assert!(!the_system_refused(None, 600.0, 900.0, soon));
+        assert!(!the_system_set_the_height(fitted, 600.0, 600.4), "высота наша");
+        assert!(!the_system_set_the_height(None, 600.0, 900.0), "подгонки ещё не было");
     }
 
     #[test]
@@ -411,6 +391,7 @@ mod fit_tests {
 
 pub async fn build_new_window() -> Result<WebviewWindow, String> {
     let app_handle = handle::Handle::app_handle();
+    forget_the_last_fit();
 
     let config = Config::verge().await;
     let latest = config.latest_arc();
