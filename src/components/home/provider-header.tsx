@@ -17,7 +17,7 @@ import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
 import { getProfileLogo } from '@/services/cmds'
 import { profileDisplayName } from '@/utils/profile-name'
-import { providerImageView } from '@/utils/provider-image'
+import { awaitsCopy, providerImageView } from '@/utils/provider-image'
 import { clockSkew, missedUpdates } from '@/utils/subscription-status'
 
 // Чаще спрашивать незачем: после неудачной загрузки бэкенд столько же не идёт
@@ -70,10 +70,11 @@ export const ProviderHeader = ({ profile, showSettings }: Props) => {
     ([, uid]) => getProfileLogo(uid as string),
     {
       revalidateOnFocus: false,
-      refreshInterval: (data) => (data || !profile.logo ? 0 : LOGO_RETRY_MS),
+      refreshInterval: (data) =>
+        profile.logo && awaitsCopy(data) ? LOGO_RETRY_MS : 0,
     },
   )
-  const logo = providerImageView(profile.logo, cachedLogo ?? '')
+  const logo = providerImageView(profile.logo, cachedLogo)
 
   const expire = profile.extra?.expire ?? 0
   const countdown = useExpiryCountdown(expire, clockSkew(profile) ?? 0)

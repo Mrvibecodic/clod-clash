@@ -2,8 +2,8 @@ use crate::{
     cmd::{CmdResult, StringifyErr as _},
     utils::{
         dirs::{self, PathBufExec as _},
-        network::{NetworkManager, ProxyType},
-        public_url::{MAX_IMAGE_BYTES, request_image},
+        network::ProxyType,
+        public_url::{MAX_IMAGE_BYTES, read_image, request_image},
         retry::try_strategies,
     },
 };
@@ -38,44 +38,14 @@ fn ensure_icon_cache_target(icon_cache_dir: &Path, file_name: &str) -> CmdResult
     Ok(icon_path)
 }
 
-fn normalized_text_prefix(content: &[u8]) -> std::string::String {
-    let content = content.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(content);
-    let start = content
-        .iter()
-        .position(|byte| !byte.is_ascii_whitespace())
-        .unwrap_or(content.len());
-    let end = content.len().min(start.saturating_add(2048));
-    let prefix = &content[start..end];
-    std::string::String::from_utf8_lossy(prefix).to_ascii_lowercase()
-}
-
-fn looks_like_html(content: &[u8]) -> bool {
-    let prefix = normalized_text_prefix(content);
-    prefix.starts_with("<!doctype html") || prefix.starts_with("<html") || prefix.starts_with("<head")
-}
-
-fn looks_like_svg(content: &[u8]) -> bool {
-    let prefix = normalized_text_prefix(content);
-    prefix.starts_with("<svg")
-        || ((prefix.starts_with("<?xml") || prefix.starts_with("<!doctype svg")) && prefix.contains("<svg"))
-}
-
 async fn fetch_icon(url: &str) -> anyhow::Result<Vec<u8>> {
     try_strategies(ProxyType::Localhost, [ProxyType::System], |proxy| async move {
         let response = request_image(url, proxy, reqwest::header::HeaderMap::new())
             .await?
             .error_for_status()?;
-        NetworkManager::read_capped_bytes(response, MAX_IMAGE_BYTES).await
+        Ok(read_image(response, MAX_IMAGE_BYTES).await?.0)
     })
     .await
-}
-
-fn is_supported_icon_content(content: &[u8]) -> bool {
-    if looks_like_html(content) {
-        return false;
-    }
-
-    tauri::image::Image::from_bytes(content).is_ok() || looks_like_svg(content)
 }
 
 pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String> {
@@ -95,11 +65,6 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
     let temp_path = ensure_icon_cache_target(&icon_cache_dir, temp_name.as_str())?;
 
     let content = fetch_icon(url.as_str()).await.stringify_err()?;
-
-    if !is_supported_icon_content(&content) {
-        let _ = temp_path.remove_if_exists().await;
-        return Err(format!("Downloaded content is not a valid image: {}", url.as_str()).into());
-    }
 
     {
         let mut file = match fs::File::create(&temp_path).await {
@@ -299,55 +264,5 @@ mod tests {
         let nested = base.join("nested").join("ok.png");
         assert!(ensure_icon_cache_target(&base, nested.to_string_lossy().as_ref()).is_err());
         assert!(ensure_icon_cache_target(&base, "../ok.png").is_err());
-    }
-
-    #[test]
-    fn looks_like_svg_accepts_plain_svg() {
-        assert!(looks_like_svg(br#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#));
-    }
-
-    #[test]
-    fn looks_like_svg_accepts_xml_prefixed_svg() {
-        assert!(looks_like_svg(
-            br#"<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"></svg>"#
-        ));
-    }
-
-    #[test]
-    fn looks_like_svg_accepts_doctype_svg() {
-        assert!(looks_like_svg(
-            br#"<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"><svg xmlns="http://www.w3.org/2000/svg"></svg>"#
-        ));
-    }
-
-    #[test]
-    fn looks_like_svg_accepts_bom_and_leading_whitespace() {
-        assert!(looks_like_svg(
-            b"\xEF\xBB\xBF \n\t<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"
-        ));
-    }
-
-    #[test]
-    fn looks_like_svg_rejects_non_svg_payloads() {
-        assert!(!looks_like_svg(br#"{"status":"ok"}"#));
-        assert!(!looks_like_svg(br"text/plain"));
-    }
-
-    #[test]
-    fn looks_like_html_detects_common_html_prefixes() {
-        assert!(looks_like_html(br"<!DOCTYPE html><html></html>"));
-        assert!(looks_like_html(br"<html><body>oops</body></html>"));
-        assert!(looks_like_html(br"<head><title>oops</title></head>"));
-        assert!(looks_like_html(
-            b"\xEF\xBB\xBF \n\t<!DOCTYPE HTML><html><body>oops</body></html>"
-        ));
-    }
-
-    #[test]
-    fn is_supported_icon_content_rejects_html_and_accepts_svg() {
-        assert!(!is_supported_icon_content(br"<!DOCTYPE html><html></html>"));
-        assert!(is_supported_icon_content(
-            br#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#
-        ));
     }
 }

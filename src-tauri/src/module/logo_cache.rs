@@ -3,8 +3,8 @@ use crate::{
     core::handle,
     utils::{
         dirs, help,
-        network::{NetworkManager, ProxyType},
-        public_url::{MAX_IMAGE_BYTES, request_image},
+        network::ProxyType,
+        public_url::{MAX_IMAGE_BYTES, is_refused, read_image, request_image},
         retry::try_strategies,
     },
 };
@@ -33,26 +33,6 @@ fn is_safe_uid(uid: &str) -> bool {
     !uid.is_empty() && uid.len() <= 64 && uid.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
 }
 
-fn extension_for(content_type: &str) -> Option<&'static str> {
-    let kind = content_type
-        .split(';')
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .to_ascii_lowercase();
-    match kind.as_str() {
-        "image/png" => Some("png"),
-        "image/svg+xml" => Some("svg"),
-        "image/jpeg" | "image/jpg" => Some("jpg"),
-        "image/webp" => Some("webp"),
-        "image/avif" => Some("avif"),
-        "image/gif" => Some("gif"),
-        "image/x-icon" | "image/vnd.microsoft.icon" => Some("ico"),
-        "image/bmp" => Some("bmp"),
-        _ => None,
-    }
-}
-
 const fn mime_for(extension: &str) -> &'static str {
     match extension.as_bytes() {
         b"svg" => "image/svg+xml",
@@ -63,6 +43,28 @@ const fn mime_for(extension: &str) -> &'static str {
         b"ico" => "image/x-icon",
         b"bmp" => "image/bmp",
         _ => "image/png",
+    }
+}
+
+/// Что окно ставит на место картинки провайдера.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Shown {
+    /// Копия с диска, `data:`-URL.
+    Ready(String),
+    /// Копии пока нет: ещё не скачана или сервер не ответил.
+    Pending,
+    /// Копии не будет, пока адрес в подписке тот же: картинки нет или
+    /// приложение её не берёт (не публичный https, не картинка, сверх потолка).
+    Never,
+}
+
+impl Shown {
+    pub fn ready(self) -> Option<String> {
+        match self {
+            Self::Ready(src) => Some(src),
+            Self::Pending | Self::Never => None,
+        }
     }
 }
 
@@ -259,22 +261,8 @@ async fn download(picture: Picture, uid: &str, url: &str) -> Result<bool> {
             Reply::Fresh => {}
         }
 
-        let content_type = response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .to_owned();
-        let Some(extension) = extension_for(&content_type) else {
-            bail!("logo is not an image ({content_type})");
-        };
-
         let validators_headers = response.headers().clone();
-        let bytes = NetworkManager::read_capped_bytes(response, max_bytes).await?;
-        if bytes.is_empty() {
-            bail!("logo response is empty");
-        }
-
+        let (bytes, extension) = read_image(response, max_bytes).await?;
         store_fresh(&cache_dir()?, stem, url, extension, &validators_headers, &bytes).await?;
         Ok(true)
     })
@@ -364,57 +352,66 @@ pub async fn read(picture: Picture, uid: &str) -> Option<String> {
 
 const RETRY_AFTER: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 
-static COLD_MISSES: std::sync::OnceLock<std::sync::Mutex<HashMap<String, std::time::Instant>>> =
-    std::sync::OnceLock::new();
+/// Неудачная попытка и то, был ли это отказ (`Shown::Never`).
+type ColdMiss = (std::time::Instant, bool);
 
-fn cold_misses() -> &'static std::sync::Mutex<HashMap<String, std::time::Instant>> {
+static COLD_MISSES: std::sync::OnceLock<std::sync::Mutex<HashMap<String, ColdMiss>>> = std::sync::OnceLock::new();
+
+fn cold_misses() -> &'static std::sync::Mutex<HashMap<String, ColdMiss>> {
     COLD_MISSES.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
 }
 
-fn cold_miss_recently(uid: &str) -> bool {
-    cold_misses()
-        .lock()
-        .ok()
-        .and_then(|slot| slot.get(uid).copied())
-        .is_some_and(|at| at.elapsed() < RETRY_AFTER)
+/// Ответ окну, пока прошлая неудача свежая.
+fn recent_cold_miss(stem: &str) -> Option<Shown> {
+    let (at, refused) = cold_misses().lock().ok()?.get(stem).copied()?;
+    (at.elapsed() < RETRY_AFTER).then_some(if refused { Shown::Never } else { Shown::Pending })
 }
 
 const MAX_COLD_MISSES: usize = 64;
 
-fn remember_cold_miss(uid: &str) {
+fn remember_cold_miss(stem: &str, refused: bool) -> Shown {
     if let Ok(mut slot) = cold_misses().lock() {
         if slot.len() >= MAX_COLD_MISSES {
-            slot.retain(|_, at| at.elapsed() < RETRY_AFTER);
+            slot.retain(|_, (at, _)| at.elapsed() < RETRY_AFTER);
         }
         if slot.len() < MAX_COLD_MISSES {
-            slot.insert(uid.into(), std::time::Instant::now());
+            slot.insert(stem.into(), (std::time::Instant::now(), refused));
         }
     }
+    if refused { Shown::Never } else { Shown::Pending }
 }
 
-pub async fn read_or_fetch(picture: Picture, uid: &str) -> Option<String> {
+pub async fn read_or_fetch(picture: Picture, uid: &str) -> Shown {
     if let Some(cached) = read(picture, uid).await {
-        return Some(cached);
+        return Shown::Ready(cached);
     }
-    let miss_key = picture.stem(uid);
-    if cold_miss_recently(&miss_key) {
-        return None;
+    let stem = picture.stem(uid);
+    if let Some(shown) = recent_cold_miss(&stem) {
+        return shown;
     }
+    let Some(url) = picture.url(uid).await.filter(|url| !url.trim().is_empty()) else {
+        return Shown::Never;
+    };
     // Холодный кэш: картинку получает сам этот ответ, событие окну не нужно.
-    let _ = sync_picture(picture, uid).await;
-    let fresh = read(picture, uid).await;
-    if fresh.is_none() {
-        remember_cold_miss(&miss_key);
+    let refused = match download(picture, uid, url.trim()).await {
+        Ok(_) => false,
+        Err(err) => {
+            logging!(warn, Type::Config, "profile {picture:?} for {uid} not cached: {err:#}");
+            is_refused(&err)
+        }
+    };
+    match read(picture, uid).await {
+        Some(fresh) => Shown::Ready(fresh),
+        None => remember_cold_miss(&stem, refused),
     }
-    fresh
 }
 
 #[allow(clippy::expect_used, clippy::panic)]
 #[cfg(test)]
 mod tests {
     use super::{
-        KNOWN_EXTENSIONS, Reply, Validators, extension_for, is_safe_uid, mime_for, reply_to, saved_validators,
-        store_fresh, validators_path,
+        KNOWN_EXTENSIONS, Reply, Validators, is_safe_uid, mime_for, reply_to, saved_validators, store_fresh,
+        validators_path,
     };
     use reqwest::header::{ETAG, HeaderMap, HeaderValue, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 
@@ -535,29 +532,13 @@ mod tests {
 
     #[test]
     fn extensions_round_trip() {
-        for content_type in [
-            "image/png",
-            "image/svg+xml",
-            "image/jpeg",
-            "image/jpg",
-            "image/webp",
-            "image/avif",
-            "image/gif",
-            "image/x-icon",
-            "image/vnd.microsoft.icon",
-            "image/bmp",
-            "image/PNG; charset=binary",
-        ] {
-            let extension = extension_for(content_type).unwrap_or_else(|| panic!("{content_type} must be accepted"));
+        for (_, extension) in crate::utils::public_url::tests::IMAGE_SAMPLES {
             assert!(
                 KNOWN_EXTENSIONS.contains(&extension),
-                "{content_type} -> {extension} is written but never read back"
+                "{extension} is written but never read back"
             );
             assert!(!mime_for(extension).is_empty());
         }
-
-        assert_eq!(extension_for("text/html"), None);
-        assert_eq!(extension_for("application/octet-stream"), None);
     }
 
     #[test]

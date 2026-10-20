@@ -5,7 +5,7 @@ import { providerImageView } from '@/utils/provider-image'
 
 export const GroupIcon = ({ icon, name }: { icon?: string; name: string }) => {
   const cached = useIconCache({ icon, cacheKey: name.replaceAll(' ', '') })
-  const view = providerImageView(icon, cached)
+  const view = providerImageView(icon, cached ? { ready: cached } : undefined)
 
   if (view === undefined) return null
   if (view === 'pending') {

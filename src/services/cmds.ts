@@ -7,6 +7,7 @@ import { showNotice } from '@/services/notice-service'
 import { clearProxyChain } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
 import { enumText } from '@/utils/plugin-enum'
+import type { ProviderPicture } from '@/utils/provider-image'
 import { ambiguousNames, labelFor, own } from '@/utils/proxy-label'
 import type { ServiceUninstallOutcome } from '@/utils/service-uninstall'
 import type { UpdatesInFlight } from '@/utils/subscription-status'
@@ -406,7 +407,7 @@ export async function getDeviceIdentity() {
 }
 
 export async function getProfileLogo(uid: string) {
-  return invoke<string | null>('get_profile_logo', { uid })
+  return invoke<ProviderPicture>('get_profile_logo', { uid })
 }
 
 export async function getProfileBackground(uid: string) {
