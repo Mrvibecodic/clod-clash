@@ -261,7 +261,48 @@ pub fn is_app_elevated() -> bool {
 }
 
 pub async fn is_capable() -> bool {
-    is_app_elevated() || matches!(probe_service().await, ServiceProbe::Ready(_))
+    is_app_elevated() || (the_service_serves_this_copy() && matches!(probe_service().await, ServiceProbe::Ready(_)))
+}
+
+/// Служба признаёт копию по правам доступа к её каталогу данных, а на томе
+/// без прав доступа (FAT/exFAT) признать её нечем: такой копии служба не
+/// служит, и ставить её незачем.
+pub fn the_service_serves_this_copy() -> bool {
+    static SERVES: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *SERVES.get_or_init(|| !crate::utils::dirs::app_home_dir().is_ok_and(|home| volume_without_access_rights(&home)))
+}
+
+#[cfg(target_os = "windows")]
+fn volume_without_access_rights(path: &std::path::Path) -> bool {
+    use std::os::windows::ffi::OsStrExt as _;
+    use windows_sys::Win32::Storage::FileSystem::{GetVolumeInformationW, GetVolumePathNameW};
+    const FILE_PERSISTENT_ACLS: u32 = 0x0000_0008;
+
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    let mut root = [0_u16; 261];
+    let found = unsafe { GetVolumePathNameW(wide.as_ptr(), root.as_mut_ptr(), root.len() as u32) };
+    if found == 0 {
+        return false;
+    }
+    let mut flags = 0_u32;
+    let answered = unsafe {
+        GetVolumeInformationW(
+            root.as_ptr(),
+            std::ptr::null_mut(),
+            0,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &mut flags,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    answered != 0 && flags & FILE_PERSISTENT_ACLS == 0
+}
+
+#[cfg(not(target_os = "windows"))]
+const fn volume_without_access_rights(_path: &std::path::Path) -> bool {
+    false
 }
 
 pub async fn capability_and_repair() -> (bool, bool) {
@@ -281,11 +322,14 @@ pub fn forget_capability() {
 
 async fn capability_and_repair_now() -> (bool, bool) {
     let elevated = is_app_elevated();
-    capability_of(&probe_service().await, elevated)
+    capability_of(&probe_service().await, elevated, the_service_serves_this_copy())
 }
 
 /// (умеет ли TUN, нужна ли починка службы) по одному опросу службы.
-const fn capability_of(probe: &ServiceProbe, elevated: bool) -> (bool, bool) {
+const fn capability_of(probe: &ServiceProbe, elevated: bool, serves_this_copy: bool) -> (bool, bool) {
+    if !serves_this_copy {
+        return (elevated, false);
+    }
     match probe {
         ServiceProbe::Ready(_) => (true, false),
         ServiceProbe::Outdated => (elevated, true),
@@ -1142,6 +1186,7 @@ pub enum SetupOutcome {
     Failed,
     Pending,
     Exiting,
+    Unserviceable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1159,6 +1204,7 @@ impl SetupOutcome {
             Self::Busy => SetupAnswer::Refused("tun::setup_busy"),
             Self::Pending => SetupAnswer::Refused("tun::setup_pending"),
             Self::Exiting => SetupAnswer::Refused(EXIT_REFUSAL_STATUS),
+            Self::Unserviceable => SetupAnswer::Refused("tun::volume_without_rights"),
         }
     }
 }
@@ -1175,6 +1221,15 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
 
     if user_initiated {
         forget_last_notice();
+    }
+
+    if !is_app_elevated() && !the_service_serves_this_copy() {
+        logging!(
+            info,
+            Type::Service,
+            "каталог данных копии на томе без прав доступа — служба ей не служит, не предлагаем"
+        );
+        return SetupOutcome::Unserviceable;
     }
 
     if already_ready(user_initiated).await {
@@ -1420,10 +1475,36 @@ mod tests {
         let ready = ServiceProbe::Ready(ServiceReady { staging: false });
         let silent = ServiceProbe::Silent("example".into());
         for elevated in [false, true] {
-            assert_eq!(capability_of(&ready, elevated), (true, false));
-            assert_eq!(capability_of(&ServiceProbe::Outdated, elevated), (elevated, true));
-            assert_eq!(capability_of(&silent, elevated), (elevated, false));
+            assert_eq!(capability_of(&ready, elevated, true), (true, false));
+            assert_eq!(capability_of(&ServiceProbe::Outdated, elevated, true), (elevated, true));
+            assert_eq!(capability_of(&silent, elevated, true), (elevated, false));
         }
+    }
+
+    /// Копия на томе без прав доступа: служба ей не служит, поэтому ни
+    /// «готово», ни «почините службу» — TUN только у копии с правами
+    /// администратора.
+    #[test]
+    fn a_copy_the_service_cannot_serve_is_never_offered_the_service() {
+        use crate::core::service::ServiceReady;
+
+        let ready = ServiceProbe::Ready(ServiceReady { staging: false });
+        let silent = ServiceProbe::Silent("example".into());
+        for probe in [&ready, &ServiceProbe::Outdated, &silent] {
+            assert_eq!(capability_of(probe, false, false), (false, false), "{probe:?}");
+            assert_eq!(capability_of(probe, true, false), (true, false), "{probe:?}");
+        }
+        assert_eq!(
+            SetupOutcome::Unserviceable.answer(),
+            SetupAnswer::Refused("tun::volume_without_rights")
+        );
+        let ensure = crate::utils::source_scan::fn_body(
+            crate::utils::source_scan::without_test_modules(include_str!("tun.rs")),
+            "pub async fn ensure_ready(",
+        )
+        .unwrap_or_default();
+        let refused = ensure.find("SetupOutcome::Unserviceable").unwrap_or(usize::MAX);
+        assert!(refused < ensure.find("already_ready(").unwrap_or_default(), "{ensure}");
     }
 
     fn tunnel(edit: impl FnOnce(&mut TunConfig)) -> TunConfig {
@@ -1705,7 +1786,7 @@ mod tests {
         assert_eq!(START_ATTEMPTS.load(Ordering::Acquire), 0);
     }
 
-    const EVERY_OUTCOME: [SetupOutcome; 7] = [
+    const EVERY_OUTCOME: [SetupOutcome; 8] = [
         SetupOutcome::AlreadyReady,
         SetupOutcome::Installed,
         SetupOutcome::Declined,
@@ -1713,6 +1794,7 @@ mod tests {
         SetupOutcome::Failed,
         SetupOutcome::Pending,
         SetupOutcome::Exiting,
+        SetupOutcome::Unserviceable,
     ];
 
     #[test]
@@ -1748,7 +1830,7 @@ mod tests {
         }
         assert_eq!(ready, 2, "готовыми считаются ровно два исхода");
         assert_eq!(not_ready, 2, "«службы нет» значат ровно два исхода");
-        assert_eq!(markers.len(), 3, "у каждого отказа своя причина");
+        assert_eq!(markers.len(), 4, "у каждого отказа своя причина");
     }
 
     #[test]

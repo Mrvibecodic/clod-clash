@@ -8,6 +8,8 @@ const SETUP_MARKERS: Record<string, TranslationKey> = {
   'tun::setup_pending':
     'settings.sections.system.notifications.tunMode.setupPending',
   'tun::setup_busy': 'settings.sections.system.notifications.tunMode.setupBusy',
+  'tun::volume_without_rights':
+    'settings.sections.system.notifications.tunMode.volumeWithoutRights',
   // «Идёт выход» — это отказ, а не отсутствие службы: без своей строки экран
   // звал бы ставить уже установленную службу.
   'app_quit::in_progress':

@@ -460,7 +460,7 @@ mod tests {
         "update_failed",
         "update_with_clash_proxy",
     ];
-    const COMMAND_MARKERS: &[&str] = &["tun::setup_busy", "tun::setup_pending"];
+    const COMMAND_MARKERS: &[&str] = &["tun::setup_busy", "tun::setup_pending", "tun::volume_without_rights"];
 
     fn rust_sources(dir: &Path, found: &mut Vec<PathBuf>) {
         let Ok(entries) = std::fs::read_dir(dir) else {

@@ -860,6 +860,7 @@ interface ITunState {
   capable: boolean
   setup_declined: boolean
   needs_repair: boolean
+  service_serves_this_copy: boolean
   runtime_stack?: string | null
   failure?: string | null
 }

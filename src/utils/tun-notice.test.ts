@@ -32,6 +32,17 @@ describe('подготовка службы для TUN', () => {
     )
   })
 
+  it('копия на томе без прав доступа получает объяснение, а не предложение поставить службу', () => {
+    assert.equal(
+      tunSetupKey('tun::volume_without_rights'),
+      'settings.sections.system.notifications.tunMode.volumeWithoutRights',
+    )
+    assert.match(
+      read('../../src-tauri/src/feat/tun.rs'),
+      /Self::Unserviceable => SetupAnswer::Refused\("tun::volume_without_rights"\)/,
+    )
+  })
+
   it('незнакомая ошибка остаётся как есть', () => {
     assert.equal(tunSetupKey('tun::start_failed'), undefined)
     assert.equal(tunSetupKey(undefined), undefined)

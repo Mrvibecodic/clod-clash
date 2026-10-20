@@ -134,6 +134,7 @@ pub struct TunState {
     pub capable: bool,
     pub setup_declined: bool,
     pub needs_repair: bool,
+    pub service_serves_this_copy: bool,
     pub runtime_stack: Option<String>,
     pub failure: Option<&'static str>,
 }
@@ -148,6 +149,7 @@ pub async fn get_tun_state() -> CmdResult<TunState> {
         capable,
         setup_declined: crate::feat::tun::setup_declined_for_this_version().await,
         needs_repair,
+        service_serves_this_copy: crate::feat::tun::the_service_serves_this_copy(),
         runtime_stack: crate::feat::tun::runtime_stack().await,
         failure: crate::feat::tun::last_failure(),
     })

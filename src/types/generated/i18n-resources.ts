@@ -1548,6 +1548,7 @@ export interface TranslationResources {
               setupFailed: string
               setupPending: string
               setupStarted: string
+              volumeWithoutRights: string
             }
           }
           title: string

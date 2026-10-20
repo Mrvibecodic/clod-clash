@@ -35,6 +35,7 @@
           "serviceSilent": "The background service is installed but does not answer, so TUN does not work yet. Try repairing it: Settings, the wrench icon next to the TUN mode switch",
           "setupPending": "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed",
           "setupBusy": "The service setup is already running — wait for it to finish and try again",
+          "volumeWithoutRights": "TUN is not available for a copy on a FAT/exFAT drive — move the app to an NTFS drive",
           "adapterBusy": "Der TUN-Adapter wird von einem anderen Client gehalten oder wurde nicht freigegeben: schließen Sie ihn oder starten Sie den Computer neu",
           "setupStarted": "TUN-Modus wird eingerichtet: Hintergrunddienst wird installiert",
           "setupDone": "TUN-Modus ist bereit",

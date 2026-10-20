@@ -172,8 +172,13 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
   // смотрит версию службы. Прежняя формула «админ ИЛИ служба отвечает» на
   // устаревшей службе давала «доступно», поэтому ни предупреждения, ни кнопки
   // здесь не появлялось — а TUN всё равно не работал.
-  const { tunActive, tunCapable, tunNeedsRepair, mutateTunState } =
-    useTunState()
+  const {
+    tunActive,
+    tunCapable,
+    tunNeedsRepair,
+    tunServiceServesThisCopy,
+    mutateTunState,
+  } = useTunState()
   const { isServiceOk, mutateSystemState } = useSystemState()
   // clod:connect-mode — настройки обязаны знать про замок ровно то же, что и
   // быстрые действия на главной. Без этого экран показывал два обычных
@@ -270,7 +275,16 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
           lockedNote={lockedNote}
           extraIcons={
             <>
-              {!tunCapable && (
+              {!tunCapable && !tunServiceServesThisCopy && (
+                <TooltipIcon
+                  title={t(
+                    'settings.sections.system.notifications.tunMode.volumeWithoutRights',
+                  )}
+                  icon={WarningRounded}
+                  sx={{ color: 'warning.main', ml: 1 }}
+                />
+              )}
+              {!tunCapable && tunServiceServesThisCopy && (
                 <>
                   <TooltipIcon
                     title={t(

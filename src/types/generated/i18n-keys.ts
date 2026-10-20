@@ -549,6 +549,7 @@ export const translationKeys = [
   'settings.sections.system.notifications.tunMode.serviceSilent',
   'settings.sections.system.notifications.tunMode.setupPending',
   'settings.sections.system.notifications.tunMode.setupBusy',
+  'settings.sections.system.notifications.tunMode.volumeWithoutRights',
   'settings.sections.system.notifications.tunMode.adapterBusy',
   'settings.sections.system.notifications.tunMode.setupStarted',
   'settings.sections.system.notifications.tunMode.setupDone',
