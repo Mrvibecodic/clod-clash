@@ -1,11 +1,7 @@
 use flexi_logger::DeferredNow;
 use flexi_logger::filter::LogLineFilter;
-use flexi_logger::writers::FileLogWriter;
 use log::Record;
-use std::{fmt, sync::Arc};
-use tokio::sync::Mutex;
-
-pub type SharedWriter = Arc<Mutex<FileLogWriter>>;
+use std::fmt;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Type {

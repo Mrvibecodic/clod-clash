@@ -1220,7 +1220,6 @@ version = "0.1.0"
 dependencies = [
  "flexi_logger",
  "log",
- "tokio",
 ]
 
 [[package]]

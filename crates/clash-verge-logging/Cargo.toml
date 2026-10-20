@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 log = { workspace = true }
-tokio = { workspace = true }
 flexi_logger = { workspace = true }
 
 [features]
