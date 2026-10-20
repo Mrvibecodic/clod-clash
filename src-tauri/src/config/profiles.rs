@@ -148,13 +148,22 @@ impl IProfiles {
 
     /// Перевести подписку на новый адрес, только если основной — всё ещё `from`.
     pub async fn move_item_url(&mut self, uid: &String, from: String, to: String) -> Result<()> {
+        self.plan_move_item_url(uid, from, to)?;
+        self.save_file().await
+    }
+
+    fn plan_move_item_url(&mut self, uid: &String, from: String, to: String) -> Result<()> {
         let each = self.item_mut(uid)?;
         if each.url.as_ref() != Some(&from) {
             bail!("the subscription address was changed meanwhile");
         }
+        let former = each.former_urls.get_or_insert_with(Vec::new);
+        former.retain(|url| *url != to);
+        if !former.contains(&from) {
+            former.push(from);
+        }
         each.url = Some(to);
-
-        self.save_file().await
+        Ok(())
     }
 
     pub fn patch_config(&mut self, patch: &Self) {
@@ -180,12 +189,20 @@ impl IProfiles {
         self.items.as_ref()
     }
 
-    /// Подписка с этим адресом уже есть: вторая копия не нужна.
+    /// Подписка с этим адресом — нынешним или прежним, до переезда на
+    /// запасной, — уже есть: вторая копия не нужна.
     pub fn remote_with_address(&self, url: &str) -> Option<String> {
         let address = PrfItem::address_of(url)?;
         self.get_items()?
             .iter()
-            .find(|item| item.itype.as_deref() == Some("remote") && item.url.as_deref() == Some(address.as_str()))?
+            .find(|item| {
+                item.itype.as_deref() == Some("remote")
+                    && (item.url.as_ref() == Some(&address)
+                        || item
+                            .former_urls
+                            .as_ref()
+                            .is_some_and(|former| former.contains(&address)))
+            })?
             .uid
             .clone()
     }
@@ -311,6 +328,10 @@ impl IProfiles {
                 patch!(each, item, name);
                 patch!(each, item, desc);
                 patch!(each, item, file);
+                // Адрес сменил человек: прежние адреса больше не эта подписка.
+                if item.url.is_some() && item.url != each.url {
+                    each.former_urls = None;
+                }
                 patch!(each, item, url);
                 patch!(each, item, selected);
                 patch!(each, item, favorites);
@@ -1422,6 +1443,38 @@ pub fn activate_selected_nodes() {
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn a_subscription_moved_to_its_spare_address_is_still_found_by_the_old_one() -> Result<()> {
+        let old = "https://panel.example/sub?t=1";
+        let spare = "https://spare.example/sub?t=1";
+        let mut profiles = IProfiles {
+            items: Some(vec![PrfItem {
+                uid: Some("R1".into()),
+                itype: Some("remote".into()),
+                url: Some(old.into()),
+                ..PrfItem::default()
+            }]),
+            ..IProfiles::default()
+        };
+        let uid: String = "R1".into();
+
+        profiles.plan_move_item_url(&uid, old.into(), spare.into())?;
+        for address in [old, spare] {
+            assert_eq!(
+                profiles.remote_with_address(address).as_deref(),
+                Some("R1"),
+                "{address}"
+            );
+        }
+        assert_eq!(profiles.remote_with_address("https://other.example/sub?t=1"), None);
+
+        profiles.plan_move_item_url(&uid, spare.into(), old.into())?;
+        let item = profiles.get_item(&uid)?;
+        assert_eq!(item.url.as_deref(), Some(old));
+        assert_eq!(item.former_urls.as_deref(), Some([String::from(spare)].as_slice()));
+        Ok(())
+    }
 
     #[test]
     fn a_subscription_already_added_is_found_by_its_address() {

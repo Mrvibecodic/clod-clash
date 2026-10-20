@@ -150,6 +150,11 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub new_sub: Option<String>,
 
+    /// Прежние адреса подписки, с которых она переехала на запасной
+    /// (`clod-move-sub`): ссылка с прежним адресом узнаёт её как добавленную.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub former_urls: Option<Vec<String>>,
+
     /// Подписка скачалась, но ядро её не приняло, и на диск вернулся прежний
     /// профиль. Отметку времени откат намеренно не трогает (виновника отказа
     /// определить нельзя), поэтому без этого признака карточка показывала бы
@@ -1047,6 +1052,7 @@ impl PrfItem {
             clock_skew_at: measured_skew.map(|_| answered_at),
             interval_locked,
             new_sub: sub.new_sub.clone(),
+            former_urls: None,
             not_applied: None,
             update_failed: None,
             hwid_state: sub.hwid_state.as_str().map(Into::into),
