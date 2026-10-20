@@ -36,7 +36,11 @@ import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
 import { SHAPE, TINT } from '@/pages/_theme'
-import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
+import {
+  useAppRefreshers,
+  useClashConfigData,
+  useProxiesData,
+} from '@/providers/app-data-context'
 import delayManager, { effectiveLatencyTimeout } from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
@@ -55,6 +59,7 @@ import {
   entryDelay,
   entryMeasuredAt,
   entryPingTarget,
+  groupsDecidingTraffic,
   groupType,
   hasRealNodes,
   isCorePlaceholder,
@@ -62,11 +67,10 @@ import {
   NON_NODE_TYPES,
   type ProxyNode,
   SELECTABLE_GROUP_TYPES,
-  visibleGroups,
 } from '@/utils/proxy-groups'
 import { hidesType, serverName, typeText } from '@/utils/proxy-label'
 import { serverBehind } from '@/utils/server-behind'
-import { drawerRowCaption, serverRowNames } from '@/utils/server-row'
+import { clashMode, drawerRowCaption, serverRowNames } from '@/utils/server-row'
 import { noServersSeverity } from '@/utils/subscription-status'
 
 const VIRTUALIZE_FROM = 50
@@ -111,7 +115,15 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   )
   const descriptions = useServerDescriptions()
   const freezeMarks = useFreezeMarks()
-  const groups = useMemo(() => visibleGroups(proxies), [proxies])
+  const { clashConfig } = useClashConfigData()
+  const mode = clashMode(clashConfig?.mode)
+  const groups = useMemo(
+    () => groupsDecidingTraffic(proxies, mode),
+    [proxies, mode],
+  )
+  useEffect(() => {
+    if (open && mode === 'direct') onClose()
+  }, [open, mode, onClose])
   const [groupName, setGroupName] = useState<string>('')
   const group = useMemo(
     () => groups.find((item) => item.name === groupName) ?? groups[0],
@@ -652,8 +664,11 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const { verge } = useVerge()
   const { refreshProxy } = useAppRefreshers()
 
+  const { clashConfig } = useClashConfigData()
+  const mode = clashMode(clashConfig?.mode)
+  const direct = mode === 'direct'
   const records = (proxies?.records ?? {}) as Record<string, any>
-  const group = visibleGroups(proxies)[0]
+  const group = groupsDecidingTraffic(proxies, mode)[0]
   const selection = group?.now
   const current = isCorePlaceholder(selection) ? undefined : selection
   const leaf = current ? displayLeaf(records, current) : undefined
@@ -713,7 +728,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
       lastAutoDelayKey = key
       refreshProxy()
         .then(({ data }) => {
-          const fresh = visibleGroups(data)[0]
+          const fresh = groupsDecidingTraffic(data, mode)[0]
           if (fresh?.name !== groupName) return
           const nodes = testNodesOf(fresh, data?.records ?? {})
           lastAutoDelayKey = `${groupName}|${updatedAt}|${nodesSignature(nodes)}`
@@ -735,6 +750,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
     coreMeasures,
     timeout,
     refreshProxy,
+    mode,
   ])
 
   useEffect(() => {
@@ -837,8 +853,8 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   return (
     <Stack
       direction="row"
-      onClick={onOpen}
-      {...pressable(onOpen)}
+      onClick={direct ? undefined : onOpen}
+      {...(direct ? {} : pressable(onOpen))}
       sx={{
         alignItems: 'center',
         gap: 1.5,
@@ -847,7 +863,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
         alignSelf: 'stretch',
         boxSizing: 'border-box',
         borderRadius: SHAPE.surface,
-        cursor: 'pointer',
+        cursor: direct ? 'default' : 'pointer',
         bgcolor: 'background.paper',
         boxShadow: 'var(--card-shadow)',
         transition: (theme) =>
@@ -855,12 +871,14 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
             ['border-color', 'background-color', 'transform', 'box-shadow'],
             { duration: theme.transitions.duration.short },
           ),
-        '@media (hover: hover)': {
-          '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: 'var(--card-shadow-hover)',
-          },
-        },
+        '@media (hover: hover)': direct
+          ? {}
+          : {
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: 'var(--card-shadow-hover)',
+              },
+            },
         '@media (prefers-reduced-motion: reduce)': {
           '&:hover': { transform: 'none' },
         },
@@ -874,17 +892,19 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
                   : 'var(--card-line)'
               : 'var(--card-line)'
           }`,
-        '&:hover': { borderColor: 'primary.main' },
+        '&:hover': direct ? {} : { borderColor: 'primary.main' },
       }}
     >
       {flagName ? <CountryFlag name={flagName} size={26} /> : null}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography noWrap sx={{ fontSize: 14, fontWeight: 700 }}>
-          {names
-            ? names.name
-            : statusRow
-              ? t('home.components.serverStatus.noServers')
-              : t('home.components.serverSelect.none')}
+          {direct
+            ? t('shared.labels.direct')
+            : names
+              ? names.name
+              : statusRow
+                ? t('home.components.serverStatus.noServers')
+                : t('home.components.serverSelect.none')}
         </Typography>
         <Typography
           noWrap
@@ -927,12 +947,14 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
         />
       )}
 
-      <IconButton
-        size="small"
-        aria-label={t('home.components.serverSelect.title')}
-      >
-        <ExpandMoreRoundedIcon />
-      </IconButton>
+      {direct ? null : (
+        <IconButton
+          size="small"
+          aria-label={t('home.components.serverSelect.title')}
+        >
+          <ExpandMoreRoundedIcon />
+        </IconButton>
+      )}
     </Stack>
   )
 }

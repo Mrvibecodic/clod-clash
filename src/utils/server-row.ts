@@ -48,3 +48,25 @@ export const drawerRowCaption = (row: DrawerRow, words: DrawerWords) =>
             ? `${row.typeLabel} · ${serverName(row.leaf, words.direct)}`
             : row.typeLabel
           : row.nodeType
+
+export type ClashMode = 'rule' | 'global' | 'direct'
+
+export const clashMode = (mode: string | undefined): ClashMode => {
+  const normalized = mode?.toLowerCase()
+  return normalized === 'global' || normalized === 'direct'
+    ? normalized
+    : 'rule'
+}
+
+export const trafficGroups = <G>(
+  mode: ClashMode,
+  visible: G[],
+  global: G | undefined,
+): G[] =>
+  mode === 'direct'
+    ? []
+    : mode === 'global'
+      ? global
+        ? [global]
+        : []
+      : visible

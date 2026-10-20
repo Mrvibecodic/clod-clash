@@ -631,6 +631,14 @@ fn node_title(name: &str) -> std::string::String {
     }
 }
 
+fn group_decides_traffic(proxy_mode: &str, group_name: &str) -> bool {
+    match proxy_mode {
+        "global" => group_name == "GLOBAL",
+        "direct" => false,
+        _ => group_name != "GLOBAL",
+    }
+}
+
 fn create_subcreate_proxy_menu_item(
     proxy_mode: &str,
     proxy_group_order_map: Option<HashMap<String, usize>>,
@@ -642,10 +650,7 @@ fn create_subcreate_proxy_menu_item(
 
     if let Some(proxy_nodes_data) = proxy_nodes_data {
         for (group_name, group_data) in proxy_nodes_data.proxies.iter() {
-            let should_show = match proxy_mode {
-                "global" => group_name == "GLOBAL",
-                _ => group_name != "GLOBAL",
-            } && !group_data.hidden.unwrap_or_default();
+            let should_show = group_decides_traffic(proxy_mode, group_name) && !group_data.hidden.unwrap_or_default();
 
             if !should_show {
                 continue;
@@ -1200,7 +1205,17 @@ fn handle_menu_click(id: std::string::String) {
 
 #[cfg(test)]
 mod tests {
-    use super::{node_title, proxy_item_id, proxy_item_names};
+    use super::{group_decides_traffic, node_title, proxy_item_id, proxy_item_names};
+
+    #[test]
+    fn the_groups_of_the_tray_follow_the_mode() {
+        assert!(group_decides_traffic("rule", "Proxy"));
+        assert!(!group_decides_traffic("rule", "GLOBAL"));
+        assert!(group_decides_traffic("global", "GLOBAL"));
+        assert!(!group_decides_traffic("global", "Proxy"));
+        assert!(!group_decides_traffic("direct", "Proxy"));
+        assert!(!group_decides_traffic("direct", "GLOBAL"));
+    }
 
     #[test]
     fn a_node_item_gives_back_the_group_and_the_node_whatever_their_names_hold() {

@@ -1,5 +1,6 @@
 import delayManager from '@/services/delay'
 import { selectionEnd } from '@/utils/server-behind'
+import { type ClashMode, trafficGroups } from '@/utils/server-row'
 
 export interface ProxyNode {
   name: string
@@ -78,7 +79,7 @@ export const displayLeaf = (
   return leaf
 }
 
-export const visibleGroups = (proxies: any): ProxyGroup[] => {
+const visibleGroups = (proxies: any): ProxyGroup[] => {
   const groups = ((proxies?.groups ?? []) as ProxyGroup[]).filter(
     (group) => !group.hidden && group.name !== 'GLOBAL',
   )
@@ -92,6 +93,13 @@ export const visibleGroups = (proxies: any): ProxyGroup[] => {
   })
   return nodes.length > 0 ? [{ ...global, name: 'GLOBAL', all: nodes }] : []
 }
+
+export const groupsDecidingTraffic = (proxies: any, mode: ClashMode) =>
+  trafficGroups(
+    mode,
+    visibleGroups(proxies),
+    proxies?.global as ProxyGroup | undefined,
+  )
 
 export const hasRealNodes = (proxies: any): boolean => {
   const records = (proxies?.records ?? {}) as Record<string, ProxyGroup>

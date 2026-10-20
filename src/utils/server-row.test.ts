@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { drawerRowCaption, serverRowNames } from './server-row.ts'
+import {
+  clashMode,
+  drawerRowCaption,
+  serverRowNames,
+  trafficGroups,
+} from './server-row.ts'
 
 const words = {
   direct: 'Напрямую',
@@ -76,5 +81,29 @@ describe('drawerRowCaption', () => {
 
   it('shows the node type of a server', () => {
     assert.equal(drawerRowCaption({ ...row, group: false }, words), 'VLESS')
+  })
+})
+
+describe('trafficGroups', () => {
+  const visible = ['Proxy', 'Auto']
+
+  it('in the rule mode the groups of the subscription decide, the first one first', () => {
+    assert.deepEqual(trafficGroups('rule', visible, 'GLOBAL'), visible)
+  })
+
+  it('in the global mode GLOBAL decides', () => {
+    assert.deepEqual(trafficGroups('global', visible, 'GLOBAL'), ['GLOBAL'])
+  })
+
+  it('in the direct mode no group decides', () => {
+    assert.deepEqual(trafficGroups('direct', visible, 'GLOBAL'), [])
+  })
+
+  it('reads the mode of the core in any case and falls back to rules', () => {
+    assert.equal(clashMode('Global'), 'global')
+    assert.equal(clashMode('DIRECT'), 'direct')
+    assert.equal(clashMode('rule'), 'rule')
+    assert.equal(clashMode(undefined), 'rule')
+    assert.equal(clashMode('script'), 'rule')
   })
 })
