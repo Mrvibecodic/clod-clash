@@ -48,7 +48,7 @@ enum TlsRootMode {
     StaticWebpkiRoots,
 }
 
-const MAX_REDIRECTS: usize = 10;
+pub(crate) const MAX_REDIRECTS: usize = 10;
 
 /// Больше этого тело ответа не читается: подписка столько не весит.
 const MAX_BODY: usize = 64 << 20;
@@ -142,14 +142,14 @@ impl NetworkManager {
         Self
     }
 
-    fn build_client(
+    fn client_builder(
         &self,
         proxy_url: Option<std::string::String>,
         default_headers: HeaderMap,
         accept_invalid_certs: bool,
         timeout_secs: Option<u64>,
         tls_root_mode: TlsRootMode,
-    ) -> Result<Client> {
+    ) -> Result<reqwest::ClientBuilder> {
         let mut builder = Client::builder()
             .tls_backend_rustls()
             .redirect(Self::redirect_policy())
@@ -185,7 +185,7 @@ impl NetworkManager {
                 .connect_timeout(Duration::from_secs(secs.min(30)));
         }
 
-        Ok(builder.build()?)
+        Ok(builder)
     }
 
     /// Ходим по редиректам, но не даём увести защищённый адрес на открытый: токен
@@ -410,6 +410,48 @@ impl NetworkManager {
         accept_invalid_certs: bool,
         tls_root_mode: TlsRootMode,
     ) -> Result<Client> {
+        let (builder, _) = self
+            .request_builder(
+                proxy_type,
+                timeout_secs,
+                user_agent,
+                accept_invalid_certs,
+                tls_root_mode,
+            )
+            .await?;
+        Ok(builder.build()?)
+    }
+
+    /// Клиент, который ходит только туда, куда пускает `redirect` на каждом
+    /// шаге, а при соединении мимо прокси — и `resolver`.
+    pub async fn create_restricted_request(
+        &self,
+        proxy_type: ProxyType,
+        timeout_secs: Option<u64>,
+        redirect: reqwest::redirect::Policy,
+        resolver: impl reqwest::dns::Resolve + 'static,
+    ) -> Result<Client> {
+        let (builder, direct) = self
+            .request_builder(proxy_type, timeout_secs, None, false, TlsRootMode::PlatformVerifier)
+            .await?;
+        let builder = builder.redirect(redirect);
+        let builder = if direct {
+            builder.dns_resolver(resolver)
+        } else {
+            builder
+        };
+        Ok(builder.build()?)
+    }
+
+    /// Сборка клиента и то, идёт ли он мимо прокси.
+    async fn request_builder(
+        &self,
+        proxy_type: ProxyType,
+        timeout_secs: Option<u64>,
+        user_agent: Option<String>,
+        accept_invalid_certs: bool,
+        tls_root_mode: TlsRootMode,
+    ) -> Result<(reqwest::ClientBuilder, bool)> {
         let proxy_url: Option<std::string::String> = match proxy_type {
             ProxyType::None => None,
             ProxyType::Localhost => {
@@ -432,7 +474,9 @@ impl NetworkManager {
             );
         }
 
-        self.build_client(proxy_url, headers, accept_invalid_certs, timeout_secs, tls_root_mode)
+        let direct = proxy_url.is_none();
+        let builder = self.client_builder(proxy_url, headers, accept_invalid_certs, timeout_secs, tls_root_mode)?;
+        Ok((builder, direct))
     }
 
     /// clod: запрос с прерыванием, которому можно добавить свои заголовки

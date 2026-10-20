@@ -1,4 +1,5 @@
-use crate::utils::network::{NetworkManager, ProxyType};
+use crate::utils::network::{MAX_REDIRECTS, NetworkManager, ProxyType};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 /// Срок запроса и потолок картинки провайдера (логотип, значок группы).
 const IMAGE_TIMEOUT_SECS: u64 = 15;
@@ -22,11 +23,12 @@ impl std::fmt::Display for Refused {
 impl std::error::Error for Refused {}
 
 pub fn is_refused(err: &anyhow::Error) -> bool {
-    err.downcast_ref::<Refused>().is_some()
+    err.chain().any(|e| e.downcast_ref::<Refused>().is_some())
 }
 
-/// Запрос картинки провайдера: адрес — публичный https и до запроса, и после
-/// переадресаций; адрес в локальной сети не получает ни одного запроса.
+/// Запрос картинки провайдера: адрес — публичный https до запроса и на каждой
+/// переадресации, а при соединении мимо прокси — и там, куда указывает имя;
+/// адрес в локальной сети не получает ни одного запроса.
 pub async fn request_image(
     url: &str,
     proxy: ProxyType,
@@ -36,14 +38,41 @@ pub async fn request_image(
     if !is_public_https(&url) {
         return Err(Refused(NOT_PUBLIC).into());
     }
-    let client = NetworkManager::new()
-        .create_request(proxy, Some(IMAGE_TIMEOUT_SECS), None)
-        .await?;
-    let response = client.get(url).headers(headers).send().await?;
-    if !is_public_https(response.url()) {
-        return Err(Refused(NOT_PUBLIC).into());
+    Ok(public_client(proxy).await?.get(url).headers(headers).send().await?)
+}
+
+async fn public_client(proxy: ProxyType) -> anyhow::Result<reqwest::Client> {
+    let redirect = reqwest::redirect::Policy::custom(|attempt| {
+        if !is_public_https(attempt.url()) {
+            attempt.error(Refused(NOT_PUBLIC))
+        } else if attempt.previous().len() > MAX_REDIRECTS {
+            attempt.error("too many redirects")
+        } else {
+            attempt.follow()
+        }
+    });
+    NetworkManager::new()
+        .create_restricted_request(proxy, Some(IMAGE_TIMEOUT_SECS), redirect, PublicResolver)
+        .await
+}
+
+/// Разрешение имени без прокси: адреса вне публичной сети отбрасываются.
+struct PublicResolver;
+
+impl reqwest::dns::Resolve for PublicResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let host = name.as_str().to_owned();
+        Box::pin(async move {
+            let public: Vec<_> = tokio::net::lookup_host((host.as_str(), 0))
+                .await?
+                .filter(|addr| is_public_ip(addr.ip()))
+                .collect();
+            if public.is_empty() {
+                return Err(Refused(NOT_PUBLIC).into());
+            }
+            Ok(Box::new(public.into_iter()) as reqwest::dns::Addrs)
+        })
     }
-    Ok(response)
 }
 
 /// Тело ответа с картинкой провайдера и расширение файла для неё. Картинка ли
@@ -105,17 +134,8 @@ pub fn is_public_https(url: &reqwest::Url) -> bool {
     };
     let host = host.trim_start_matches('[').trim_end_matches(']');
 
-    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        return match ip {
-            std::net::IpAddr::V4(ip) => is_public_v4(ip),
-            std::net::IpAddr::V6(ip) => {
-                if let Some(mapped) = ip.to_ipv4_mapped() {
-                    is_public_v4(mapped)
-                } else {
-                    !(ip.is_loopback() || ip.is_unspecified() || ip.is_unique_local() || ip.is_unicast_link_local())
-                }
-            }
-        };
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return is_public_ip(ip);
     }
 
     let name = host.trim_end_matches('.').to_ascii_lowercase();
@@ -126,8 +146,47 @@ pub fn is_public_https(url: &reqwest::Url) -> bool {
         || name.ends_with(".home.arpa"))
 }
 
-pub const fn is_public_v4(ip: std::net::Ipv4Addr) -> bool {
-    !(ip.is_loopback() || ip.is_private() || ip.is_link_local() || ip.is_unspecified() || ip.is_broadcast())
+fn is_public_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => is_public_v4(ip),
+        IpAddr::V6(ip) => is_public_v6(ip),
+    }
+}
+
+const fn is_public_v4(ip: Ipv4Addr) -> bool {
+    let [first, second, ..] = ip.octets();
+    let shared = first == 100 && second & 0xC0 == 64;
+    !(ip.is_loopback()
+        || ip.is_private()
+        || ip.is_link_local()
+        || ip.is_multicast()
+        || first == 0
+        || first >= 240
+        || shared)
+}
+
+fn is_public_v6(ip: Ipv6Addr) -> bool {
+    let [a, b, c, d, e, f, g, h] = ip.segments();
+    let embedded = |high: u16, low: u16| {
+        let [h1, h2] = high.to_be_bytes();
+        let [l1, l2] = low.to_be_bytes();
+        Ipv4Addr::new(h1, h2, l1, l2)
+    };
+    if let Some(mapped) = ip.to_ipv4_mapped() {
+        return is_public_v4(mapped);
+    }
+    // NAT64 и 6to4 ведут на адрес IPv4, вписанный в сам адрес.
+    if [a, b, c, d, e, f] == [0x64, 0xff9b, 0, 0, 0, 0] {
+        return is_public_v4(embedded(g, h));
+    }
+    if a == 0x2002 {
+        return is_public_v4(embedded(b, c));
+    }
+    !(ip.is_loopback()
+        || ip.is_unspecified()
+        || ip.is_unique_local()
+        || ip.is_unicast_link_local()
+        || ip.is_multicast())
 }
 
 #[allow(clippy::expect_used)]
@@ -168,11 +227,14 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_redirect_into_the_local_network_is_refused() {
+    fn only_a_public_https_address_is_allowed() {
         let allowed = [
             "https://cdn.example.com/logo.png",
             "https://1.2.3.4/logo.png",
+            "https://198.18.0.7/logo.png",
             "https://[2606:4700::6810:84e5]/logo.png",
+            "https://[64:ff9b::808:808]/logo.png",
+            "https://[2002:808:808::1]/logo.png",
         ];
         for raw in allowed {
             let url = reqwest::Url::parse(raw).expect("test url");
@@ -192,6 +254,16 @@ pub(crate) mod tests {
             "https://[::ffff:127.0.0.1]/logo.png",
             "https://[::ffff:192.168.1.1]/logo.png",
             "https://router.local/logo.png",
+            "https://100.64.0.1/logo.png",
+            "https://100.127.255.254/logo.png",
+            "https://0.1.2.3/logo.png",
+            "https://224.0.0.251/logo.png",
+            "https://240.0.0.1/logo.png",
+            "https://255.255.255.255/logo.png",
+            "https://[ff02::1]/logo.png",
+            "https://[64:ff9b::c0a8:101]/logo.png",
+            "https://[2002:c0a8:101::1]/logo.png",
+            "https://[2002:7f00:1::1]/logo.png",
         ];
         for raw in refused {
             let url = reqwest::Url::parse(raw).expect("test url");
@@ -232,6 +304,74 @@ pub(crate) mod tests {
             b"RIFF\x10\x00\x00\x00WAVEfmt ",
         ] {
             assert_eq!(image_extension(bytes), None, "{}", String::from_utf8_lossy(bytes));
+        }
+    }
+
+    /// Настоящие обмены по сети: под Windows такой тестовый бинарник на раннере
+    /// CI не запускается, как и обмены в `network`.
+    #[cfg(not(windows))]
+    mod transport {
+        use super::super::{is_refused, public_client};
+        use crate::utils::network::ProxyType;
+
+        /// Слушатель, который считает, пришло ли к нему соединение.
+        async fn untouched() -> (tokio::net::TcpListener, u16) {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("порт для теста");
+            let port = listener.local_addr().expect("адрес слушателя").port();
+            (listener, port)
+        }
+
+        async fn never_reached(listener: &tokio::net::TcpListener) -> bool {
+            tokio::time::timeout(std::time::Duration::from_millis(200), listener.accept())
+                .await
+                .is_err()
+        }
+
+        #[tokio::test]
+        async fn a_redirect_into_the_local_network_gets_no_request() {
+            use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+            for target in ["https", "http"] {
+                let (local, local_port) = untouched().await;
+                let (cdn, cdn_port) = untouched().await;
+                let head = format!(
+                    "HTTP/1.1 302 Found\r\nLocation: {target}://127.0.0.1:{local_port}/logo.png\r\nContent-Length: 0\r\n\r\n"
+                );
+                tokio::spawn(async move {
+                    let Ok((mut stream, _)) = cdn.accept().await else {
+                        return;
+                    };
+                    let mut buffer = [0_u8; 1024];
+                    let _ = stream.read(&mut buffer).await;
+                    let _ = stream.write_all(head.as_bytes()).await;
+                });
+
+                let client = public_client(ProxyType::None).await.expect("клиент");
+                let err = client
+                    .get(format!("http://127.0.0.1:{cdn_port}/logo.png"))
+                    .send()
+                    .await
+                    .map_err(anyhow::Error::new)
+                    .expect_err("переадресация в локальную сеть");
+                assert!(is_refused(&err), "{target}: {err:?}");
+                assert!(never_reached(&local).await, "{target}: запрос дошёл до локальной сети");
+            }
+        }
+
+        #[tokio::test]
+        async fn a_name_that_points_into_the_local_network_gets_no_request() {
+            let (local, port) = untouched().await;
+            let client = public_client(ProxyType::None).await.expect("клиент");
+            let err = client
+                .get(format!("http://localhost:{port}/logo.png"))
+                .send()
+                .await
+                .map_err(anyhow::Error::new)
+                .expect_err("имя указывает в локальную сеть");
+            assert!(is_refused(&err), "{err:?}");
+            assert!(never_reached(&local).await, "запрос дошёл до локальной сети");
         }
     }
 }
