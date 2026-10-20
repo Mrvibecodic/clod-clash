@@ -17,6 +17,7 @@ import { useSystemState } from '@/hooks/use-system-state'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
 import { enumText } from '@/utils/plugin-enum'
+import { policyName } from '@/utils/rule-labels'
 
 const RulesPage = () => {
   const { t } = useTranslation()
@@ -45,9 +46,11 @@ const RulesPage = () => {
     }))
 
     return rulesWithLineNo.filter((item) =>
-      match(`${enumText(item.type)},${item.payload ?? ''},${item.proxy}`),
+      match(
+        `${enumText(item.type)},${item.payload ?? ''},${policyName(t, item.proxy)}`,
+      ),
     )
-  }, [rules, match])
+  }, [rules, match, t])
 
   const handleScroll = useCallback((e: Event) => {
     setShowScrollTop((e.target as HTMLElement).scrollTop > 100)

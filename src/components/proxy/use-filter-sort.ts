@@ -1,5 +1,6 @@
 import delayManager from '@/services/delay'
 import { failedDelay, usableDelay } from '@/utils/delay-color'
+import { nodeName } from '@/utils/proxy-label'
 import { compileStringMatcher } from '@/utils/search-matcher'
 
 // default | delay | alphabet
@@ -16,9 +17,10 @@ export function filterSort(
   groupName: string,
   filterText: string,
   sortType: ProxySortType,
+  direct: string,
   searchState?: ProxySearchState,
 ) {
-  const fp = filterProxies(proxies, groupName, filterText, searchState)
+  const fp = filterProxies(proxies, groupName, filterText, direct, searchState)
   const sp = sortProxies(fp, groupName, sortType)
   return sp
 }
@@ -37,6 +39,7 @@ function filterProxies(
   proxies: IProxyItem[],
   groupName: string,
   filterText: string,
+  direct: string,
   searchState?: ProxySearchState,
 ) {
   const query = filterText.trim()
@@ -80,7 +83,7 @@ function filterProxies(
   })
 
   if (!compiled.isValid) return []
-  return proxies.filter((p) => compiled.matcher(p.name))
+  return proxies.filter((p) => compiled.matcher(nodeName(p.name, direct)))
 }
 
 /**

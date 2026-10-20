@@ -1,7 +1,9 @@
 import { styled, Box, Typography } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 import { Rule } from 'tauri-plugin-mihomo-api'
 
 import { enumText } from '@/utils/plugin-enum'
+import { policyName } from '@/utils/rule-labels'
 
 const Item = styled(Box)(({ theme }) => ({
   display: 'flex',
@@ -42,6 +44,7 @@ const parseColor = (text: string) => {
 
 const RuleItem = (props: Props) => {
   const { value } = props
+  const { t } = useTranslation()
 
   return (
     <Item sx={{ borderBottom: '1px solid var(--divider-color)' }}>
@@ -83,7 +86,7 @@ const RuleItem = (props: Props) => {
           variant="body2"
           color={parseColor(value.proxy)}
         >
-          {value.proxy}
+          {policyName(t, value.proxy)}
         </Typography>
       </Box>
     </Item>

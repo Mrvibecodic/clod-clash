@@ -249,6 +249,21 @@ describe('nodeName', () => {
     }
   })
 
+  it('the rules and the proxy filter know the direct connection by its word', () => {
+    const read = (file: string) =>
+      readFileSync(new URL(file, import.meta.url), 'utf8')
+    const item = read('../components/rule/rule-item.tsx')
+    assert.match(item, /\{policyName\(t, value\.proxy\)\}/)
+    assert.doesNotMatch(item, /\{value\.proxy\}/)
+    const page = read('../pages/rules.tsx')
+    assert.match(page, /policyName\(t, item\.proxy\)/)
+    assert.doesNotMatch(page, /\$\{item\.proxy\}/)
+    assert.match(
+      read('../components/proxy/use-filter-sort.ts'),
+      /compiled\.matcher\(nodeName\(p\.name, direct\)\)/,
+    )
+  })
+
   it('the Home server list strips flags only from group chips by itself', () => {
     const source = readFileSync(
       new URL('../components/home/server-select.tsx', import.meta.url),

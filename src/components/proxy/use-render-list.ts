@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useFullRuntimeConfig } from '@/hooks/use-clash'
 import { favoritesFirst, useFavorites } from '@/hooks/use-favorites'
@@ -79,6 +80,7 @@ type GroupCache = {
   headState: HeadState
   col: number
   favorites: Set<string>
+  direct: string
   items: IRenderItem[]
 }
 
@@ -119,6 +121,8 @@ export const useRenderList = (
   const { favorites } = useFavorites()
   const { width } = useWindowWidth()
   const [headStates, setHeadState] = useHeadStateNew()
+  const { t } = useTranslation()
+  const direct = t('shared.labels.direct')
 
   // Получаем конфиг времени выполнения для режима цепочки прокси
   const { data: runtimeConfig } = useFullRuntimeConfig(!!isChainMode)
@@ -222,7 +226,13 @@ export const useRenderList = (
       if (selectedGroup) {
         const targetGroup = allGroups.find((g: any) => g.name === selectedGroup)
         if (targetGroup) {
-          const proxies = filterSort(targetGroup.all, targetGroup.name, '', 0)
+          const proxies = filterSort(
+            targetGroup.all,
+            targetGroup.name,
+            '',
+            0,
+            direct,
+          )
 
           if (col > 1) {
             return groupProxies(proxies, col).map((proxyCol, colIndex) => ({
@@ -250,7 +260,7 @@ export const useRenderList = (
 
       // Если конкретная группа не выбрана, показываем узлы первой группы
       const firstGroup = allGroups[0]
-      const proxies = filterSort(firstGroup.all, firstGroup.name, '', 0)
+      const proxies = filterSort(firstGroup.all, firstGroup.name, '', 0, direct)
 
       if (col > 1) {
         return groupProxies(proxies, col).map((proxyCol, colIndex) => ({
@@ -356,7 +366,8 @@ export const useRenderList = (
             sameNames(cached.all, group.all))) &&
         cached.headState === headState &&
         cached.col === col &&
-        cached.favorites === favorites
+        cached.favorites === favorites &&
+        cached.direct === direct
       ) {
         return cached.items
       }
@@ -380,6 +391,7 @@ export const useRenderList = (
             group.name,
             headState.filterText,
             headState.sortType,
+            direct,
             {
               matchCase: headState.filterMatchCase,
               matchWholeWord: headState.filterMatchWholeWord,
@@ -439,6 +451,7 @@ export const useRenderList = (
         headState,
         col,
         favorites,
+        direct,
         items: ret,
       })
       return ret
@@ -462,6 +475,7 @@ export const useRenderList = (
     runtimeConfig,
     selectedGroup,
     favorites,
+    direct,
   ])
 
   return {
