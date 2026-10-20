@@ -164,6 +164,12 @@ export const handleNoticeMessage = (
         { keys: msg },
         0,
       ),
+    'clod_config::proxy_chain_dropped': () =>
+      showNotice.warning(
+        'shared.feedback.notifications.common.proxyChainDropped',
+        { node: msg },
+        0,
+      ),
     'clod_config::lan_list_unreadable': () =>
       offerAnAction(
         'warning',

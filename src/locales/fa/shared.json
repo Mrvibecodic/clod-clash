@@ -134,6 +134,7 @@
         "configLoadFailed": "خواندن فایل تنظیمات ممکن نشد: {{files}}. نسخه‌ای از آن با نام «.unreadable-<تاریخ>» کنارش نگه داشته شد — چیزی از دست نرفته است. اشتراک‌ها و تنظیمات ممکن است بازنشانی‌شده به‌نظر برسند؛ فایل را از آن نسخه یا از پشتیبان بازگردانید.",
         "keysDiscarded": "Writes to the keys {{keys}} were discarded: they are managed by the app settings, or the DNS page refers to a rule set the subscription does not have. Change them in the settings instead.",
         "lanListUnreadable": "LAN sharing is not on: {{key}} cannot be read as a list of networks. It stays off until the list is fixed in the subscription or its edits.",
+        "proxyChainDropped": "The proxy chain is off: the node “{{node}}” is no longer in the subscription",
         "lanSharingOffAction": "Turn LAN sharing off",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "آرشیو گزارش‌ها ذخیره شد — آدرس‌های اشتراک و توکن‌ها پنهان شده‌اند"

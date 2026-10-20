@@ -2180,7 +2180,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let config = cleanup_proxy_groups(config);
     let (config, rejected_groups) = backfill_empty_groups(config);
     let mut config = unpin_providers_from_rejection(config, &rejected_groups);
-    let proxy_chain = with_the_chain(&mut config, proxy_chain);
+    let (proxy_chain, proxy_chain_dropped) = with_the_chain(&mut config, proxy_chain);
     let config = use_sort(config);
 
     if profile_is_remote {
@@ -2207,20 +2207,29 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         sentinel_report,
         own_nodes,
         proxy_chain,
+        proxy_chain_dropped,
     })
 }
 
-fn with_the_chain(config: &mut Mapping, chain: Option<Vec<String>>) -> Option<Vec<String>> {
-    let nodes = chain?;
+fn with_the_chain(
+    config: &mut Mapping,
+    chain: Option<Vec<String>>,
+) -> (Option<Vec<String>>, Option<proxy_chain::Dropped>) {
+    let Some(nodes) = chain else {
+        return (None, None);
+    };
     if proxy_chain::apply(config, &nodes) {
-        return Some(nodes);
+        return (Some(nodes), None);
     }
+    let Some(missing) = proxy_chain::missing(config, &nodes).cloned() else {
+        return (None, None);
+    };
     logging!(
         warn,
         Type::Config,
-        "цепочка прокси не наложена: её узлов нет среди узлов подписки"
+        "цепочка прокси не наложена: узла {missing} нет среди узлов подписки"
     );
-    None
+    (None, Some(proxy_chain::Dropped { nodes, missing }))
 }
 
 #[allow(clippy::expect_used)]
@@ -2264,16 +2273,25 @@ mod tests {
     fn the_chain_of_the_subscription_is_laid_on_every_build() {
         let body = crate::utils::source_scan::fn_body(include_str!("mod.rs"), "pub async fn enhance(")
             .expect("enhance() is in mod.rs");
-        assert!(body.contains("with_the_chain(&mut config, proxy_chain)"), "{body}");
+        assert!(body.contains("= with_the_chain(&mut config, proxy_chain);"), "{body}");
         let chain =
             |names: &[&str]| -> Vec<smartstring::alias::String> { names.iter().map(|name| (*name).into()).collect() };
         let mut config = mapping("proxies: [{name: A, type: ss}, {name: B, type: ss}]");
         assert_eq!(
             super::with_the_chain(&mut config, Some(chain(&["A", "B"]))),
-            Some(chain(&["A", "B"]))
+            (Some(chain(&["A", "B"])), None)
         );
-        assert_eq!(super::with_the_chain(&mut config, Some(chain(&["A", "gone"]))), None);
-        assert_eq!(super::with_the_chain(&mut config, None), None);
+        assert_eq!(
+            super::with_the_chain(&mut config, Some(chain(&["A", "gone", "B"]))),
+            (
+                None,
+                Some(super::proxy_chain::Dropped {
+                    nodes: chain(&["A", "gone", "B"]),
+                    missing: "gone".into(),
+                })
+            )
+        );
+        assert_eq!(super::with_the_chain(&mut config, None), (None, None));
     }
 
     #[test]

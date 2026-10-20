@@ -1,20 +1,31 @@
-use serde_yaml_ng::{Mapping, Sequence, Value};
+use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 
-fn named<'a>(proxies: &'a Sequence, name: &str) -> Option<&'a Value> {
+fn named<'a>(proxies: &'a [Value], name: &str) -> Option<&'a Value> {
     proxies
         .iter()
         .find(|proxy| proxy.get("name").and_then(Value::as_str) == Some(name))
 }
 
-pub fn fits(config: &Mapping, nodes: &[String]) -> bool {
-    let Some(Value::Sequence(proxies)) = config.get("proxies") else {
-        return false;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Dropped {
+    pub nodes: Vec<String>,
+    pub missing: String,
+}
+
+pub fn missing<'a>(config: &Mapping, nodes: &'a [String]) -> Option<&'a String> {
+    let proxies = match config.get("proxies") {
+        Some(Value::Sequence(proxies)) => proxies.as_slice(),
+        _ => &[],
     };
-    nodes.len() >= 2
-        && nodes[1..]
-            .iter()
-            .all(|node| named(proxies, node).is_some_and(Value::is_mapping))
+    nodes
+        .iter()
+        .skip(1)
+        .find(|node| !named(proxies, node).is_some_and(Value::is_mapping))
+}
+
+pub fn fits(config: &Mapping, nodes: &[String]) -> bool {
+    nodes.len() >= 2 && missing(config, nodes).is_none()
 }
 
 /// Ложится целиком или не ложится вовсе: половина цепочки пустила бы трафик

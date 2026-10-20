@@ -1096,6 +1096,7 @@ export const translationKeys = [
   'shared.feedback.notifications.common.configLoadFailed',
   'shared.feedback.notifications.common.keysDiscarded',
   'shared.feedback.notifications.common.lanListUnreadable',
+  'shared.feedback.notifications.common.proxyChainDropped',
   'shared.feedback.notifications.common.lanSharingOffAction',
   'shared.feedback.notifications.common.supportBundleCopied',
   'shared.feedback.notifications.common.logsExported',

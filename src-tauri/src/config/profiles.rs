@@ -244,20 +244,7 @@ impl IProfiles {
         else {
             return false;
         };
-
-        let selected = item.selected.get_or_insert_with(Vec::new);
-        if let Some(entry) = selected.iter_mut().find(|entry| entry.name.as_deref() == Some(group)) {
-            if entry.now.as_deref() == Some(node) {
-                return false;
-            }
-            entry.now = Some(node.into());
-        } else {
-            selected.push(PrfSelected {
-                name: Some(group.into()),
-                now: Some(node.into()),
-            });
-        }
-        true
+        item.choose_node(group, node)
     }
 
     pub async fn append_item(&mut self, item: &mut PrfItem) -> Result<()> {

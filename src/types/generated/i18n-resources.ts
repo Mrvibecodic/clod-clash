@@ -1667,6 +1667,7 @@ export interface TranslationResources {
             lanListUnreadable: string
             lanSharingOffAction: string
             logsExported: string
+            proxyChainDropped: string
             saveFailed: string
             saveSuccess: string
             supportBundleCopied: string

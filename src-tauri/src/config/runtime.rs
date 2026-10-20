@@ -43,6 +43,7 @@ pub struct IRuntime {
     /// Узлы и провайдеры самой подписки — до «Прокси», Merge и Script.
     pub own_nodes: crate::config::proxy_label::OwnNodes,
     pub proxy_chain: Option<Vec<String>>,
+    pub proxy_chain_dropped: Option<crate::enhance::proxy_chain::Dropped>,
 }
 
 impl IRuntime {

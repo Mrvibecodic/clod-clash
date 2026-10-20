@@ -1,9 +1,10 @@
 use crate::{
-    config::{Config, IProfiles, PrfItem, PrfProxyChain},
+    config::{Config, IProfiles, PrfItem, PrfProxyChain, runtime::IRuntime},
     core::{CoreManager, handle, manager::Delivery},
     enhance::{Sources, proxy_chain},
 };
 use anyhow::{Context as _, Result, bail};
+use clash_verge_logging::{Type, logging};
 use serde::{Deserialize, Serialize};
 use smartstring::alias::String;
 
@@ -129,12 +130,11 @@ fn current_item(registry: &mut IProfiles) -> Result<&mut PrfItem> {
     registry.item_mut(&current)
 }
 
-fn release(registry: &mut IProfiles, chain: &PrfProxyChain) -> Result<()> {
-    let chosen = chosen_in(current_item(registry)?, &chain.group);
+fn release(item: &mut PrfItem, chain: &PrfProxyChain) {
+    let chosen = chosen_in(item, &chain.group);
     if let Some(back) = choice_after_the_chain(chain, chosen.as_deref()) {
-        registry.set_selected_node(&chain.group, &back);
+        item.choose_node(&chain.group, &back);
     }
-    Ok(())
 }
 
 fn connect_in(registry: &mut IProfiles, group: &str, nodes: &[String]) -> Result<()> {
@@ -152,17 +152,60 @@ fn connect_in(registry: &mut IProfiles, group: &str, nodes: &[String]) -> Result
         previous,
     }));
     if let Some(old) = old.filter(|old| old.group != group) {
-        release(registry, &old)?;
+        release(item, &old);
     }
-    registry.set_selected_node(group, &exit);
+    item.choose_node(group, &exit);
     Ok(())
 }
 
 fn disconnect_in(registry: &mut IProfiles) -> Result<()> {
-    let Some(chain) = current_item(registry)?.proxy_chain.take() else {
-        return Ok(());
+    let item = current_item(registry)?;
+    if let Some(chain) = item.proxy_chain.take() {
+        release(item, &chain);
+    }
+    Ok(())
+}
+
+fn drop_in(registry: &mut IProfiles, uid: &str, nodes: &[String]) -> bool {
+    let Ok(item) = registry.item_mut(uid) else {
+        return false;
     };
-    release(registry, &chain)
+    let Some(chain) = item.proxy_chain.take_if(|chain| chain.nodes == nodes) else {
+        return false;
+    };
+    release(item, &chain);
+    true
+}
+
+pub async fn forget_a_dropped_chain(build: &IRuntime) {
+    let (Some(uid), Some(dropped)) = (build.profile_uid.clone(), build.proxy_chain_dropped.clone()) else {
+        return;
+    };
+    let nodes = dropped.nodes.clone();
+    let released = Config::profiles()
+        .await
+        .with_data_modify(|mut profiles| async move {
+            let released = drop_in(&mut profiles, &uid, &nodes);
+            if released {
+                profiles.save_file().await?;
+            }
+            Ok((profiles, released))
+        })
+        .await;
+    match released {
+        Ok(true) => {
+            handle::Handle::refresh_profiles();
+            handle::Handle::notice_message("clod_config::proxy_chain_dropped", dropped.missing);
+            if !matches!(
+                *CoreManager::global().get_running_mode(),
+                crate::core::manager::RunningMode::NotRunning
+            ) {
+                crate::config::profiles::activate_selected_nodes();
+            }
+        }
+        Ok(false) => {}
+        Err(err) => logging!(warn, Type::Config, "не удалось снять цепочку прокси: {err:#}"),
+    }
 }
 
 fn adopt_in(registry: &mut IProfiles, chain: &AdoptedChain) {
@@ -181,7 +224,7 @@ fn adopt_in(registry: &mut IProfiles, chain: &AdoptedChain) {
 #[allow(clippy::expect_used)]
 #[cfg(test)]
 mod tests {
-    use super::{AdoptedChain, adopt_in, chosen_in, connect_in, disconnect_in};
+    use super::{AdoptedChain, adopt_in, chosen_in, connect_in, disconnect_in, drop_in};
     use crate::config::{IProfiles, PrfItem, PrfProxyChain, PrfSelected};
     use smartstring::alias::String;
 
@@ -228,6 +271,26 @@ mod tests {
             .expect("rebuild_with() is in proxy_chain.rs");
         assert!(body.contains("activate_selected_nodes()"), "{body}");
         assert!(!body.contains("settle_after_delivery"), "{body}");
+    }
+
+    #[test]
+    fn a_chain_that_no_longer_fits_gives_the_group_back_its_choice() {
+        let mut registry = registry(&[("Proxy", "Berlin")]);
+        connect_in(&mut registry, "Proxy", &names(&["a", "b"])).expect("connects");
+        assert!(!drop_in(&mut registry, "A", &names(&["a", "x"])), "другая цепочка");
+        assert!(drop_in(&mut registry, "A", &names(&["a", "b"])));
+        assert!(item(&registry, "A").proxy_chain.is_none());
+        assert_eq!(chosen(&registry, "Proxy").as_deref(), Some("Berlin"));
+        assert!(!drop_in(&mut registry, "A", &names(&["a", "b"])), "уже снята");
+    }
+
+    #[test]
+    fn every_accepted_build_releases_a_chain_that_did_not_fit() {
+        let config = include_str!("../core/manager/config.rs");
+        for signature in ["async fn note_the_accepted(", "async fn replace_core_and_apply("] {
+            let body = crate::utils::source_scan::fn_body(config, signature).expect("the function is in config.rs");
+            assert!(body.contains("forget_a_dropped_chain("), "{signature}");
+        }
     }
 
     #[test]

@@ -134,6 +134,7 @@
         "configLoadFailed": "설정 파일을 읽지 못했습니다: {{files}}. 같은 위치에 \".unreadable-<날짜>\" 이름으로 사본을 남겼습니다 — 잃어버린 것은 없습니다. 구독과 설정이 초기화된 것처럼 보일 수 있으니 그 사본이나 백업에서 파일을 복원하세요.",
         "keysDiscarded": "Writes to the keys {{keys}} were discarded: they are managed by the app settings, or the DNS page refers to a rule set the subscription does not have. Change them in the settings instead.",
         "lanListUnreadable": "LAN sharing is not on: {{key}} cannot be read as a list of networks. It stays off until the list is fixed in the subscription or its edits.",
+        "proxyChainDropped": "The proxy chain is off: the node “{{node}}” is no longer in the subscription",
         "lanSharingOffAction": "Turn LAN sharing off",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "로그 압축 파일을 저장했습니다. 구독 주소와 토큰은 가려졌습니다"

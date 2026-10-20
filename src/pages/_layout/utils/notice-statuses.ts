@@ -4,6 +4,7 @@ export const NOTICE_STATUSES = [
   'clod_config::keys_discarded',
   'clod_config::lan_list_unreadable',
   'clod_config::load_failed',
+  'clod_config::proxy_chain_dropped',
   'clod_sub::fallback_used',
   'clod_sub::url_migrated',
   'config_core::change_error',

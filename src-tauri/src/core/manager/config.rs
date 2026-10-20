@@ -356,6 +356,7 @@ impl CoreManager {
         Self::remember_dns_desire(build);
         announce_discarded_keys(&build.discarded_keys).await;
         announce_an_unreadable_lan_list(build.unreadable_lan_list);
+        crate::feat::forget_a_dropped_chain(build).await;
     }
 
     /// clod:dns-applied — заявка на подмену системного DNS едет вместе со сборкой
@@ -582,6 +583,7 @@ impl CoreManager {
                 logging!(info, Type::Core, "Configuration applied after restart");
                 announce_discarded_keys(&discarded_keys).await;
                 announce_an_unreadable_lan_list(unreadable_lan_list);
+                crate::feat::forget_a_dropped_chain(&runtime.data_arc()).await;
                 Ok(Delivered::Restarted)
             }
             Err(err) => {

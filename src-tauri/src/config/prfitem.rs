@@ -1788,6 +1788,22 @@ fn log_panel_headers(sub: &sub_headers::SubHeaders) {
 }
 
 impl PrfItem {
+    pub fn choose_node(&mut self, group: &str, node: &str) -> bool {
+        let selected = self.selected.get_or_insert_with(Vec::new);
+        if let Some(entry) = selected.iter_mut().find(|entry| entry.name.as_deref() == Some(group)) {
+            if entry.now.as_deref() == Some(node) {
+                return false;
+            }
+            entry.now = Some(node.into());
+        } else {
+            selected.push(PrfSelected {
+                name: Some(group.into()),
+                now: Some(node.into()),
+            });
+        }
+        true
+    }
+
     pub fn merge_panel_meta(&mut self, fresh: &Self) {
         if fresh.name_from_panel == Some(true) {
             self.name = fresh.name.clone();
