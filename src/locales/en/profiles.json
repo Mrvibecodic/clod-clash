@@ -184,6 +184,9 @@
     },
     "proxiesEditor": {
       "title": "Edit Proxies",
+      "errors": {
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+      },
       "placeholders": {
         "multiUri": "Use newlines for multiple uri(Base64 encoding supported)"
       },

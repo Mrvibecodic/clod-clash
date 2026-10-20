@@ -184,6 +184,9 @@
     },
     "proxiesEditor": {
       "title": "Editar nodos",
+      "errors": {
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+      },
       "placeholders": {
         "multiUri": "Para múltiples URI, utilice saltos de línea (se admite la codificación Base64)"
       },

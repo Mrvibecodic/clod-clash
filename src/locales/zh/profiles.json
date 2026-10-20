@@ -184,6 +184,9 @@
     },
     "proxiesEditor": {
       "title": "编辑节点",
+      "errors": {
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+      },
       "placeholders": {
         "multiUri": "多条 URI 请使用换行分隔（支持 Base64 编码）"
       },

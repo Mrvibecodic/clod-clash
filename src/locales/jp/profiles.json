@@ -184,6 +184,9 @@
     },
     "proxiesEditor": {
       "title": "ノードを編集",
+      "errors": {
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+      },
       "placeholders": {
         "multiUri": "複数のURIは改行で区切ってください（Base64エンコードに対応）"
       },

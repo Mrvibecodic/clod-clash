@@ -184,6 +184,9 @@
     },
     "proxiesEditor": {
       "title": "Ubah Proksi",
+      "errors": {
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+      },
       "placeholders": {
         "multiUri": "Gunakan baris baru untuk beberapa URI (mendukung pengkodean Base64)"
       },

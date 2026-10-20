@@ -184,6 +184,9 @@
     },
     "proxiesEditor": {
       "title": "프록시 편집",
+      "errors": {
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+      },
       "placeholders": {
         "multiUri": "여러 URI의 경우 줄바꿈 사용(Base64 인코딩 지원)"
       },

@@ -298,6 +298,7 @@ export const translationKeys = [
   'profiles.modals.profileForm.actions.useFile',
   'profiles.modals.profileForm.actions.useLink',
   'profiles.modals.proxiesEditor.title',
+  'profiles.modals.proxiesEditor.errors.namesTaken',
   'profiles.modals.proxiesEditor.placeholders.multiUri',
   'profiles.modals.proxiesEditor.actions.prepend',
   'profiles.modals.proxiesEditor.actions.append',

@@ -462,6 +462,9 @@ export interface TranslationResources {
             append: string
             prepend: string
           }
+          errors: {
+            namesTaken: string
+          }
           placeholders: {
             multiUri: string
           }

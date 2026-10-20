@@ -56,6 +56,7 @@ import type { EditorReadFailure } from '@/utils/editor-save'
 import { optionalInt } from '@/utils/optional-int'
 import { readEachFile } from '@/utils/profile-files'
 import { BUILTIN_GROUP_POLICIES } from '@/utils/proxy-groups'
+import { takenSeqNames } from '@/utils/seq-names'
 import { parseYamlSafe } from '@/utils/yaml'
 
 interface Props {
@@ -998,12 +999,14 @@ export const GroupsEditorViewer = (props: Props) => {
                   onClick={() => {
                     try {
                       validateGroup()
-                      for (const item of [...prependSeq, ...groupList]) {
-                        if (item.name === formIns.getValues().name) {
-                          throw new Error(
-                            t('profiles.modals.groupsEditor.errors.nameExists'),
-                          )
-                        }
+                      if (
+                        takenSeqNames(prependSeq, groupList, appendSeq).has(
+                          formIns.getValues().name,
+                        )
+                      ) {
+                        throw new Error(
+                          t('profiles.modals.groupsEditor.errors.nameExists'),
+                        )
                       }
                       setPrependSeq([formIns.getValues(), ...prependSeq])
                     } catch (err) {
@@ -1022,12 +1025,14 @@ export const GroupsEditorViewer = (props: Props) => {
                   onClick={() => {
                     try {
                       validateGroup()
-                      for (const item of [...appendSeq, ...groupList]) {
-                        if (item.name === formIns.getValues().name) {
-                          throw new Error(
-                            t('profiles.modals.groupsEditor.errors.nameExists'),
-                          )
-                        }
+                      if (
+                        takenSeqNames(prependSeq, groupList, appendSeq).has(
+                          formIns.getValues().name,
+                        )
+                      ) {
+                        throw new Error(
+                          t('profiles.modals.groupsEditor.errors.nameExists'),
+                        )
                       }
                       setAppendSeq([...appendSeq, formIns.getValues()])
                     } catch (err) {

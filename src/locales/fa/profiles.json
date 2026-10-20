@@ -184,6 +184,9 @@
     },
     "proxiesEditor": {
       "title": "ویرایش پروکسی‌ها",
+      "errors": {
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+      },
       "placeholders": {
         "multiUri": "استفاده از خطوط جدید برای چندین آدرس (پشتیبانی از رمزگذاری Base64)"
       },

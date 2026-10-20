@@ -184,6 +184,9 @@
     },
     "proxiesEditor": {
       "title": "Проксины үзгәртү",
+      "errors": {
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+      },
       "placeholders": {
         "multiUri": "Берничә URI өчен яңа юл символын кулланыгыз (Base64 кодлавы ярдәм ителә)"
       },

@@ -48,6 +48,7 @@ import type { MonacoEditorInstance } from '@/types/monaco'
 import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
 import type { EditorReadFailure } from '@/utils/editor-save'
 import { readEachFile } from '@/utils/profile-files'
+import { takenSeqNames } from '@/utils/seq-names'
 import parseUri from '@/utils/uri-parser'
 import { parseYamlSafe } from '@/utils/yaml'
 
@@ -236,7 +237,8 @@ export const ProxiesEditorViewer = (props: Props) => {
   // Оптимизация: асинхронный парсинг по частям, чтобы не блокировать основной поток, setState пакетно после разбора
   const handleParseAsync = (cb: (proxies: IProxyConfig[]) => void) => {
     const proxies: IProxyConfig[] = []
-    const names: string[] = []
+    const taken = takenSeqNames(prependSeq, proxyList, appendSeq)
+    const duplicates: string[] = []
     let uris: string
     try {
       uris = atob(proxyUri)
@@ -258,9 +260,11 @@ export const ProxiesEditorViewer = (props: Props) => {
         }
         try {
           const proxy = parseUri(uri)
-          if (!names.includes(proxy.name)) {
+          if (taken.has(proxy.name)) {
+            duplicates.push(proxy.name)
+          } else {
             proxies.push(proxy)
-            names.push(proxy.name)
+            taken.add(proxy.name)
           }
         } catch (err) {
           console.warn(
@@ -293,6 +297,11 @@ export const ProxiesEditorViewer = (props: Props) => {
             },
             6000,
           )
+        }
+        if (duplicates.length > 0) {
+          showNotice.error('profiles.modals.proxiesEditor.errors.namesTaken', {
+            names: duplicates.join(', '),
+          })
         }
         cb(proxies)
       }

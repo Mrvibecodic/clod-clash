@@ -184,6 +184,9 @@
     },
     "proxiesEditor": {
       "title": "تعديل الوكلاء",
+      "errors": {
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+      },
       "placeholders": {
         "multiUri": "استخدم أسطرًا جديدة لعدّة عناوين URI (يدعم التشفير Base64)"
       },

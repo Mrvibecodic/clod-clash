@@ -184,6 +184,9 @@
     },
     "proxiesEditor": {
       "title": "Knoten bearbeiten",
+      "errors": {
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+      },
       "placeholders": {
         "multiUri": "Für mehrere URI verwenden Sie Zeilenumbrüche (Base64-Codierung wird unterstützt)"
       },
