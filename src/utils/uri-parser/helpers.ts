@@ -191,6 +191,23 @@ export function parseRequiredPort(
   return parsed
 }
 
+const SCHEME_PORTS: Record<string, number> = {
+  http: 80,
+  https: 443,
+  socks: 1080,
+  socks5: 1080,
+  wireguard: 51820,
+  wg: 51820,
+}
+
+/** Порт для ссылки без порта — принятый для её схемы. */
+export function schemeDefaultPort(uri: string): number {
+  const scheme = URI_SCHEME_RE.exec(uri.trim())?.[1].toLowerCase() ?? ''
+  const port = SCHEME_PORTS[scheme]
+  if (port === undefined) throw new Error('Invalid uri: no port')
+  return port
+}
+
 export function parsePortOrDefault(
   port: string | undefined,
   dft: number,

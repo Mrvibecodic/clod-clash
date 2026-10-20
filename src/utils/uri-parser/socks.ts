@@ -6,6 +6,7 @@ import {
   parseQueryStringNormalized,
   parseUrlLike,
   safeDecodeURIComponent,
+  schemeDefaultPort,
   splitOnce,
   stripUriScheme,
 } from './helpers'
@@ -26,7 +27,7 @@ export function URI_SOCKS(line: string): IProxySocks5Config {
     query: addons,
     fragment: nameRaw,
   } = parseUrlLike(afterScheme, { errorMessage: 'Invalid socks uri' })
-  const portNum = parsePortOrDefault(port, 443)
+  const portNum = parsePortOrDefault(port, schemeDefaultPort(line))
 
   const auth = safeDecodeURIComponent(authRaw) ?? authRaw
   const decodedName = decodeAndTrim(nameRaw)

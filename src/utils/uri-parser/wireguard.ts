@@ -8,6 +8,7 @@ import {
   parseQueryStringNormalized,
   parseUrlLike,
   safeDecodeURIComponent,
+  schemeDefaultPort,
   stripUriScheme,
 } from './helpers'
 
@@ -27,7 +28,7 @@ export function URI_Wireguard(line: string): IProxyWireguardConfig {
     query: addons,
     fragment: nameRaw,
   } = parseUrlLike(afterScheme, { errorMessage: 'Invalid wireguard uri' })
-  const portNum = parsePortOrDefault(port, 443)
+  const portNum = parsePortOrDefault(port, schemeDefaultPort(line))
   const privateKey = safeDecodeURIComponent(privateKeyRaw) ?? privateKeyRaw
   const decodedName = decodeAndTrim(nameRaw)
 
