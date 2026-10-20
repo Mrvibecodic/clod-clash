@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { readProfileFile, saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { type SeqLists, seqUnsaved } from '@/utils/seq-unsaved'
 import { parseYamlSafe } from '@/utils/yaml'
 
 type SeqConfig = Partial<Record<'prepend' | 'append' | 'delete', unknown>>
@@ -51,11 +52,7 @@ export const useSeqDocument = <T>(
   const [appendSeq, setAppendSeq] = useState<T[]>([])
   const [deleteSeq, setDeleteSeq] = useState<string[]>([])
   // Что лежит на диске: от него считаются несохранённые правки и «Сбросить».
-  const [baseline, setBaseline] = useState<{
-    prepend: T[]
-    append: T[]
-    delete: string[]
-  } | null>(null)
+  const [baseline, setBaseline] = useState<SeqLists<T> | null>(null)
   // Текст без несохранённых правок: прочитанный с диска или выгруженный из
   // нетронутого наглядного вида.
   const [cleanText, setCleanText] = useState('')
@@ -114,10 +111,11 @@ export const useSeqDocument = <T>(
       { forceQuotes: true },
     )
 
-  const seqDirty =
-    baseline !== null &&
-    JSON.stringify([prependSeq, appendSeq, deleteSeq]) !==
-      JSON.stringify([baseline.prepend, baseline.append, baseline.delete])
+  const seqDirty = seqUnsaved(status === 'ready', baseline, {
+    prepend: prependSeq,
+    append: appendSeq,
+    delete: deleteSeq,
+  })
 
   const dirty = useMemo(
     () => (visualization ? seqDirty : text !== cleanText),
@@ -136,7 +134,11 @@ export const useSeqDocument = <T>(
   }
 
   const reset = () => {
-    if (!baseline) return
+    if (!baseline) {
+      setText(cleanText)
+      setVisualization(false)
+      return
+    }
     setPrependSeq(baseline.prepend)
     setAppendSeq(baseline.append)
     setDeleteSeq(baseline.delete)

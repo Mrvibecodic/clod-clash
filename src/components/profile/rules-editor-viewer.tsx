@@ -56,6 +56,7 @@ import getSystem from '@/utils/get-system'
 import { isValidIpCidr } from '@/utils/network'
 import { BUILTIN_RULE_POLICIES } from '@/utils/proxy-groups'
 import { isBuiltinPolicy, policyName, ruleTypeName } from '@/utils/rule-labels'
+import { EMPTY_SEQ_LISTS } from '@/utils/seq-unsaved'
 import { parseYamlSafe } from '@/utils/yaml'
 
 interface Props {
@@ -650,24 +651,23 @@ export const RulesEditorViewer = (props: Props) => {
   // Что изменилось относительно файла на диске: добавленное (и возвращённое
   // из удалённых) против убранного (и помеченного на удаление).
   const changes = useMemo(() => {
-    if (!baseline) return null
+    if (!ready) return null
+    const disk = baseline ?? EMPTY_SEQ_LISTS
     const missing = (from: string[], to: string[]) =>
       from.filter((item) => !to.includes(item)).length
     return {
       added:
-        missing(prependSeq, baseline.prepend) +
-        missing(appendSeq, baseline.append) +
-        missing(baseline.delete, deleteSeq),
+        missing(prependSeq, disk.prepend) +
+        missing(appendSeq, disk.append) +
+        missing(disk.delete, deleteSeq),
       removed:
-        missing(baseline.prepend, prependSeq) +
-        missing(baseline.append, appendSeq) +
-        missing(deleteSeq, baseline.delete),
-      changed:
-        JSON.stringify([prependSeq, appendSeq, deleteSeq]) !==
-        JSON.stringify([baseline.prepend, baseline.append, baseline.delete]),
+        missing(disk.prepend, prependSeq) +
+        missing(disk.append, appendSeq) +
+        missing(deleteSeq, disk.delete),
+      onDisk: baseline !== null,
     }
-  }, [baseline, prependSeq, appendSeq, deleteSeq])
-  const unchanged = visualization && changes !== null && !changes.changed
+  }, [ready, baseline, prependSeq, appendSeq, deleteSeq])
+  const unchanged = visualization && changes !== null && !dirty
 
   const handleSave = useLockFn(async () => {
     try {
@@ -1150,13 +1150,13 @@ export const RulesEditorViewer = (props: Props) => {
           sx={{ flex: 1, minWidth: 0, fontSize: 13, color: 'text.secondary' }}
         >
           {visualization && changes ? (
-            changes.changed ? (
+            dirty ? (
               <>
                 <Box
                   component="span"
                   sx={{ color: 'text.primary', fontWeight: 600 }}
                 >
-                  {changes.added || changes.removed
+                  {changes.added || changes.removed || !changes.onDisk
                     ? t('rules.modals.editor.footer.unsaved', {
                         added: changes.added,
                         removed: changes.removed,
