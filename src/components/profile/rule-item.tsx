@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 
 import { TypeChip } from '@/components/base'
 import { outboundClass } from '@/components/connection/connection-text'
+import { seqActionLabelKey } from '@/components/profile/seq-action-label'
 import { policyName, ruleTypeName } from '@/utils/rule-labels'
 
 interface Props {
@@ -58,11 +59,7 @@ export const RuleItem = (props: Props) => {
       : policyClass === 'cc-reject'
         ? 'error.main'
         : 'text.primary'
-  const actionLabel = deleted
-    ? t('rules.modals.editor.list.actions.restore')
-    : sortable
-      ? t('rules.modals.editor.list.actions.remove')
-      : t('rules.modals.editor.list.actions.delete')
+  const actionLabel = t(seqActionLabelKey(deleted, sortable))
 
   return (
     <Box

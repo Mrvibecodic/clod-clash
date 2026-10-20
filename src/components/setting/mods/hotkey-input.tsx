@@ -60,12 +60,13 @@ const KeyWrapper = styled('div')(({ theme }) => ({
 }))
 
 interface Props {
+  label: string
   value: string[]
   onChange: (value: string[]) => void
 }
 
 export const HotkeyInput = (props: Props) => {
-  const { value, onChange } = props
+  const { label, value, onChange } = props
   const { t } = useTranslation()
 
   const changeRef = useRef<string[]>([])
@@ -75,6 +76,7 @@ export const HotkeyInput = (props: Props) => {
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
       <KeyWrapper>
         <input
+          aria-label={label}
           onKeyUp={() => {
             const ret = changeRef.current.slice()
             if (!ret.length) return

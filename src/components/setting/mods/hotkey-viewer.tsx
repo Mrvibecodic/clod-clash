@@ -180,6 +180,7 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
           </Box>
           <HotkeyInput
             key={inputGeneration}
+            label={t(HOTKEY_FUNC_LABELS[func])}
             value={hotkeyMap[func] ?? []}
             onChange={(v) => setHotkeyMap((m) => ({ ...m, [func]: v }))}
           />

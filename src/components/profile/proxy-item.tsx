@@ -6,9 +6,13 @@ import {
   IconButton,
   ListItem,
   ListItemText,
+  Tooltip,
   alpha,
   styled,
 } from '@mui/material'
+import { useTranslation } from 'react-i18next'
+
+import { seqActionLabelKey } from '@/components/profile/seq-action-label'
 
 interface Props {
   type: 'prepend' | 'original' | 'delete' | 'append'
@@ -18,7 +22,9 @@ interface Props {
 
 export const ProxyItem = (props: Props) => {
   const { type, proxy, onDelete } = props
+  const { t } = useTranslation()
   const sortable = type === 'prepend' || type === 'append'
+  const actionLabel = t(seqActionLabelKey(type === 'delete', sortable))
 
   const {
     attributes: sortableAttributes,
@@ -93,9 +99,11 @@ export const ProxyItem = (props: Props) => {
           },
         }}
       />
-      <IconButton onClick={onDelete}>
-        {type === 'delete' ? <UndoRounded /> : <DeleteForeverRounded />}
-      </IconButton>
+      <Tooltip title={actionLabel}>
+        <IconButton aria-label={actionLabel} onClick={onDelete}>
+          {type === 'delete' ? <UndoRounded /> : <DeleteForeverRounded />}
+        </IconButton>
+      </Tooltip>
     </ListItem>
   )
 }
