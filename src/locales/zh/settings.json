@@ -452,6 +452,7 @@
         "summary_one": "共 {{count}} 份备份 · 最近 {{recent}}",
         "empty": "暂无备份记录",
         "webdavFailed": "WebDAV 服务器未响应，请点击刷新按钮重试",
+        "webdavNotConfigured": "WebDAV is not set up — set it up in Backup Setting",
         "unknownPlatform": "未知",
         "unknownTime": "未知时间"
       },

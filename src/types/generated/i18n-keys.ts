@@ -809,6 +809,7 @@ export const translationKeys = [
   'settings.modals.backup.history.summary_one',
   'settings.modals.backup.history.empty',
   'settings.modals.backup.history.webdavFailed',
+  'settings.modals.backup.history.webdavNotConfigured',
   'settings.modals.backup.history.unknownPlatform',
   'settings.modals.backup.history.unknownTime',
   'settings.modals.backup.webdav.title',

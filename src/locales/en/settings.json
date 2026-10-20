@@ -452,6 +452,7 @@
         "summary_one": "{{count}} backup • latest {{recent}}",
         "empty": "No backups available",
         "webdavFailed": "The WebDAV server did not respond. Press the refresh button to retry",
+        "webdavNotConfigured": "WebDAV is not set up — set it up in Backup Setting",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
       },

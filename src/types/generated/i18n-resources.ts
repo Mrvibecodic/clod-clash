@@ -991,6 +991,7 @@ export interface TranslationResources {
             unknownPlatform: string
             unknownTime: string
             webdavFailed: string
+            webdavNotConfigured: string
           }
           manual: {
             configureWebdav: string

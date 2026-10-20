@@ -35,6 +35,7 @@ import {
   getWebdavStatus,
   setWebdavStatus,
 } from '@/services/webdav-status'
+import { backupHistoryNote } from '@/utils/backup-history'
 import { dateTimeText } from '@/utils/date-text'
 
 dayjs.extend(customParseFormat)
@@ -78,6 +79,7 @@ export const BackupHistoryViewer = ({
   const { t } = useTranslation()
   const { verge } = useVerge()
   const [rows, setRows] = useState<BackupRow[]>([])
+  const [listed, setListed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isRestoring, setIsRestoring] = useState(false)
   const [isRestarting, setIsRestarting] = useState(false)
@@ -135,6 +137,7 @@ export const BackupHistoryViewer = ({
   const fetchRows = useCallback(
     async (options?: { force?: boolean }) => {
       if (!open) return
+      setListed(false)
       if (shouldSkipWebDav) {
         setRows([])
         return
@@ -162,6 +165,7 @@ export const BackupHistoryViewer = ({
                 : b.sort_value - a.sort_value,
             ),
         )
+        setListed(true)
       } catch (error) {
         if (!isLocal) {
           setWebdavStatus(webdavSignature, 'failed')
@@ -188,21 +192,28 @@ export const BackupHistoryViewer = ({
     currentPage * pageSize + pageSize,
   )
 
+  const note = backupHistoryNote({
+    notConfigured: shouldSkipWebDav,
+    serverFailed: !isLocal && webdavStatus === 'failed',
+    listed,
+    total,
+  })
+
   const summary = useMemo(() => {
-    if (shouldSkipWebDav) {
-      return t('settings.modals.backup.manual.webdav')
+    if (note === 'notConfigured') {
+      return t('settings.modals.backup.history.webdavNotConfigured')
     }
-    if (!isLocal && webdavStatus === 'failed') {
+    if (note === 'serverFailed') {
       return t('settings.modals.backup.history.webdavFailed')
     }
-    if (!total) return t('settings.modals.backup.history.empty')
+    if (note !== 'summary') return null
     const recent =
       rows[0]?.backup_time?.fromNow() ?? rows[0]?.display_time ?? ''
     return t('settings.modals.backup.history.summary', {
       count: total,
       recent,
     })
-  }, [isLocal, rows, shouldSkipWebDav, t, total, webdavStatus])
+  }, [note, rows, t, total])
 
   const handleDelete = (filename: string) => {
     if (isRestarting) return
@@ -331,7 +342,7 @@ export const BackupHistoryViewer = ({
           {summary}
         </Box>
 
-        {pagedRows.length === 0 ? (
+        {note === 'empty' ? (
           <FormHint>{t('settings.modals.backup.history.empty')}</FormHint>
         ) : (
           pagedRows.map((row) => (
