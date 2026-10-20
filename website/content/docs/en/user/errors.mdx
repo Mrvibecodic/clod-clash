@@ -124,10 +124,10 @@ default). This switch and the main one, "Auto Close Connections"
 Appearance and behaviour → "Miscellaneous"**. If the main one is off, connections are not
 closed anywhere.
 
-## Traffic bypasses the tunnel
+## "TUN is up but no traffic is flowing through the tunnel"
 
-The "TUN is up but no traffic is flowing through the tunnel" notification appears when the check
-through the core passed but the direct path is also alive. On Windows with `system`/`mixed` this is
+This notification appears when the core's proxy answers but connections through the
+tunnel don't: programs that go online without proxy settings can't open anything. On Windows with `system`/`mixed` this is
 almost always the firewall — press "Fix" on the home screen. In other cases
 try a different stack in the TUN dialog.
 
