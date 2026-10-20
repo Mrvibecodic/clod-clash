@@ -7,6 +7,7 @@ import {
   mtuIsValid,
   tunFieldsFrom,
   tunPatch,
+  tunSavePatch,
 } from './tun-window.ts'
 
 // Так выглядит tun в clash.yaml свежей установки.
@@ -94,5 +95,20 @@ describe('окно TUN', () => {
     assert.equal(fresh.mtu, '')
     assert.equal(fresh.device, '')
     assert.equal(fresh.autoRoute, true)
+  })
+
+  it('«Сбросить настройки» только заполняет форму: пишется по «Сохранить», правки после сброса — поверх', () => {
+    const pinned = { ...TEMPLATE, mtu: 1400, 'auto-redirect': true }
+    const initial = tunFieldsFrom(pinned, RUNTIME, 'linux')
+    const fresh = tunFieldsFrom(TUN_RESET, undefined, 'linux')
+    assert.deepEqual(tunSavePatch(initial, fresh, fresh, 'linux'), TUN_RESET)
+    assert.deepEqual(
+      tunSavePatch(initial, { ...fresh, mtu: '1380' }, fresh, 'linux'),
+      { ...TUN_RESET, mtu: 1380 },
+    )
+    assert.deepEqual(
+      tunSavePatch(initial, { ...initial, mtu: '1380' }, null, 'linux'),
+      { mtu: 1380 },
+    )
   })
 })

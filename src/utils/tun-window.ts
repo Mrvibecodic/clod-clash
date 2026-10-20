@@ -96,6 +96,19 @@ export const TUN_RESET: Readonly<Record<string, unknown>> = {
   'auto-detect-interface': true,
 }
 
+/** Что записать по «Сохранить»: после «Сбросить настройки» — как на свежей
+ * установке и поверх то, что поменяли в форме уже после сброса. */
+export function tunSavePatch(
+  initial: TunFields,
+  current: TunFields,
+  reset: TunFields | null,
+  os: string,
+): Record<string, unknown> {
+  return reset
+    ? { ...TUN_RESET, ...tunPatch(reset, current, os) }
+    : tunPatch(initial, current, os)
+}
+
 export const STACKS = [
   { value: 'system', label: 'System' },
   { value: 'gvisor', label: 'gVisor' },

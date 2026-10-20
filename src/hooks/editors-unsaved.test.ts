@@ -52,7 +52,7 @@ describe('окна с несохранённым', () => {
     assert.match(sysproxy, /patch\.system_proxy_bypass = bypass/)
     const tun = source('../components/setting/mods/tun-viewer.tsx')
     assert.match(tun, /useChangeCount\(initial, withDraft\)/)
-    assert.match(tun, /tunPatch\(initial, withDraft, OS\)/)
+    assert.match(tun, /tunSavePatch\(\s*initial,\s*withDraft,/)
   })
 
   it('признак несохранённого у наглядного вида — от диска, у текста — от чистого текста', () => {

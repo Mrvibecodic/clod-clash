@@ -35,7 +35,7 @@ import {
   splitRouteExcludeAddress,
   stackLabel,
   tunFieldsFrom,
-  tunPatch,
+  tunSavePatch,
 } from '@/utils/tun-window'
 
 import { StackModeSwitch } from './stack-mode-switch'
@@ -64,6 +64,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   // Что было при открытии: сохраняется только то, что человек поменял.
   const [initial, setInitial] = useState(FRESH)
   const [routeExcludeDraft, setRouteExcludeDraft] = useState('')
+  const [resetPending, setResetPending] = useState(false)
 
   const effectiveStack = (
     tunRuntimeStack ??
@@ -138,6 +139,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       setValues(opened)
       setInitial(opened)
       setRouteExcludeDraft('')
+      setResetPending(false)
     },
     close: () => setOpen(false),
   }))
@@ -158,6 +160,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
 
       if (
+        resetPending ||
         values.stack !== initial.stack ||
         values.strictRoute !== initial.strictRoute ||
         values.dnsHijack !== initial.dnsHijack
@@ -170,7 +173,12 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         await patchVerge(overrides)
         mutateVerge({ ...verge, ...overrides })
       }
-      const tun = tunPatch(initial, withDraft, OS)
+      const tun = tunSavePatch(
+        initial,
+        withDraft,
+        resetPending ? FRESH : null,
+        OS,
+      )
       if (Object.keys(tun).length > 0) {
         await patchClash({ tun })
       }
@@ -181,22 +189,11 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
   })
 
-  const onReset = useLockFn(async () => {
-    try {
-      const overrides = {
-        tun_stack: 'auto',
-        tun_strict_route: 'auto',
-        tun_dns_hijack: 'auto',
-      }
-      setValues(FRESH)
-      await patchVerge(overrides)
-      await patchClash({ tun: TUN_RESET })
-      setInitial(FRESH)
-      mutateVerge({ ...verge, ...overrides })
-    } catch (err: any) {
-      showNotice.error(err)
-    }
-  })
+  const onResetToDefault = () => {
+    setValues(FRESH)
+    setRouteExcludeDraft('')
+    setResetPending(true)
+  }
 
   const help = (text: string, color = 'text.secondary') => (
     <Box sx={{ mt: 0.75, fontSize: 12.5, color }}>{text}</Box>
@@ -210,7 +207,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         <Button
           size="small"
           startIcon={<UndoRounded />}
-          onClick={onReset}
+          onClick={onResetToDefault}
           sx={{ flex: 'none', textTransform: 'none' }}
         >
           {t('shared.actions.resetToDefault')}
@@ -221,6 +218,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onReset={() => {
         setValues(initial)
         setRouteExcludeDraft('')
+        setResetPending(false)
       }}
       contentSx={{ width: 512 }}
       okBtn={t('shared.actions.save')}
