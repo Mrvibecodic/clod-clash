@@ -36,10 +36,10 @@
       "now": "Şimdi",
       "volume": "Hacim",
       "processes": "Uygulamalar",
-      "routes": "Rotalar",
+      "routes": "Nodes",
       "shown": "Gösterilen",
-      "noProcess": "İşlem yok",
-      "unknownRoute": "Unknown route"
+      "noProcess": "No app",
+      "unknownRoute": "Unknown node"
     },
     "actions": {
       "active": "Active",

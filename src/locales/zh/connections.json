@@ -36,10 +36,10 @@
       "now": "当前",
       "volume": "流量",
       "processes": "应用",
-      "routes": "出口",
+      "routes": "Nodes",
       "shown": "显示",
-      "noProcess": "无进程",
-      "unknownRoute": "Unknown route"
+      "noProcess": "No app",
+      "unknownRoute": "Unknown node"
     },
     "actions": {
       "active": "活跃",

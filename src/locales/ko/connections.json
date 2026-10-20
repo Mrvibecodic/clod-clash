@@ -36,10 +36,10 @@
       "now": "현재",
       "volume": "사용량",
       "processes": "앱",
-      "routes": "경로",
+      "routes": "Nodes",
       "shown": "표시됨",
-      "noProcess": "프로세스 없음",
-      "unknownRoute": "Unknown route"
+      "noProcess": "No app",
+      "unknownRoute": "Unknown node"
     },
     "actions": {
       "active": "Active",

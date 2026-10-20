@@ -43,6 +43,7 @@ import {
 import {
   buildConnectionGroups,
   connectionGroupKey,
+  groupFallbackKey,
 } from '@/components/connection/connection-stats'
 import { ConnectionSummary } from '@/components/connection/connection-summary'
 import {
@@ -263,7 +264,7 @@ const ConnectionsPage = () => {
     keys: ReadonlySet<string>
   }>()
   const directLabel = t('shared.labels.direct')
-  const otherGroupLabel = t('connections.components.group.other')
+  const otherGroupLabel = t(groupFallbackKey(groupBy))
   const listItems = useMemo(() => {
     if (isTableLayout || groupBy === 'none') return null
     const collapsed =

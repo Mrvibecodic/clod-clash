@@ -41,6 +41,7 @@ import {
   connectionGroupKey,
   getConnectionProcess,
   getConnectionRule,
+  groupFallbackKey,
 } from './connection-stats'
 import { connTextSx, connTileSx } from './connection-text'
 
@@ -804,7 +805,7 @@ export const ConnectionTable = (props: Props) => {
     )
   }, [connections, sorting, getRowSnapshot])
 
-  const otherGroupLabel = t('connections.components.group.other')
+  const otherGroupLabel = t(groupFallbackKey(groupBy))
   const cellLabels = useMemo<CellLabels>(
     () => ({
       direct: t('shared.labels.direct'),

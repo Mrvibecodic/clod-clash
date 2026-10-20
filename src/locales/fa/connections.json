@@ -36,10 +36,10 @@
       "now": "اکنون",
       "volume": "حجم",
       "processes": "برنامه‌ها",
-      "routes": "مسیرها",
+      "routes": "Nodes",
       "shown": "نمایش‌داده‌شده",
-      "noProcess": "بدون فرآیند",
-      "unknownRoute": "Unknown route"
+      "noProcess": "No app",
+      "unknownRoute": "Unknown node"
     },
     "actions": {
       "active": "Active",

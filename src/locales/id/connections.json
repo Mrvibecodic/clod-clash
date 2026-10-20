@@ -36,10 +36,10 @@
       "now": "Sekarang",
       "volume": "Volume",
       "processes": "Aplikasi",
-      "routes": "Rute",
+      "routes": "Nodes",
       "shown": "Ditampilkan",
-      "noProcess": "Tanpa proses",
-      "unknownRoute": "Unknown route"
+      "noProcess": "No app",
+      "unknownRoute": "Unknown node"
     },
     "actions": {
       "active": "Active",

@@ -48,7 +48,7 @@ export const getConnectionRule = (connection: IConnectionsItem) => {
 
 /**
  * Ключ группы соединения: приложение, узел выхода (`chains[0]` — им же
- * считает сводка «Маршруты») или правило.
+ * считает сводка «Узлы») или правило.
  */
 export const connectionGroupKey = (
   groupBy: IConnectionGroupBy,
@@ -68,6 +68,14 @@ export const connectionGroupKey = (
       return ''
   }
 }
+
+/** Подпись группы без ключа — тем же словом, что в сводке. */
+export const groupFallbackKey = (groupBy: IConnectionGroupBy) =>
+  groupBy === 'process'
+    ? 'connections.components.summary.noProcess'
+    : groupBy === 'chain'
+      ? 'connections.components.summary.unknownRoute'
+      : 'connections.components.group.other'
 
 export const buildConnectionGroups = (
   connections: readonly IConnectionsItem[],
@@ -124,7 +132,7 @@ export const summarizeConnections = (
   let uploadSpeed = 0
   const processTotals = new Map<string, number>()
   const routeTotals = new Map<string, number>()
-  // Корзина «Без процесса» — не приложение: соединения без имени процесса
+  // Корзина «Без приложения» — не приложение: соединения без имени процесса
   // складываются в одну строку списка, но числом приложений считаться не должны.
   let namedProcesses = 0
 

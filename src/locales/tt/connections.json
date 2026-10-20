@@ -36,10 +36,10 @@
       "now": "Хәзер",
       "volume": "Күләм",
       "processes": "Кушымталар",
-      "routes": "Юллар",
+      "routes": "Nodes",
       "shown": "Күрсәтелгән",
-      "noProcess": "Процесссыз",
-      "unknownRoute": "Unknown route"
+      "noProcess": "No app",
+      "unknownRoute": "Unknown node"
     },
     "actions": {
       "active": "Active",

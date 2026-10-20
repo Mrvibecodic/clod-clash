@@ -36,10 +36,10 @@
       "now": "Сейчас",
       "volume": "Объём",
       "processes": "Приложения",
-      "routes": "Маршруты",
+      "routes": "Узлы",
       "shown": "Показано",
-      "noProcess": "Без процесса",
-      "unknownRoute": "Маршрут неизвестен"
+      "noProcess": "Без приложения",
+      "unknownRoute": "Узел неизвестен"
     },
     "actions": {
       "active": "Активные",

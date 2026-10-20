@@ -36,10 +36,10 @@
       "now": "Now",
       "volume": "Volume",
       "processes": "Apps",
-      "routes": "Routes",
+      "routes": "Nodes",
       "shown": "Shown",
-      "noProcess": "No process",
-      "unknownRoute": "Unknown route"
+      "noProcess": "No app",
+      "unknownRoute": "Unknown node"
     },
     "actions": {
       "active": "Active",

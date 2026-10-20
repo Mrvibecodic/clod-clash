@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import {
   buildConnectionGroups,
   connectionGroupKey,
+  groupFallbackKey,
   shortProcessName,
   summarizeConnections,
 } from './connection-stats.ts'
@@ -247,5 +248,19 @@ describe('summarizeConnections', () => {
     assert.equal(stats.processCount, 0)
     assert.deepEqual(stats.processes, [])
     assert.deepEqual(stats.routes, [])
+  })
+})
+
+describe('подпись группы без ключа', () => {
+  it('теми же словами, что в сводке: без приложения и узел неизвестен', () => {
+    assert.equal(
+      groupFallbackKey('process'),
+      'connections.components.summary.noProcess',
+    )
+    assert.equal(
+      groupFallbackKey('chain'),
+      'connections.components.summary.unknownRoute',
+    )
+    assert.equal(groupFallbackKey('rule'), 'connections.components.group.other')
   })
 })

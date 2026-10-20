@@ -36,10 +36,10 @@
       "now": "現在",
       "volume": "通信量",
       "processes": "アプリ",
-      "routes": "経路",
+      "routes": "Nodes",
       "shown": "表示中",
-      "noProcess": "プロセスなし",
-      "unknownRoute": "Unknown route"
+      "noProcess": "No app",
+      "unknownRoute": "Unknown node"
     },
     "actions": {
       "active": "Active",

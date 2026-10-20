@@ -36,10 +36,10 @@
       "now": "الآن",
       "volume": "الحجم",
       "processes": "التطبيقات",
-      "routes": "المسارات",
+      "routes": "Nodes",
       "shown": "المعروض",
-      "noProcess": "بدون عملية",
-      "unknownRoute": "Unknown route"
+      "noProcess": "No app",
+      "unknownRoute": "Unknown node"
     },
     "actions": {
       "active": "Active",
