@@ -141,8 +141,8 @@ script, rules и группах: проверьте свои правки, ос�
 отправляет собственные соединения приложения обратно в туннель, и они ходят
 по кругу.
 
-**1. Проверьте.** Выключите TUN, откройте PowerShell (Win+X → «Терминал») и
-выполните:
+**1. Проверьте.** Выключите TUN, откройте PowerShell (Win+X → «Терминал» в
+Windows 11 или «Windows PowerShell» в Windows 10) и выполните:
 
 ```powershell
 Get-NetIPInterface -AddressFamily IPv4 | ft ifIndex,InterfaceAlias,Forwarding,ConnectionState -AutoSize
@@ -164,7 +164,8 @@ ifIndex InterfaceAlias              Forwarding ConnectionState
 своё» ниже).
 
 **2. Выключите пересылку.** Откройте PowerShell от имени администратора
-(Win+X → «Терминал (администратор)») и выполните команду, подставив вместо
+(Win+X → «Терминал (администратор)» в Windows 11 или «Windows PowerShell
+(администратор)» в Windows 10) и выполните команду, подставив вместо
 `Wi-Fi` имя своего адаптера из колонки `InterfaceAlias`:
 
 ```powershell
@@ -209,7 +210,8 @@ Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters -Name 
 интернету, — тогда повторите шаг 2.
 
 Пока пересылка выключена, раздача интернета с этого компьютера (хот-спот,
-общий доступ) не работает. Вернуть как было — та же команда из шага 2 с
+общий доступ) не работает, а если её включила программа виртуализации, может
+пропасть сеть у виртуальных машин, WSL или Docker. Вернуть как было — та же команда из шага 2 с
 `Enabled` вместо `Disabled`.
 
 ## Приложение зависло

@@ -142,7 +142,8 @@ Windows. It is turned on by, for example, Mobile hotspot and Internet Connection
 Sharing, and sometimes by virtualization software. While it is on, Windows sends
 the app's own connections back into the tunnel, and they go round in circles.
 
-**1. Check.** Turn TUN off, open PowerShell (Win+X → "Terminal") and run:
+**1. Check.** Turn TUN off, open PowerShell (Win+X → "Terminal" on Windows 11
+or "Windows PowerShell" on Windows 10) and run:
 
 ```powershell
 Get-NetIPInterface -AddressFamily IPv4 | ft ifIndex,InterfaceAlias,Forwarding,ConnectionState -AutoSize
@@ -163,7 +164,8 @@ this is the cause — go to step 2. If it says `Disabled`, the problem is elsewh
 export the logs and ask in the chat (see "Didn't find yours" below).
 
 **2. Turn forwarding off.** Open PowerShell as administrator
-(Win+X → "Terminal (Admin)") and run the command, replacing `Wi-Fi` with your
+(Win+X → "Terminal (Admin)" on Windows 11 or "Windows PowerShell (Admin)" on
+Windows 10) and run the command, replacing `Wi-Fi` with your
 adapter's name from the `InterfaceAlias` column:
 
 ```powershell
@@ -207,7 +209,8 @@ may turn on again when you start Mobile hotspot or Internet Connection Sharing �
 then repeat step 2.
 
 While forwarding is off, sharing the internet from this computer (hotspot,
-Internet Connection Sharing) doesn't work. To undo, run the step 2 command with
+Internet Connection Sharing) doesn't work, and if virtualization software turned
+it on, virtual machines, WSL or Docker may lose their network. To undo, run the step 2 command with
 `Enabled` instead of `Disabled`.
 
 ## The app froze
