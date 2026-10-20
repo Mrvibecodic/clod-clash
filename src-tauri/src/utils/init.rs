@@ -796,10 +796,18 @@ pub fn init_scheme() -> Result<()> {
     let (default_icon, _) = hkcu.create_subkey("Software\\Classes\\Clash\\DefaultIcon")?;
     default_icon.set_value("", &app_exe)?;
     let (command, _) = hkcu.create_subkey("Software\\Classes\\Clash\\Shell\\Open\\Command")?;
-    command.set_value("", &format!("{app_exe} \"%1\""))?;
+    command.set_value("", &scheme_open_command(&app_exe))?;
 
     Ok(())
 }
+
+/// Путь в кавычках: без них система подбирает программу по частям пути с
+/// пробелами (`C:\Program.exe`, `D:\Clod.exe` на флешке).
+#[cfg(any(target_os = "windows", test))]
+fn scheme_open_command(app_exe: &str) -> String {
+    format!("\"{app_exe}\" \"%1\"")
+}
+
 #[cfg(target_os = "linux")]
 pub fn init_scheme() -> Result<()> {
     let desktop_file = format!("{}.desktop", crate::constants::branding::APP_SLUG);
@@ -1252,6 +1260,14 @@ mod tests {
         assert!(
             !drop_legacy_dns_keys(&mut chosen),
             "ту же пару сегодня ставит человек со страницы"
+        );
+    }
+
+    #[test]
+    fn the_link_handler_takes_the_whole_path_with_spaces() {
+        assert_eq!(
+            super::scheme_open_command(r"C:\Program Files\Clod Clash\clod-clash.exe"),
+            r#""C:\Program Files\Clod Clash\clod-clash.exe" "%1""#
         );
     }
 }

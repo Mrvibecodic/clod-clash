@@ -947,6 +947,14 @@ Section Uninstall
     ${EndIf}
   {{/each}}
 
+  {{#each deep_link_protocols as |protocol| ~}}
+    ReadRegStr $R7 HKCU "Software\Classes\\{{protocol}}\shell\open\command" ""
+    ${If} $R7 == "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" $\"%1$\""
+    ${OrIf} $R7 == "$INSTDIR\${MAINBINARYNAME}.exe $\"%1$\""
+      DeleteRegKey HKCU "Software\Classes\\{{protocol}}"
+    ${EndIf}
+  {{/each}}
+
   Delete "$INSTDIR\uninstall.exe"
 
   {{#each resources_ancestors}}
