@@ -2,6 +2,7 @@ mod chain;
 pub mod dns_page;
 pub mod field;
 mod merge;
+pub mod proxy_chain;
 mod script;
 pub mod seq;
 mod tun;
@@ -249,6 +250,7 @@ struct ProfileItems {
     mode_choice: Option<String>,
     /// Сборка идёт с кандидата подписки (`*.new`), а не с файла на диске.
     profile_is_a_candidate: bool,
+    proxy_chain: Option<Vec<String>>,
 }
 
 /// Пустые звенья цепочки — когда у подписки своего звена нет.
@@ -297,6 +299,7 @@ impl Default for ProfileItems {
             profile_shows_zero_hosts: false,
             mode_choice: None,
             profile_is_a_candidate: false,
+            proxy_chain: None,
             merge_item: empty_merge(),
             script_item: empty_script(),
             rules_item: empty_rules(),
@@ -453,6 +456,7 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
         profile_shows_zero_hosts,
         mode_choice,
         profile_is_a_candidate: current_item.file.as_deref().is_some_and(|file| file.ends_with(".new")),
+        proxy_chain: current_item.proxy_chain.as_ref().map(|chain| chain.nodes.clone()),
     })
 }
 
@@ -2079,6 +2083,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let profile_shows_zero_hosts = profile.profile_shows_zero_hosts;
     let mode_choice = profile.mode_choice;
     let profile_is_a_candidate = profile.profile_is_a_candidate;
+    let proxy_chain = profile.proxy_chain;
 
     let config = process_seq_items(config, rules_item, proxies_item, groups_item);
 
@@ -2174,7 +2179,8 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     };
     let config = cleanup_proxy_groups(config);
     let (config, rejected_groups) = backfill_empty_groups(config);
-    let config = unpin_providers_from_rejection(config, &rejected_groups);
+    let mut config = unpin_providers_from_rejection(config, &rejected_groups);
+    let proxy_chain = with_the_chain(&mut config, proxy_chain);
     let config = use_sort(config);
 
     if profile_is_remote {
@@ -2200,7 +2206,21 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         unreadable_lan_list,
         sentinel_report,
         own_nodes,
+        proxy_chain,
     })
+}
+
+fn with_the_chain(config: &mut Mapping, chain: Option<Vec<String>>) -> Option<Vec<String>> {
+    let nodes = chain?;
+    if proxy_chain::apply(config, &nodes) {
+        return Some(nodes);
+    }
+    logging!(
+        warn,
+        Type::Config,
+        "цепочка прокси не наложена: её узлов нет среди узлов подписки"
+    );
+    None
 }
 
 #[allow(clippy::expect_used)]
@@ -2238,6 +2258,22 @@ mod tests {
 
     fn mapping_value(yaml: &str) -> serde_yaml_ng::Value {
         serde_yaml_ng::from_str(yaml).expect("test value should be valid")
+    }
+
+    #[test]
+    fn the_chain_of_the_subscription_is_laid_on_every_build() {
+        let body = crate::utils::source_scan::fn_body(include_str!("mod.rs"), "pub async fn enhance(")
+            .expect("enhance() is in mod.rs");
+        assert!(body.contains("with_the_chain(&mut config, proxy_chain)"), "{body}");
+        let chain =
+            |names: &[&str]| -> Vec<smartstring::alias::String> { names.iter().map(|name| (*name).into()).collect() };
+        let mut config = mapping("proxies: [{name: A, type: ss}, {name: B, type: ss}]");
+        assert_eq!(
+            super::with_the_chain(&mut config, Some(chain(&["A", "B"]))),
+            Some(chain(&["A", "B"]))
+        );
+        assert_eq!(super::with_the_chain(&mut config, Some(chain(&["A", "gone"]))), None);
+        assert_eq!(super::with_the_chain(&mut config, None), None);
     }
 
     #[test]

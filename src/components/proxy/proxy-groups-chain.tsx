@@ -27,6 +27,7 @@ import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import { NARROW } from '@/pages/_theme'
 import { dismantleProxyChain } from '@/services/cmds'
 import {
+  type ConnectedChain,
   type ProxyChainNode as ProxyChainItem,
   readProxyChain,
   saveProxyChain,
@@ -75,7 +76,7 @@ interface GroupSelectMenuProps {
 
 interface ProxyGroupsChainProps {
   mode: string
-  chainConfigData?: string | null
+  chain?: ConnectedChain | null
   availableGroups: any[]
   activeSelectedGroup: string | null
   showScrollTop: boolean
@@ -318,7 +319,7 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
   const { t } = useTranslation()
   const {
     mode,
-    chainConfigData,
+    chain: connected,
     availableGroups,
     activeSelectedGroup,
     showScrollTop,
@@ -494,7 +495,7 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
           <ProxyChain
             proxyChain={proxyChain}
             onUpdateChain={setProxyChain}
-            chainConfigData={chainConfigData}
+            chain={connected}
             mode={mode}
             selectedGroup={activeSelectedGroup}
           />

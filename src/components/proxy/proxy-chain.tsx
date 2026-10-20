@@ -33,46 +33,35 @@ import {
   Typography,
   useTheme,
 } from '@mui/material'
-import yaml from 'js-yaml'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  closeAllConnections,
-  selectNodeForGroup,
-} from 'tauri-plugin-mihomo-api'
+import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { BaseEmpty, TooltipIcon } from '@/components/base'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import {
+  connectProxyChain,
+  disconnectProxyChain,
   dismantleProxyChain,
-  patchSelectedNode,
-  updateProxyChainConfigInRuntime,
 } from '@/services/cmds'
 import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import {
+  chainIsConnected,
   clearProxyChain,
+  type ConnectedChain,
   type ProxyChainNode as ProxyChainItem,
-  readProxyChain,
-  saveProxyChain,
 } from '@/services/proxy-chain-store'
+import { revalidateQueriesByPrefix } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
 import { delayText, delayTone, failedDelay } from '@/utils/delay-color'
 import { nodeName, typeText } from '@/utils/proxy-label'
 
-interface ParsedChainConfig {
-  proxies?: Array<{
-    name: string
-    type: string
-    [key: string]: any
-  }>
-}
-
 interface ProxyChainProps {
   proxyChain: ProxyChainItem[]
   onUpdateChain: (chain: ProxyChainItem[]) => void
-  chainConfigData?: string | null
+  chain?: ConnectedChain | null
   mode?: string
   selectedGroup?: string | null
 }
@@ -92,18 +81,13 @@ interface SortableItemProps {
   onRemove: (id: string) => void
 }
 
-const toChainItems = (
-  parsedConfig: ParsedChainConfig | null | undefined,
-): ProxyChainItem[] => {
+const toChainItems = (nodes: readonly string[]): ProxyChainItem[] => {
   const timestamp = Date.now()
 
-  return (
-    parsedConfig?.proxies?.map((proxy, index) => ({
-      id: `${proxy.name}_${timestamp}_${index}`,
-      name: proxy.name,
-      type: proxy.type,
-    })) || []
-  )
+  return nodes.map((name, index) => ({
+    id: `${name}_${timestamp}_${index}`,
+    name,
+  }))
 }
 
 // Цифра строки — из тех же данных, что у всего экрана: свежее из своего замера
@@ -264,7 +248,7 @@ const SortableItem = ({
 export const ProxyChain = ({
   proxyChain,
   onUpdateChain,
-  chainConfigData,
+  chain,
   mode,
   selectedGroup,
 }: ProxyChainProps) => {
@@ -277,27 +261,23 @@ export const ProxyChain = ({
   const { refreshProxy } = useAppRefreshers()
   const [isConnecting, setIsConnecting] = useState(false)
 
+  const targetGroup = mode === 'global' ? 'GLOBAL' : selectedGroup
   const isConnected = useMemo(() => {
-    if (!proxies || proxyChain.length < 2) {
-      return false
-    }
-
-    const lastNode = proxyChain[proxyChain.length - 1]
-
-    if (mode === 'global') {
-      return proxies.global?.now === lastNode.name
-    }
-
-    if (!selectedGroup || !Array.isArray(proxies.groups)) {
-      return false
-    }
-
-    const proxyChainGroup = proxies.groups.find(
-      (group: { name: string }) => group.name === selectedGroup,
+    const group =
+      mode === 'global'
+        ? proxies?.global
+        : Array.isArray(proxies?.groups)
+          ? proxies.groups.find(
+              (item: { name: string }) => item.name === targetGroup,
+            )
+          : undefined
+    return chainIsConnected(
+      chain,
+      proxyChain.map((item) => item.name),
+      targetGroup,
+      group?.now,
     )
-
-    return proxyChainGroup?.now === lastNode.name
-  }, [proxies, proxyChain, mode, selectedGroup])
+  }, [proxies, proxyChain, mode, targetGroup, chain])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -336,36 +316,9 @@ export const ProxyChain = ({
     if (isConnected) {
       setIsConnecting(true)
       try {
-        await updateProxyChainConfigInRuntime(null)
-
-        const targetGroup =
-          mode === 'global'
-            ? 'GLOBAL'
-            : selectedGroup || readProxyChain(profileUid).group
-
-        if (targetGroup) {
-          // clod: то же и при разрыве цепочки — иначе подписка помнила бы
-          // выходной узел, которого уже нет, и возвращала его после рестарта.
-          const persist = (node: string) =>
-            patchSelectedNode(targetGroup, node).catch((error) => {
-              console.error('Failed to persist proxy chain selection:', error)
-            })
-          try {
-            await selectNodeForGroup(targetGroup, 'DIRECT')
-            await persist('DIRECT')
-          } catch {
-            if (proxyChain.length >= 1) {
-              try {
-                await selectNodeForGroup(targetGroup, proxyChain[0].name)
-                await persist(proxyChain[0].name)
-              } catch {
-                // ignore
-              }
-            }
-          }
-        }
-
+        await disconnectProxyChain()
         clearProxyChain(profileUid)
+        await revalidateQueriesByPrefix(['proxyChain'])
 
         await closeAllConnections()
         await refreshProxy()
@@ -387,37 +340,14 @@ export const ProxyChain = ({
 
     setIsConnecting(true)
     try {
-      // Шаг 1: сохраняем конфиг цепочки прокси
-      const chainProxies = proxyChain.map((node) => node.name)
-      debugLog('Saving chain config:', chainProxies)
-      await updateProxyChainConfigInRuntime(chainProxies)
-      debugLog('Chain configuration saved successfully')
-
-      // Шаг 2: подключаемся к последнему узлу цепочки прокси
-      const lastNode = proxyChain[proxyChain.length - 1]
-      debugLog(`Connecting to proxy chain, last node: ${lastNode.name}`)
-
-      // Определяем имя группы прокси в зависимости от режима
-      if (mode !== 'global' && !selectedGroup) {
+      if (!targetGroup) {
         throw new Error('Необходимо выбрать группу прокси в режиме правил')
       }
 
-      const targetGroup = mode === 'global' ? 'GLOBAL' : selectedGroup
-
-      await selectNodeForGroup(targetGroup || 'GLOBAL', lastNode.name)
-      // clod: выбор, записанный только в ядро, откатывался при его
-      // перезапуске — цепочка «отваливалась» сама собой. Пишем и в подписку.
-      await patchSelectedNode(targetGroup || 'GLOBAL', lastNode.name).catch(
-        (error) => {
-          console.error('Failed to persist proxy chain selection:', error)
-        },
-      )
-      if (profileUid) {
-        saveProxyChain(profileUid, {
-          group: targetGroup || 'GLOBAL',
-          exitNode: lastNode.name,
-        })
-      }
+      const chainProxies = proxyChain.map((node) => node.name)
+      debugLog('Connecting the chain:', targetGroup, chainProxies)
+      await connectProxyChain(targetGroup, chainProxies)
+      await revalidateQueriesByPrefix(['proxyChain'])
 
       // Обновляем данные прокси, чтобы обновить статус подключения
       refreshProxy()
@@ -432,28 +362,16 @@ export const ProxyChain = ({
     proxyChain,
     isConnected,
     refreshProxy,
-    mode,
-    selectedGroup,
+    targetGroup,
     onUpdateChain,
     profileUid,
   ])
 
-  // Обрабатываем данные конфига цепочки прокси
   useEffect(() => {
-    if (chainConfigData) {
-      try {
-        // JSON is valid YAML, so one parser covers both persisted formats.
-        const parsedConfig = yaml.load(chainConfigData) as ParsedChainConfig
-        const chainItems = toChainItems(parsedConfig)
-
-        if (chainItems.length > 0) {
-          onUpdateChain(chainItems)
-        }
-      } catch (error) {
-        console.error('Failed to process chain config data:', error)
-      }
+    if (chain && chain.nodes.length > 0) {
+      onUpdateChain(toChainItems(chain.nodes))
     }
-  }, [chainConfigData, onUpdateChain])
+  }, [chain, onUpdateChain])
 
   return (
     <Paper
@@ -565,7 +483,8 @@ export const ProxyChain = ({
                       proxy={proxy}
                       label={typeText(
                         {
-                          type: proxy.type,
+                          type:
+                            proxy.type ?? proxies?.records?.[proxy.name]?.type,
                           label: proxies?.records?.[proxy.name]?.label,
                           all: proxies?.records?.[proxy.name]?.all,
                         },

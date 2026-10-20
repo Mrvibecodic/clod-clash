@@ -113,3 +113,48 @@ export const clearProxyChain = (uid?: string) => {
   delete all[uid]
   writeAll(all)
 }
+
+export interface LegacyConnectedChain {
+  uid: string
+  group: string
+  nodes: string[]
+}
+
+export const legacyConnectedChains = (): LegacyConnectedChain[] =>
+  Object.entries(readAll()).flatMap(([uid, raw]) => {
+    const { group, exitNode, items } = sane(raw)
+    const nodes = items?.map((item) => item.name) ?? []
+    return group && nodes.length >= 2 && nodes[nodes.length - 1] === exitNode
+      ? [{ uid, group, nodes }]
+      : []
+  })
+
+export const forgetLegacyConnections = () => {
+  const all = readAll()
+  for (const uid of Object.keys(all)) {
+    const { items } = sane(all[uid])
+    if (items?.length) all[uid] = { items }
+    else delete all[uid]
+  }
+  writeAll(all)
+}
+
+export interface ConnectedChain {
+  group: string
+  nodes: string[]
+  applied: boolean
+}
+
+export const chainIsConnected = (
+  chain: ConnectedChain | null | undefined,
+  draft: readonly string[],
+  group: string | null | undefined,
+  now: string | undefined,
+) =>
+  !!chain &&
+  chain.applied &&
+  chain.group === group &&
+  draft.length >= 2 &&
+  chain.nodes.length === draft.length &&
+  chain.nodes.every((name, index) => name === draft[index]) &&
+  now === chain.nodes[chain.nodes.length - 1]

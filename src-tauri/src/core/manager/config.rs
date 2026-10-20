@@ -372,23 +372,6 @@ impl CoreManager {
     #[cfg(not(target_os = "macos"))]
     const fn remember_dns_desire(_build: &IRuntime) {}
 
-    /// Поправить принятый конфиг (цепочки прокси из окна) и отдать ядру.
-    pub(crate) async fn update_runtime_config<F>(&self, f: F) -> Result<Applied>
-    where
-        F: FnOnce(&mut IRuntime),
-    {
-        let Some(guard) = self.claim_for_an_update().await else {
-            return Ok(Err(self.why_not_now()));
-        };
-
-        let mut build = (**Config::runtime().await.data_arc()).clone();
-        f(&mut build);
-        match self.stage_under(guard, build, IfUnchanged::Deliver).await? {
-            Ok(staged) => staged.deliver(Delivery::Reload).await,
-            Err(outcome) => Ok(Err(outcome)),
-        }
-    }
-
     async fn deliver_build(&self, build: IRuntime, delivery: Delivery) -> Result<Applied> {
         let Some(config) = build.config.as_ref() else {
             return Ok(Err(ValidationOutcome::invalid_from_message("собранный конфиг пуст")));

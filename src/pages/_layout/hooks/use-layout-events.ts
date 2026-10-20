@@ -46,6 +46,7 @@ const CLASH_CONFIG_PREFIXES = [
   'sentinelReport',
   'serverDescriptions',
   'freezeMarks',
+  'proxyChain',
 ] as const
 
 export const useLayoutEvents = (

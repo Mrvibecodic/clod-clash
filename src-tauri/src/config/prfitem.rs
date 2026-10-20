@@ -39,6 +39,9 @@ pub struct PrfItem {
     pub favorites: Option<Vec<String>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_chain: Option<Box<PrfProxyChain>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub extra: Option<PrfExtra>,
 
     pub updated: Option<usize>,
@@ -207,6 +210,14 @@ pub struct PrfItem {
 pub struct PrfSelected {
     pub name: Option<String>,
     pub now: Option<String>,
+}
+
+#[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct PrfProxyChain {
+    pub group: String,
+    pub nodes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, Copy, Deserialize, Serialize)]
@@ -1009,6 +1020,7 @@ impl PrfItem {
             url: Some(url.as_str().into()),
             selected: None,
             favorites: None,
+            proxy_chain: None,
             group: None,
             extra,
             option: Some(PrfOption {

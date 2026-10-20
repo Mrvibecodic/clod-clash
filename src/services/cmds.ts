@@ -4,7 +4,12 @@ import dayjs from 'dayjs'
 import type { Proxies, ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
-import { clearProxyChain } from '@/services/proxy-chain-store'
+import {
+  clearProxyChain,
+  type ConnectedChain,
+  forgetLegacyConnections,
+  legacyConnectedChains,
+} from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
 import { enumText } from '@/utils/plugin-enum'
 import type { ProviderPicture } from '@/utils/provider-image'
@@ -142,16 +147,19 @@ export async function getRuntimeYaml() {
   return invoke<string | null>('get_runtime_yaml')
 }
 
-export async function getRuntimeProxyChainConfig(proxyChainExitNode: string) {
-  return invoke<string>('get_runtime_proxy_chain_config', {
-    proxyChainExitNode,
-  })
+export async function getProxyChain() {
+  const chains = legacyConnectedChains()
+  if (chains.length > 0) await invoke<void>('adopt_proxy_chains', { chains })
+  forgetLegacyConnections()
+  return invoke<ConnectedChain | null>('get_proxy_chain')
 }
 
-export async function updateProxyChainConfigInRuntime(proxyChainConfig: any) {
-  return invoke<void>('update_proxy_chain_config_in_runtime', {
-    proxyChainConfig,
-  })
+export async function connectProxyChain(group: string, nodes: string[]) {
+  return invoke<void>('connect_proxy_chain', { group, nodes })
+}
+
+export async function disconnectProxyChain() {
+  return invoke<void>('disconnect_proxy_chain')
 }
 
 /**
@@ -161,9 +169,7 @@ export async function updateProxyChainConfigInRuntime(proxyChainConfig: any) {
  */
 export async function dismantleProxyChain(profileUid?: string) {
   clearProxyChain(profileUid)
-  return updateProxyChainConfigInRuntime(null).catch((error) =>
-    showNotice.error(error),
-  )
+  return disconnectProxyChain().catch((error) => showNotice.error(error))
 }
 
 // tun правится по полям: null снимает поле, прочие поля tun остаются.

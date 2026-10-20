@@ -13,9 +13,14 @@ globalThis.localStorage = {
   },
 } as Storage
 
-const { clearProxyChain, readProxyChain, saveProxyChain } = await import(
-  './proxy-chain-store.ts'
-)
+const {
+  chainIsConnected,
+  clearProxyChain,
+  forgetLegacyConnections,
+  legacyConnectedChains,
+  readProxyChain,
+  saveProxyChain,
+} = await import('./proxy-chain-store.ts')
 
 const node = (name: string) => ({ id: name, name })
 
@@ -149,5 +154,56 @@ describe('proxy chain store', () => {
     assert.equal(readProxyChain(undefined).items, undefined)
     clearProxyChain(undefined)
     assert.deepEqual(readProxyChain('A').items, [node('a1')])
+  })
+})
+
+describe('chains connected by earlier versions', () => {
+  beforeEach(() => store.clear())
+
+  it('are handed over once with their group and nodes, the draft stays', () => {
+    saveProxyChain('A', {
+      group: 'Proxy',
+      exitNode: 'b',
+      items: [node('a'), node('b')],
+    })
+    saveProxyChain('B', { items: [node('x'), node('y')] })
+    saveProxyChain('C', {
+      group: 'Proxy',
+      exitNode: 'gone',
+      items: [node('a')],
+    })
+
+    assert.deepEqual(legacyConnectedChains(), [
+      { uid: 'A', group: 'Proxy', nodes: ['a', 'b'] },
+    ])
+    forgetLegacyConnections()
+    assert.deepEqual(legacyConnectedChains(), [])
+    assert.deepEqual(readProxyChain('A'), {
+      group: undefined,
+      exitNode: undefined,
+      items: [node('a'), node('b')],
+    })
+    assert.deepEqual(readProxyChain('B').items, [node('x'), node('y')])
+    assert.deepEqual(readProxyChain('C').items, [node('a')])
+  })
+})
+
+describe('chainIsConnected', () => {
+  const chain = { group: 'Proxy', nodes: ['a', 'b'], applied: true }
+
+  it('is connected only when the accepted config carries the chain', () => {
+    assert.equal(chainIsConnected(chain, ['a', 'b'], 'Proxy', 'b'), true)
+    assert.equal(
+      chainIsConnected({ ...chain, applied: false }, ['a', 'b'], 'Proxy', 'b'),
+      false,
+    )
+    assert.equal(chainIsConnected(null, ['a', 'b'], 'Proxy', 'b'), false)
+  })
+
+  it('is not connected for another group, another list or a group moved away', () => {
+    assert.equal(chainIsConnected(chain, ['a', 'b'], 'Auto', 'b'), false)
+    assert.equal(chainIsConnected(chain, ['a', 'c'], 'Proxy', 'b'), false)
+    assert.equal(chainIsConnected(chain, ['a', 'b', 'c'], 'Proxy', 'b'), false)
+    assert.equal(chainIsConnected(chain, ['a', 'b'], 'Proxy', 'x'), false)
   })
 })

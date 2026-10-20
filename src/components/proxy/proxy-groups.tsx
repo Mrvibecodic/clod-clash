@@ -28,6 +28,7 @@ import { useSystemState } from '@/hooks/use-system-state'
 import { useVerge } from '@/hooks/use-verge'
 import { useProxiesData } from '@/providers/app-data-context'
 import delayManager, { effectiveLatencyTimeout } from '@/services/delay'
+import type { ConnectedChain } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
 import { isCorePolicy } from '@/utils/proxy-groups'
 
@@ -49,7 +50,7 @@ function useStableCallback<T extends (...args: any[]) => any>(fn: T): T {
 interface Props {
   mode: string
   isChainMode?: boolean
-  chainConfigData?: string | null
+  chain?: ConnectedChain | null
 }
 
 function useProxyRenderState(
@@ -191,9 +192,9 @@ function useProxyRenderState(
 
 function ChainProxyGroups(props: {
   mode: string
-  chainConfigData?: string | null
+  chain?: ConnectedChain | null
 }) {
-  const { mode, chainConfigData } = props
+  const { mode, chain } = props
   const { proxies: proxiesData } = useProxiesData()
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
 
@@ -207,10 +208,13 @@ function ChainProxyGroups(props: {
 
   const defaultRuleGroup = useMemo(() => {
     if (mode === 'rule' && availableGroups.length > 0) {
-      return availableGroups[0].name
+      return (
+        availableGroups.find((group: any) => group.name === chain?.group)
+          ?.name ?? availableGroups[0].name
+      )
     }
     return null
-  }, [availableGroups, mode])
+  }, [availableGroups, mode, chain?.group])
 
   const activeSelectedGroup = selectedGroup ?? defaultRuleGroup
   const {
@@ -344,7 +348,7 @@ function ChainProxyGroups(props: {
     <Suspense fallback={<BaseLoading />}>
       <ProxyGroupsChain
         mode={mode}
-        chainConfigData={chainConfigData}
+        chain={chain}
         availableGroups={availableGroups}
         activeSelectedGroup={activeSelectedGroup}
         showScrollTop={showScrollTop}
@@ -637,14 +641,14 @@ const EmptyGroups = () => {
 }
 
 export const ProxyGroups = (props: Props) => {
-  const { mode, isChainMode = false, chainConfigData } = props
+  const { mode, isChainMode = false, chain } = props
 
   if (mode === 'direct') {
     return <BaseEmpty textKey="proxies.page.messages.directMode" />
   }
 
   if (isChainMode) {
-    return <ChainProxyGroups mode={mode} chainConfigData={chainConfigData} />
+    return <ChainProxyGroups mode={mode} chain={chain} />
   }
 
   return <NormalProxyGroups mode={mode} />

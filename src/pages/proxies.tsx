@@ -1,7 +1,7 @@
 import { LanOutlined, LanRounded, WarningRounded } from '@mui/icons-material'
 import { Box, Button } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { useCallback, useEffect, useReducer, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BasePage, BaseSegmented, TooltipIcon } from '@/components/base'
@@ -11,12 +11,12 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { NARROW } from '@/pages/_theme'
 import { useClashConfigData } from '@/providers/app-data-context'
 import {
-  getRuntimeProxyChainConfig,
+  disconnectProxyChain,
+  getProxyChain,
   patchClashMode,
-  updateProxyChainConfigInRuntime,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { readProxyChain } from '@/services/proxy-chain-store'
+import { useQuery } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
 
 const MODES = ['rule', 'global', 'direct'] as const
@@ -38,16 +38,8 @@ const ProxyPage = () => {
     }
   })
 
-  const [chainConfigData, dispatchChainConfigData] = useReducer(
-    (_: string | null, action: string | null) => action,
-    null as string | null,
-  )
-
   const { clashConfig } = useClashConfigData()
 
-  const updateChainConfigData = useCallback((value: string | null) => {
-    dispatchChainConfigData(value)
-  }, [])
   const normalizedMode = clashConfig?.mode?.toLowerCase()
   const curMode = isMode(normalizedMode) ? normalizedMode : undefined
   // clod: `clod-lock-mode` hides every mode switch, this page included —
@@ -80,53 +72,20 @@ const ProxyPage = () => {
     if (!newChainMode) {
       // При выходе из режима цепочки прокси очищаем конфигурацию цепочки
       try {
-        debugLog('Exiting chain mode, clearing chain configuration')
-        await updateProxyChainConfigInRuntime(null)
-        debugLog('Chain configuration cleared successfully')
+        debugLog('Exiting chain mode, disconnecting the chain')
+        await disconnectProxyChain()
+        debugLog('Chain disconnected successfully')
       } catch (error) {
         console.error('Failed to clear chain configuration:', error)
       }
     }
   })
 
-  // При включении режима цепочки прокси получаем данные конфигурации
-  useEffect(() => {
-    if (!isChainMode) {
-      updateChainConfigData(null)
-      return
-    }
-
-    let cancelled = false
-
-    const fetchChainConfig = async () => {
-      try {
-        const exitNode = readProxyChain(current?.uid).exitNode
-
-        if (!exitNode) {
-          if (!cancelled) {
-            updateChainConfigData('')
-          }
-          return
-        }
-
-        const configData = await getRuntimeProxyChainConfig(exitNode)
-        if (!cancelled) {
-          updateChainConfigData(configData || '')
-        }
-      } catch (error) {
-        console.error('Failed to get runtime proxy chain config:', error)
-        if (!cancelled) {
-          updateChainConfigData('')
-        }
-      }
-    }
-
-    fetchChainConfig()
-
-    return () => {
-      cancelled = true
-    }
-  }, [isChainMode, current?.uid, updateChainConfigData])
+  const { data: chain } = useQuery({
+    queryKey: ['proxyChain', current?.uid ?? ''],
+    queryFn: getProxyChain,
+    enabled: isChainMode && Boolean(current?.uid),
+  })
 
   useEffect(() => {
     if (normalizedMode && !isMode(normalizedMode)) {
@@ -222,7 +181,7 @@ const ProxyPage = () => {
       <ProxyGroups
         mode={curMode ?? 'rule'}
         isChainMode={isChainMode}
-        chainConfigData={chainConfigData}
+        chain={isChainMode ? chain : undefined}
       />
     </BasePage>
   )

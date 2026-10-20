@@ -9,6 +9,7 @@ pub mod environment;
 mod icon;
 mod profile;
 mod proxy;
+mod proxy_chain;
 mod session;
 // clod:tun-ready — TUN живёт отдельным модулем: желание, заявка и факт.
 pub mod tun;
@@ -22,5 +23,6 @@ pub use connect::*;
 pub use icon::*;
 pub use profile::*;
 pub use proxy::*;
+pub use proxy_chain::*;
 pub use session::*;
 pub use window::*;
