@@ -21,7 +21,7 @@ export function filterSort(
   searchState?: ProxySearchState,
 ) {
   const fp = filterProxies(proxies, groupName, filterText, direct, searchState)
-  const sp = sortProxies(fp, groupName, sortType)
+  const sp = sortProxies(fp, groupName, sortType, direct)
   return sp
 }
 
@@ -93,6 +93,7 @@ function sortProxies(
   proxies: IProxyItem[],
   groupName: string,
   sortType: ProxySortType,
+  direct: string,
 ) {
   if (!proxies) return []
   if (sortType === 0) return proxies
@@ -113,5 +114,9 @@ function sortProxies(
     return ranked.map((entry) => entry.proxy)
   }
 
-  return proxies.slice().sort((a, b) => a.name.localeCompare(b.name))
+  return proxies
+    .slice()
+    .sort((a, b) =>
+      nodeName(a.name, direct).localeCompare(nodeName(b.name, direct)),
+    )
 }

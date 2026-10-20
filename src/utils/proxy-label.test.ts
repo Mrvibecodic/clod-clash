@@ -264,6 +264,18 @@ describe('nodeName', () => {
     )
   })
 
+  it('the proxies sorted by name follow the names on the screen', () => {
+    const sort = readFileSync(
+      new URL('../components/proxy/use-filter-sort.ts', import.meta.url),
+      'utf8',
+    )
+    assert.match(
+      sort,
+      /nodeName\(a\.name, direct\)\.localeCompare\(nodeName\(b\.name, direct\)\)/,
+    )
+    assert.doesNotMatch(sort, /a\.name\.localeCompare/)
+  })
+
   it('the Home server list strips flags only from group chips by itself', () => {
     const source = readFileSync(
       new URL('../components/home/server-select.tsx', import.meta.url),
