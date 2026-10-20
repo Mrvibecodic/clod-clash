@@ -172,6 +172,8 @@ pub struct HostChoice {
 pub struct ProxyHostNow {
     pub host: String,
     pub choice: Option<HostChoice>,
+    /// Подписка, по чьим спискам раздачи судили адрес.
+    pub profile_uid: Option<String>,
 }
 
 fn host_choice(
@@ -291,11 +293,13 @@ impl Config {
             return ProxyHostNow {
                 host: LOOPBACK_PROXY_HOST.into(),
                 choice: None,
+                profile_uid: None,
             };
         }
         let configured: String = verge.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST).into();
         let probed = configured.clone();
         let runtime = Self::runtime().await.data_arc();
+        let profile_uid = runtime.profile_uid.clone();
         let admits = move |address| {
             runtime
                 .config
@@ -311,7 +315,11 @@ impl Config {
         } else {
             configured
         };
-        ProxyHostNow { host, choice }
+        ProxyHostNow {
+            host,
+            choice,
+            profile_uid,
+        }
     }
 
     pub async fn our_proxy_host(verge: &IVerge) -> String {

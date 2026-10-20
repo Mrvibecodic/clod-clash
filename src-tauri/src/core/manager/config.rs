@@ -355,7 +355,7 @@ impl CoreManager {
     async fn note_the_accepted(build: &IRuntime) {
         Self::remember_dns_desire(build);
         announce_discarded_keys(&build.discarded_keys).await;
-        announce_an_unreadable_lan_list(build.unreadable_lan_list);
+        announce_an_unreadable_lan_list(build.profile_uid.as_ref(), build.unreadable_lan_list);
         crate::feat::forget_a_dropped_chain(build).await;
     }
 
@@ -427,7 +427,8 @@ impl CoreManager {
         } else if nodes_may_change {
             crate::module::freeze_check::nodes_changed();
         }
-        if mixed_port_changed || sharing_changed {
+        // Другая подписка — и о негодном хосте прокси говорится заново.
+        if mixed_port_changed || sharing_changed || subscription_changed {
             Self::spawn_mixed_port_check(true);
         }
         if mode_changed {
@@ -575,7 +576,7 @@ impl CoreManager {
         // Отброшенные ключи объявляются после того, как ядро поднялось на сборке:
         // сорвавшийся перезапуск возвращает прежнее принятое.
         let discarded_keys = build.discarded_keys.clone();
-        let unreadable_lan_list = build.unreadable_lan_list;
+        let (profile_uid, unreadable_lan_list) = (build.profile_uid.clone(), build.unreadable_lan_list);
         Self::remember_dns_desire(&build);
         runtime.replace(build);
         // Проверенная сборка есть — отказ старта, если он был, снят: стартуем с неё.
@@ -585,7 +586,7 @@ impl CoreManager {
             Ok(()) => {
                 logging!(info, Type::Core, "Configuration applied after restart");
                 announce_discarded_keys(&discarded_keys).await;
-                announce_an_unreadable_lan_list(unreadable_lan_list);
+                announce_an_unreadable_lan_list(profile_uid.as_ref(), unreadable_lan_list);
                 crate::feat::forget_a_dropped_chain(&runtime.data_arc()).await;
                 Ok(Delivered::Restarted)
             }
@@ -785,19 +786,26 @@ async fn announce_discarded_keys(discarded: &[String]) {
     handle::Handle::notice_message("clod_config::keys_discarded", discarded.join(", "));
 }
 
+/// Негодный список раздачи подписки: её uid и ключ списка.
+type UnreadableLanList = (Option<String>, &'static str);
+
 /// clod:lan-share — человек включил раздачу, а список адресов не читается, и
-/// раздача не открыта. Говорится, когда так стало или список сменился, а не с
-/// каждой сборкой: дальше это показывает тумблер раздачи.
-fn announce_an_unreadable_lan_list(key: Option<&'static str>) {
-    static ANNOUNCED: parking_lot::Mutex<Option<&'static str>> = parking_lot::Mutex::new(None);
-    let before = std::mem::replace(&mut *ANNOUNCED.lock(), key);
-    if let Some(key) = the_lan_list_to_announce(before, key) {
+/// раздача не открыта. Говорится, когда так стало, список сменился или сменилась
+/// подписка, а не с каждой сборкой: дальше это показывает тумблер раздачи.
+fn announce_an_unreadable_lan_list(profile_uid: Option<&String>, key: Option<&'static str>) {
+    static ANNOUNCED: parking_lot::Mutex<Option<UnreadableLanList>> = parking_lot::Mutex::new(None);
+    let now = key.map(|key| (profile_uid.cloned(), key));
+    let before = std::mem::replace(&mut *ANNOUNCED.lock(), now.clone());
+    if let Some(key) = the_lan_list_to_announce(before.as_ref(), now.as_ref()) {
         handle::Handle::notice_message("clod_config::lan_list_unreadable", key);
     }
 }
 
-fn the_lan_list_to_announce(before: Option<&'static str>, now: Option<&'static str>) -> Option<&'static str> {
-    now.filter(|key| before != Some(*key))
+fn the_lan_list_to_announce(
+    before: Option<&UnreadableLanList>,
+    now: Option<&UnreadableLanList>,
+) -> Option<&'static str> {
+    now.filter(|now| before != Some(*now)).map(|(_, key)| *key)
 }
 
 /// Снять с профиля сборки пометку «скачано, но не применено».
@@ -1024,12 +1032,18 @@ mod tests {
     #[test]
     fn an_unreadable_lan_list_is_told_when_it_appears_or_changes_not_with_every_build() {
         let announce = super::the_lan_list_to_announce;
-        let (allowed, disallowed) = (Some("lan-allowed-ips"), Some("lan-disallowed-ips"));
-        assert_eq!(announce(None, allowed), allowed);
-        assert_eq!(announce(allowed, allowed), None);
-        assert_eq!(announce(allowed, disallowed), disallowed);
-        assert_eq!(announce(disallowed, None), None);
+        let of = |uid: &str, key| (Some(uid.into()), key);
+        let (allowed, disallowed) = (of("A", "lan-allowed-ips"), of("A", "lan-disallowed-ips"));
+        assert_eq!(announce(None, Some(&allowed)), Some("lan-allowed-ips"));
+        assert_eq!(announce(Some(&allowed), Some(&allowed)), None);
+        assert_eq!(announce(Some(&allowed), Some(&disallowed)), Some("lan-disallowed-ips"));
+        assert_eq!(announce(Some(&disallowed), None), None);
         assert_eq!(announce(None, None), None);
+        // Другая подписка с тем же негодным списком — говорится заново.
+        assert_eq!(
+            announce(Some(&allowed), Some(&of("B", "lan-allowed-ips"))),
+            Some("lan-allowed-ips")
+        );
     }
 
     #[tokio::test]

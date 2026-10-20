@@ -226,11 +226,18 @@ fn our_proxy_is_on_in(
     Some(manual.enable && ours.serves(&manual.host, manual.port))
 }
 
+/// Выбранный адрес и подписка, по чьим спискам раздачи его судили.
+type JudgedHostChoice = (Option<String>, HostChoice);
+
 /// Негодный выбранный адрес (пропал у машины или не пускается списками
-/// раздачи) стоит уведомления, если прошлая запись знала о нём иное: один раз
-/// на перемену, а не на каждую запись.
-fn the_unusable_address_to_announce(before: Option<HostChoice>, now: Option<HostChoice>) -> Option<HostChoice> {
-    now.filter(|now| !now.usable() && before != Some(*now))
+/// раздачи) стоит уведомления, если прошлая запись знала о нём иное или судила
+/// по спискам другой подписки: один раз на перемену, а не на каждую запись.
+fn the_unusable_address_to_announce(
+    before: Option<&JudgedHostChoice>,
+    now: Option<&JudgedHostChoice>,
+) -> Option<HostChoice> {
+    now.filter(|now| !now.1.usable() && before != Some(*now))
+        .map(|(_, choice)| *choice)
 }
 
 const fn nothing_of_ours_can_be_in_the_system(ever_applied: bool, wants_proxy: bool) -> bool {
@@ -493,7 +500,7 @@ pub struct Sysopt {
     last_write_failed: AtomicBool,
     write_refusals: AtomicU32,
     ever_applied: AtomicBool,
-    host_choice: parking_lot::Mutex<Option<HostChoice>>,
+    host_choice: parking_lot::Mutex<Option<JudgedHostChoice>>,
     guard: Arc<RwLock<GuardMonitor>>,
 }
 
@@ -739,12 +746,12 @@ impl Sysopt {
     /// Выбранный адрес, к которому привязан записанный ручной прокси, и был ли
     /// он у машины при записи.
     pub fn host_choice(&self) -> Option<HostChoice> {
-        *self.host_choice.lock()
+        self.host_choice.lock().as_ref().map(|(_, choice)| *choice)
     }
 
-    fn remember_the_host_choice(&self, choice: Option<HostChoice>) {
-        let before = std::mem::replace(&mut *self.host_choice.lock(), choice);
-        let Some(unusable) = the_unusable_address_to_announce(before, choice) else {
+    fn remember_the_host_choice(&self, choice: Option<JudgedHostChoice>) {
+        let before = std::mem::replace(&mut *self.host_choice.lock(), choice.clone());
+        let Some(unusable) = the_unusable_address_to_announce(before.as_ref(), choice.as_ref()) else {
             return;
         };
         let address = unusable.address;
@@ -787,6 +794,7 @@ impl Sysopt {
         let ProxyHostNow {
             host: proxy_host,
             choice,
+            profile_uid,
         } = Config::proxy_host_now(&verge).await;
         let (sys_enable, pac_enable, proxy_guard) = (
             verge.enable_system_proxy.unwrap_or_default(),
@@ -826,7 +834,7 @@ impl Sysopt {
             (sys.clone(), auto.clone(), guard_type)
         };
         // Хост важен только ручному прокси: PAC отдаётся с петли.
-        self.remember_the_host_choice(choice.filter(|_| sys.enable));
+        self.remember_the_host_choice(choice.filter(|_| sys.enable).map(|choice| (profile_uid, choice)));
 
         let apply_steps = proxy_apply_steps(sys.enable, auto.enable);
         let wanted = WantedProxy {
@@ -1262,23 +1270,33 @@ mod tests {
     #[test]
     fn an_unusable_proxy_address_is_announced_once_per_change() {
         let lan: std::net::IpAddr = [192, 168, 1, 5].into();
-        let choice = |present, admitted| {
-            Some(HostChoice {
-                address: lan,
-                present,
-                admitted,
-            })
+        let judged = |uid: &str, present, admitted| {
+            (
+                Some(uid.into()),
+                HostChoice {
+                    address: lan,
+                    present,
+                    admitted,
+                },
+            )
         };
+        let choice = |present, admitted| judged("A", present, admitted);
         let (gone, back, refused) = (choice(false, true), choice(true, true), choice(true, false));
-        assert_eq!(the_unusable_address_to_announce(None, gone), gone);
-        assert_eq!(the_unusable_address_to_announce(gone, gone), None);
-        assert_eq!(the_unusable_address_to_announce(gone, back), None);
-        assert_eq!(the_unusable_address_to_announce(back, gone), gone);
-        assert_eq!(the_unusable_address_to_announce(gone, None), None);
-        assert_eq!(the_unusable_address_to_announce(None, back), None);
-        assert_eq!(the_unusable_address_to_announce(back, refused), refused);
-        assert_eq!(the_unusable_address_to_announce(refused, refused), None);
-        assert_eq!(the_unusable_address_to_announce(refused, gone), gone);
+        let announce = |before: Option<&super::JudgedHostChoice>, now: Option<&super::JudgedHostChoice>| {
+            the_unusable_address_to_announce(before, now)
+        };
+        assert_eq!(announce(None, Some(&gone)), Some(gone.1));
+        assert_eq!(announce(Some(&gone), Some(&gone)), None);
+        assert_eq!(announce(Some(&gone), Some(&back)), None);
+        assert_eq!(announce(Some(&back), Some(&gone)), Some(gone.1));
+        assert_eq!(announce(Some(&gone), None), None);
+        assert_eq!(announce(None, Some(&back)), None);
+        assert_eq!(announce(Some(&back), Some(&refused)), Some(refused.1));
+        assert_eq!(announce(Some(&refused), Some(&refused)), None);
+        assert_eq!(announce(Some(&refused), Some(&gone)), Some(gone.1));
+        // Списки другой подписки не пускают тот же адрес — говорится заново.
+        let refused_by_b = judged("B", true, false);
+        assert_eq!(announce(Some(&refused), Some(&refused_by_b)), Some(refused_by_b.1));
     }
 
     #[test]
