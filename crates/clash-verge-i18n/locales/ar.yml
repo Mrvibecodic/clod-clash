@@ -18,8 +18,8 @@ notifications:
     title: الوضع الخفيف
     body: تم الدخول إلى الوضع الخفيف.
   profilesReactivated:
-    title: الملفات التعريفية
-    body: تمت إعادة تفعيل الملف التعريفي.
+    title: الملف الشخصي
+    body: تمت إعادة تفعيل الملف الشخصي.
   appQuit:
     title: على وشك الخروج
     body: التطبيق على وشك الخروج.
@@ -74,15 +74,15 @@ service:
 tray:
   dashboard: لوحة التحكم
   ruleMode: وضع القواعد
-  globalMode: الوضع العام
+  globalMode: الوضع العالمي
   directMode: الوضع المباشر
   outboundModes: أوضاع الخروج
-  rule: قاعدة
-  direct: مباشر
+  rule: وضع القواعد
+  direct: الوضع المباشر
   directNode: مباشر
-  global: عام
-  profiles: الملفات التعريفية
-  proxies: وكلاء
+  global: الوضع العالمي
+  profiles: الملفات الشخصية
+  proxies: الوكلاء
   systemProxy: وكيل النظام
   tunMode: وضع TUN
   closeAllConnections: إغلاق كل الاتصالات
@@ -102,7 +102,7 @@ tray:
   tooltip:
     systemProxy: وكيل النظام
     tun: TUN
-    profile: ملف تعريفي
+    profile: الملف الشخصي
     core: النواة
     coreStopped: غير مشغّلة
     'on': 'on'

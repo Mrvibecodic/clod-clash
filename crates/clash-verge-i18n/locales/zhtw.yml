@@ -101,7 +101,7 @@ tray:
   exit: 離開
   tooltip:
     systemProxy: 系統代理
-    tun: 虛擬網路介面卡
+    tun: TUN
     profile: 訂閱
     core: 核心
     coreStopped: 未運行

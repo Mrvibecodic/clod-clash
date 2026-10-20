@@ -1232,4 +1232,76 @@ mod tests {
         assert_eq!(proxy_item_names("proxy_group_Auto_Select"), None);
         assert_eq!(proxy_item_names("proxy_99_Auto"), None);
     }
+
+    /// Одна сущность — одно слово: пункт трея и окно на каждом языке.
+    #[test]
+    fn the_tray_names_things_with_the_words_of_the_window() {
+        const PAIRS: [(&str, &str, &str); 15] = [
+            ("tray.profiles", "profiles", "/page/title"),
+            ("tray.rule", "home", "/components/clashMode/labels/rule"),
+            ("tray.global", "home", "/components/clashMode/labels/global"),
+            ("tray.direct", "home", "/components/clashMode/labels/direct"),
+            ("tray.ruleMode", "settings", "/modals/hotkey/functions/rule"),
+            ("tray.globalMode", "settings", "/modals/hotkey/functions/global"),
+            ("tray.directMode", "settings", "/modals/hotkey/functions/direct"),
+            ("tray.directNode", "shared", "/labels/direct"),
+            ("tray.tunMode", "settings", "/sections/proxyControl/fields/tunMode"),
+            (
+                "notifications.tunModeToggled.title",
+                "settings",
+                "/sections/proxyControl/fields/tunMode",
+            ),
+            ("tray.tooltip.tun", "home", "/components/quickActions/tun"),
+            (
+                "tray.systemProxy",
+                "settings",
+                "/sections/proxyControl/fields/systemProxy",
+            ),
+            (
+                "tray.tooltip.systemProxy",
+                "settings",
+                "/sections/proxyControl/fields/systemProxy",
+            ),
+            (
+                "notifications.systemProxyToggled.title",
+                "settings",
+                "/sections/proxyControl/fields/systemProxy",
+            ),
+            ("tray.proxies", "layout", "/components/navigation/tabs/proxies"),
+        ];
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let read = |path: std::path::PathBuf| std::fs::read_to_string(path).unwrap_or_default();
+        // Пробелы — вёрстка, а не слово: «代 理» в боковой колонке.
+        let word = |text: Option<&str>| text.map(|text| text.split_whitespace().collect::<String>());
+        let mut locales: Vec<_> = std::fs::read_dir(root.join("src/locales"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        locales.sort();
+        assert_eq!(locales.len(), 13, "{locales:?}");
+        for locale in &locales {
+            let tray: serde_yaml_ng::Value = serde_yaml_ng::from_str(&read(
+                root.join(format!("crates/clash-verge-i18n/locales/{locale}.yml")),
+            ))
+            .unwrap_or_default();
+            for (tray_key, namespace, window_key) in PAIRS {
+                let window: serde_json::Value =
+                    serde_json::from_str(&read(root.join(format!("src/locales/{locale}/{namespace}.json"))))
+                        .unwrap_or_default();
+                let tray_word = tray_key
+                    .split('.')
+                    .try_fold(&tray, |node, key| node.get(key))
+                    .and_then(serde_yaml_ng::Value::as_str);
+                let window_word = window.pointer(window_key).and_then(serde_json::Value::as_str);
+                assert!(tray_word.is_some(), "{locale}: {tray_key}");
+                assert_eq!(
+                    word(tray_word),
+                    word(window_word),
+                    "{locale}: {tray_key} / {namespace}{window_key}"
+                );
+            }
+        }
+    }
 }

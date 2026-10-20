@@ -80,7 +80,7 @@ tray:
   rule: 규칙
   direct: 직접
   directNode: 직접 연결
-  global: 글로벌
+  global: 전역
   profiles: 프로필
   proxies: 프록시
   systemProxy: 시스템 프록시

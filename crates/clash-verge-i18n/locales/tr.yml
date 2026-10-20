@@ -11,14 +11,14 @@ notifications:
     'on': System proxy has been enabled.
     'off': System proxy has been disabled.
   tunModeToggled:
-    title: TUN Modu
+    title: Tun Modu
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
   lightweightModeEntered:
     title: Hafif Mod
     body: Hafif moda geçildi.
   profilesReactivated:
-    title: Profiller
+    title: Profil
     body: Profil yeniden etkinleştirildi.
   appQuit:
     title: Çıkış Yapılmak Üzere
@@ -77,14 +77,14 @@ tray:
   globalMode: Küresel Mod
   directMode: Doğrudan Mod
   outboundModes: Giden Modlar
-  rule: Kural
-  direct: Doğrudan
+  rule: Kural Modu
+  direct: Doğrudan Mod
   directNode: Doğrudan
-  global: Küresel
+  global: Küresel Mod
   profiles: Profiller
   proxies: Vekil'ler
   systemProxy: Sistem Vekil'i
-  tunMode: TUN Modu
+  tunMode: Tun Modu
   closeAllConnections: Tüm Bağlantıları Kapat
   lightweightMode: Hafif Mod
   copyEnv: Ortam Değişkenlerini Kopyala

@@ -11,7 +11,7 @@ notifications:
     'on': 系统代理已启用。
     'off': 系统代理已禁用。
   tunModeToggled:
-    title: TUN 模式
+    title: 虚拟网卡模式
     'on': TUN 模式已开启。
     'off': TUN 模式已关闭。
   lightweightModeEntered:
@@ -84,7 +84,7 @@ tray:
   profiles: 订阅
   proxies: 代理
   systemProxy: 系统代理
-  tunMode: TUN 模式
+  tunMode: 虚拟网卡模式
   closeAllConnections: 关闭所有连接
   lightweightMode: 轻量模式
   copyEnv: 复制环境变量

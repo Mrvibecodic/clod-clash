@@ -11,15 +11,15 @@ notifications:
     'on': System proxy has been enabled.
     'off': System proxy has been disabled.
   tunModeToggled:
-    title: Modo TUN
+    title: Modo de interfaz virtual (TUN)
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
   lightweightModeEntered:
     title: Modo ligero
     body: Se ha entrado en el modo ligero.
   profilesReactivated:
-    title: Perfiles
-    body: Perfil reactivado.
+    title: Suscripción
+    body: Suscripción reactivada.
   appQuit:
     title: A punto de salir
     body: La aplicación está a punto de salir.
@@ -75,16 +75,16 @@ tray:
   dashboard: Panel
   ruleMode: Modo de reglas
   globalMode: Modo global
-  directMode: Modo directo
+  directMode: Modo de conexión directa
   outboundModes: Modos de salida
-  rule: Regla
-  direct: Directo
+  rule: Modo de reglas
+  direct: Modo de conexión directa
   directNode: Directo
-  global: Global
-  profiles: Perfiles
+  global: Modo global
+  profiles: Suscripciones
   proxies: Proxies
   systemProxy: Proxy del sistema
-  tunMode: Modo TUN
+  tunMode: Modo de interfaz virtual (TUN)
   closeAllConnections: Cerrar todas las conexiones
   lightweightMode: Modo ligero
   copyEnv: Copiar variables de entorno
@@ -102,7 +102,7 @@ tray:
   tooltip:
     systemProxy: Proxy del sistema
     tun: TUN
-    profile: Perfil
+    profile: Suscripción
     core: Núcleo
     coreStopped: no iniciado
     'on': 'on'

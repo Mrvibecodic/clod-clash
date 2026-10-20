@@ -11,14 +11,14 @@ notifications:
     'on': System proxy has been enabled.
     'off': System proxy has been disabled.
   tunModeToggled:
-    title: TUN режимы
+    title: Tun режимы (виртуаль челтәр адаптеры)
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
   lightweightModeEntered:
     title: Җиңел режим
     body: Җиңел режимга күчелде.
   profilesReactivated:
-    title: Профильләр
+    title: Профиль
     body: Профиль яңадан активлаштырылды.
   appQuit:
     title: Чыгар алдыннан
@@ -73,18 +73,18 @@ service:
   translocatedCorePath: Кушымта вакытлыча юлдан (App Translocation) эшли һәм ядрәне таба алмый. Аны Applications папкасына күчерегез дә яңадан ачыгыз.
 tray:
   dashboard: Идарә панеле
-  ruleMode: Кагыйдә режимы
+  ruleMode: Кагыйдәләр режимы
   globalMode: Глобаль режим
-  directMode: Турыдан-туры режим
+  directMode: Туры режим
   outboundModes: Чыгыш режимнары
-  rule: Кагыйдә
-  direct: Турыдан-туры
+  rule: Кагыйдәләр режимы
+  direct: Туры режим
   directNode: Туры
-  global: Глобаль
+  global: Глобаль режим
   profiles: Профильләр
-  proxies: Проксилар
+  proxies: Прокси
   systemProxy: Системалы прокси
-  tunMode: TUN режимы
+  tunMode: Tun режимы (виртуаль челтәр адаптеры)
   closeAllConnections: Барлык тоташуларны ябу
   lightweightMode: Җиңел режим
   copyEnv: Мохит үзгәрүчәннәрен күчерү

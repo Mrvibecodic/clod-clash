@@ -7,18 +7,18 @@ notifications:
     title: تغییر حالت
     body: به {mode} تغییر کرد.
   systemProxyToggled:
-    title: پروکسی سیستم
+    title: پراکسی سیستم
     'on': System proxy has been enabled.
     'off': System proxy has been disabled.
   tunModeToggled:
-    title: حالت TUN
+    title: Tun (کارت شبکه مجازی)
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
   lightweightModeEntered:
     title: حالت سبک
     body: به حالت سبک وارد شد.
   profilesReactivated:
-    title: پروفایل‌ها
+    title: پروفایل
     body: پروفایل دوباره فعال شد.
   appQuit:
     title: در آستانه خروج
@@ -73,18 +73,18 @@ service:
   translocatedCorePath: برنامه از یک مسیر موقت (App Translocation) اجرا می‌شود و هسته را پیدا نمی‌کند. آن را به پوشه Applications منتقل کنید و دوباره باز کنید.
 tray:
   dashboard: داشبورد
-  ruleMode: حالت قوانین
-  globalMode: حالت سراسری
+  ruleMode: حالت قانون
+  globalMode: حالت جهانی
   directMode: حالت مستقیم
   outboundModes: حالت‌های خروجی
-  rule: قانون
-  direct: مستقیم
+  rule: حالت قانون
+  direct: حالت مستقیم
   directNode: مستقیم
-  global: سراسری
+  global: حالت جهانی
   profiles: پروفایل‌ها
-  proxies: پروکسی‌ها
-  systemProxy: پروکسی سیستم
-  tunMode: حالت TUN
+  proxies: پراکسی‌ها
+  systemProxy: پراکسی سیستم
+  tunMode: Tun (کارت شبکه مجازی)
   closeAllConnections: بستن همه اتصال‌ها
   lightweightMode: حالت سبک
   copyEnv: کپی متغیرهای محیطی
@@ -100,7 +100,7 @@ tray:
   more: بیشتر
   exit: خروج
   tooltip:
-    systemProxy: پروکسی سیستم
+    systemProxy: پراکسی سیستم
     tun: TUN
     profile: پروفایل
     core: هسته

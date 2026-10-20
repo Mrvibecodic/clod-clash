@@ -11,7 +11,7 @@ notifications:
     'on': System proxy has been enabled.
     'off': System proxy has been disabled.
   tunModeToggled:
-    title: TUN モード
+    title: 仮想ネットワークカードモード
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
   lightweightModeEntered:
@@ -75,16 +75,16 @@ tray:
   dashboard: ダッシュボード
   ruleMode: ルールモード
   globalMode: グローバルモード
-  directMode: ダイレクトモード
+  directMode: 直接接続モード
   outboundModes: アウトバウンドモード
-  rule: ルール
-  direct: ダイレクト
+  rule: ルールモード
+  direct: 直接接続モード
   directNode: 直接接続
-  global: グローバル
+  global: グローバルモード
   profiles: プロファイル
   proxies: プロキシ
   systemProxy: システムプロキシ
-  tunMode: TUN モード
+  tunMode: 仮想ネットワークカードモード
   closeAllConnections: すべての接続を閉じる
   lightweightMode: 軽量モード
   copyEnv: 環境変数をコピー

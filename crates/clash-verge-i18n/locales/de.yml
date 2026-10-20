@@ -11,15 +11,15 @@ notifications:
     'on': System proxy has been enabled.
     'off': System proxy has been disabled.
   tunModeToggled:
-    title: TUN-Modus
+    title: Virtual Network Interface-Modus
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
   lightweightModeEntered:
-    title: Leichtmodus
-    body: Leichtmodus aktiviert.
+    title: Leichtgewichtiger Modus
+    body: Leichtgewichtiger Modus aktiviert.
   profilesReactivated:
-    title: Profile
-    body: Profil reaktiviert.
+    title: Abonnement
+    body: Abonnement reaktiviert.
   appQuit:
     title: Beenden steht bevor
     body: Die App wird gleich beendet.
@@ -73,20 +73,20 @@ service:
   translocatedCorePath: Die App läuft aus einem temporären Pfad (App Translocation) und findet den Core nicht. Verschieben Sie sie in den Ordner „Programme“ und öffnen Sie sie erneut.
 tray:
   dashboard: Übersicht
-  ruleMode: Regelmodus
+  ruleMode: Regel-Modus
   globalMode: Globaler Modus
-  directMode: Direktmodus
+  directMode: Direktverbindungs-Modus
   outboundModes: Ausgangsmodi
-  rule: Regel
-  direct: Direkt
+  rule: Regel-Modus
+  direct: Direktverbindungs-Modus
   directNode: Direkt
-  global: Global
-  profiles: Profile
+  global: Globaler Modus
+  profiles: Abonnement
   proxies: Proxy
   systemProxy: Systemproxy
-  tunMode: TUN-Modus
+  tunMode: Virtual Network Interface-Modus
   closeAllConnections: Alle Verbindungen schließen
-  lightweightMode: Leichtmodus
+  lightweightMode: Leichtgewichtiger Modus
   copyEnv: Umgebungsvariablen kopieren
   confDir: Konfigurationsverzeichnis
   coreDir: Core-Verzeichnis
@@ -102,7 +102,7 @@ tray:
   tooltip:
     systemProxy: Systemproxy
     tun: TUN
-    profile: Profil
+    profile: Abonnement
     core: Kern
     coreStopped: nicht gestartet
     'on': 'on'

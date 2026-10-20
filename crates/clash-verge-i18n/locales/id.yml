@@ -11,7 +11,7 @@ notifications:
     'on': System proxy has been enabled.
     'off': System proxy has been disabled.
   tunModeToggled:
-    title: Mode TUN
+    title: Mode Tun (NIC Virtual)
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
   lightweightModeEntered:
@@ -77,14 +77,14 @@ tray:
   globalMode: Mode Global
   directMode: Mode Langsung
   outboundModes: Mode Keluar
-  rule: Aturan
-  direct: Langsung
+  rule: Mode Aturan
+  direct: Mode Langsung
   directNode: Langsung
-  global: Global
+  global: Mode Global
   profiles: Profil
   proxies: Proksi
   systemProxy: Proksi Sistem
-  tunMode: Mode TUN
+  tunMode: Mode Tun (NIC Virtual)
   closeAllConnections: Tutup Semua Koneksi
   lightweightMode: Mode Ringan
   copyEnv: Salin Variabel Lingkungan

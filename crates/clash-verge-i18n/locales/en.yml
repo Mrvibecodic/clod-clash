@@ -11,7 +11,7 @@ notifications:
     'on': System proxy has been enabled.
     'off': System proxy has been disabled.
   tunModeToggled:
-    title: TUN Mode
+    title: Tun Mode
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
   lightweightModeEntered:
@@ -84,7 +84,7 @@ tray:
   profiles: Subscriptions
   proxies: Proxies
   systemProxy: System Proxy
-  tunMode: TUN Mode
+  tunMode: Tun Mode
   closeAllConnections: Close All Connections
   lightweightMode: Lightweight mode
   copyEnv: Copy Environment Variables
