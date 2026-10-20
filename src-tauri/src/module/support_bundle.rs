@@ -339,6 +339,16 @@ async fn settings_section(out: &mut std::string::String) {
     let _ = writeln!(out, "- расширенное логирование: {}", yes_no(data.verbose_diagnostics()));
 }
 
+/// Название, которое не прислала панель, у подписки по ссылке — кусок её
+/// адреса, обычно токен: в отчёт оно не идёт, как и сам адрес.
+fn subscription_name(item: &PrfItem) -> std::string::String {
+    match item.name.as_deref() {
+        None => "—".to_owned(),
+        Some(_) if item.url.is_some() && item.name_from_panel != Some(true) => "панель не прислала".to_owned(),
+        Some(name) => panel_text(name),
+    }
+}
+
 async fn subscription_section(out: &mut std::string::String) {
     let profiles = Config::profiles().await;
     let data = profiles.latest_arc();
@@ -353,11 +363,7 @@ async fn subscription_section(out: &mut std::string::String) {
         return;
     };
 
-    let _ = writeln!(
-        out,
-        "- название: {}",
-        item.name.as_deref().map_or_else(|| "—".to_owned(), panel_text)
-    );
+    let _ = writeln!(out, "- название: {}", subscription_name(item));
     let _ = writeln!(
         out,
         "- адрес: {}",
@@ -530,6 +536,28 @@ pub async fn build() -> Result<std::string::String> {
 #[cfg(test)]
 mod tests {
     use super::redact;
+
+    #[test]
+    fn a_name_made_from_the_subscription_link_stays_out_of_the_report() {
+        let unnamed = crate::config::PrfItem {
+            name: Some("AbCdEf123".into()),
+            url: Some("https://sub.example.com/sub/AbCdEf123".into()),
+            ..crate::config::PrfItem::default()
+        };
+        let shown = super::subscription_name(&unnamed);
+        assert!(!shown.contains("AbCdEf123"), "{shown}");
+        let named = crate::config::PrfItem {
+            name: Some("Тариф".into()),
+            name_from_panel: Some(true),
+            ..unnamed
+        };
+        assert_eq!(super::subscription_name(&named), "Тариф");
+        let local = crate::config::PrfItem {
+            name: Some("Мой файл".into()),
+            ..crate::config::PrfItem::default()
+        };
+        assert_eq!(super::subscription_name(&local), "Мой файл");
+    }
 
     #[test]
     fn a_support_line_is_cleaned_in_one_place() {
