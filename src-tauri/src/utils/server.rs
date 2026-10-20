@@ -158,8 +158,34 @@ pub async fn take_the_pending_links() -> Vec<String> {
     pending
 }
 
+/// Портативная версия держит токен не рядом с exe, а в локальных данных
+/// пользователя: каталог рядом с exe бывает на томе без прав доступа
+/// (FAT/exFAT, часть сетевых папок), где файл ни закрыть от чужих, ни признать
+/// своим. Обе копии одной портативной установки находят файл по отпечатку её
+/// каталога.
+fn instance_token_path_for(
+    app_home: &std::path::Path,
+    portable: bool,
+    local_data: Option<&std::path::Path>,
+) -> std::path::PathBuf {
+    use sha2::Digest as _;
+    match local_data.filter(|_| portable) {
+        Some(local_data) => {
+            let print = sha2::Sha256::digest(app_home.as_os_str().as_encoded_bytes());
+            local_data
+                .join(crate::utils::dirs::APP_ID)
+                .join(format!("{INSTANCE_TOKEN_FILE}-{}", hex::encode(&print[..8])))
+        }
+        None => app_home.join(INSTANCE_TOKEN_FILE),
+    }
+}
+
 fn instance_token_path() -> Result<std::path::PathBuf> {
-    Ok(crate::utils::dirs::preinit_app_home_dir()?.join(INSTANCE_TOKEN_FILE))
+    Ok(instance_token_path_for(
+        &crate::utils::dirs::preinit_app_home_dir()?,
+        *crate::utils::dirs::PORTABLE_FLAG.get().unwrap_or(&false),
+        ::dirs::data_local_dir().as_deref(),
+    ))
 }
 
 /// Новый токен на каждый запуск, в файл, закрытый от других пользователей.
@@ -170,6 +196,9 @@ fn issue_the_instance_token() -> Result<std::string::String> {
     getrandom::fill(&mut bytes).map_err(|error| anyhow::anyhow!("no randomness for the instance token: {error}"))?;
     let token = hex::encode(bytes);
     let path = instance_token_path()?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
     let _ = std::fs::remove_file(&path);
     #[cfg(windows)]
     let mut file = crate::core::owner_identity::create_private_current_user_file(&path)?;
@@ -484,6 +513,31 @@ mod tests {
         }
         assert!(!presents_the_token(Some(issued), None));
         assert!(!presents_the_token(None, None));
+    }
+
+    #[test]
+    fn a_portable_copy_keeps_its_token_with_the_user_not_next_to_the_exe() {
+        use super::instance_token_path_for;
+        use std::path::Path;
+        let local = Path::new("/home/u/.local/share");
+        let stick = Path::new("/media/stick/Clod Clash/.config/io.clodclash.app");
+        let installed = Path::new("/home/u/.local/share/io.clodclash.app");
+
+        assert_eq!(
+            instance_token_path_for(installed, false, Some(local)),
+            installed.join("instance-token")
+        );
+        assert_eq!(instance_token_path_for(stick, true, None), stick.join("instance-token"));
+
+        let token = instance_token_path_for(stick, true, Some(local));
+        assert!(!token.starts_with(stick), "{token:?}");
+        assert_eq!(token.parent(), Some(local.join(crate::utils::dirs::APP_ID).as_path()));
+        assert_eq!(token, instance_token_path_for(stick, true, Some(local)));
+        assert_ne!(
+            token,
+            instance_token_path_for(Path::new("/media/other/.config/io.clodclash.app"), true, Some(local))
+        );
+        assert_ne!(token, instance_token_path_for(installed, false, Some(local)));
     }
 
     #[test]
