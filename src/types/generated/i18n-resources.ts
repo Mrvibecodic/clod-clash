@@ -696,9 +696,6 @@ export interface TranslationResources {
             total: string
             willDelete: string
           }
-          mode: {
-            form: string
-          }
           policies: {
             DIRECT: string
             PASS: string
@@ -1596,10 +1593,9 @@ export interface TranslationResources {
         unsaved_one: string
       }
       editorModes: {
-        advanced: string
+        form: string
         list: string
         text: string
-        visualization: string
       }
       feedback: {
         crash: {

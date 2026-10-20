@@ -170,9 +170,6 @@
         "reordered": "저장 안 됨: 순서 변경",
         "noChanges": "변경 사항 없음",
         "reset": "초기화"
-      },
-      "mode": {
-        "form": "양식"
       }
     }
   }

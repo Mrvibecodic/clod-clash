@@ -71,8 +71,7 @@
     "restore": "Restore size"
   },
   "editorModes": {
-    "visualization": "Визуализация",
-    "advanced": "Өстәмә",
+    "form": "Форма",
     "list": "List",
     "text": "Text"
   },

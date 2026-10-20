@@ -170,9 +170,6 @@
         "reordered": "Sin guardar: orden cambiado",
         "noChanges": "Sin cambios",
         "reset": "Restablecer"
-      },
-      "mode": {
-        "form": "Formulario"
       }
     }
   }

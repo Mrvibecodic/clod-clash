@@ -71,8 +71,7 @@
     "restore": "Restore size"
   },
   "editorModes": {
-    "visualization": "Visualisierung",
-    "advanced": "Erweitert",
+    "form": "Formular",
     "list": "List",
     "text": "Text"
   },

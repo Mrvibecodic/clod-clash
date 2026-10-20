@@ -71,8 +71,7 @@
     "restore": "Restore size"
   },
   "editorModes": {
-    "visualization": "視覺化",
-    "advanced": "進階",
+    "form": "表單",
     "list": "List",
     "text": "Text"
   },

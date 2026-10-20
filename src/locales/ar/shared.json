@@ -71,8 +71,7 @@
     "restore": "Restore size"
   },
   "editorModes": {
-    "visualization": "تصور",
-    "advanced": "متقدم",
+    "form": "نموذج",
     "list": "List",
     "text": "Text"
   },

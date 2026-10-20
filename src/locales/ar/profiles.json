@@ -34,7 +34,7 @@
         "batchDeleted": "Selected subscriptions deleted",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
-        "editorBrokenYaml": "تعذّر تحليل الملف كـ YAML — فُتح كنص حتى لا يُستبدل أي شيء. صحّح الصياغة ثم عُد إلى العرض المرئي.",
+        "editorBrokenYaml": "The file could not be parsed as YAML — opened in the YAML view so nothing is overwritten. Fix the syntax and switch back to Form.",
         "proxyLinksSkipped": "تعذّر تحليل {{count}} من الروابط وتم تخطيها: {{lines}}",
         "proxyLinksSkipped_one": "تعذّر تحليل {{count}} من الروابط وتم تخطيها: {{lines}}",
         "justUpdated": "Subscriptions were just updated — you can update them again in half a minute"

@@ -44,6 +44,7 @@ import {
   MonacoEditor,
   StickyVirtualList,
 } from '@/components/base'
+import { EditorModeSwitch } from '@/components/profile/editor-mode-switch'
 import { ReadFailureNote } from '@/components/profile/read-failure-note'
 import { RuleItem } from '@/components/profile/rule-item'
 import { useSeqDocument } from '@/hooks/use-seq-document'
@@ -741,26 +742,11 @@ export const RulesEditorViewer = (props: Props) => {
           }}
         >
           {t('rules.modals.editor.title')}
-          <ToggleButtonGroup
-            exclusive
-            size="small"
-            color="primary"
+          <EditorModeSwitch
+            visualization={visualization}
             disabled={!ready}
-            sx={{ '& .MuiToggleButton-root': { textTransform: 'none' } }}
-            value={visualization ? 'form' : 'yaml'}
-            onChange={(_, next) => {
-              if (next && (next === 'form') !== visualization) {
-                toggleVisualization()
-              }
-            }}
-          >
-            <ToggleButton value="form" sx={{ px: 1.75, py: 0.5 }}>
-              {t('rules.modals.editor.mode.form')}
-            </ToggleButton>
-            <ToggleButton value="yaml" sx={{ px: 1.75, py: 0.5 }}>
-              YAML
-            </ToggleButton>
-          </ToggleButtonGroup>
+            onToggle={toggleVisualization}
+          />
         </Box>
       </DialogTitle>
 

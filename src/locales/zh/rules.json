@@ -170,9 +170,6 @@
         "reordered": "未保存：顺序已更改",
         "noChanges": "没有更改",
         "reset": "重置"
-      },
-      "mode": {
-        "form": "表单"
       }
     }
   }

@@ -34,7 +34,7 @@
         "batchDeleted": "選択したプロファイルが正常に削除されました",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
-        "editorBrokenYaml": "YAML として解析できないため、上書きを避けてテキストとして開きました。構文を直してから戻ってください。",
+        "editorBrokenYaml": "The file could not be parsed as YAML — opened in the YAML view so nothing is overwritten. Fix the syntax and switch back to Form.",
         "proxyLinksSkipped": "{{count}} 件のリンクを解析できず、スキップしました: {{lines}}",
         "proxyLinksSkipped_one": "{{count}} 件のリンクを解析できず、スキップしました: {{lines}}",
         "justUpdated": "Subscriptions were just updated — you can update them again in half a minute"

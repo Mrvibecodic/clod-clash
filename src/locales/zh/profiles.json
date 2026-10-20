@@ -34,7 +34,7 @@
         "batchDeleted": "选中的订阅已成功删除",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
-        "editorBrokenYaml": "该文件无法按 YAML 解析，已以文本方式打开，避免覆盖原有内容。请修正语法后再切回。",
+        "editorBrokenYaml": "The file could not be parsed as YAML — opened in the YAML view so nothing is overwritten. Fix the syntax and switch back to Form.",
         "proxyLinksSkipped": "有 {{count}} 条链接无法解析，已跳过： {{lines}}",
         "proxyLinksSkipped_one": "有 {{count}} 条链接无法解析，已跳过： {{lines}}",
         "justUpdated": "Subscriptions were just updated — you can update them again in half a minute"

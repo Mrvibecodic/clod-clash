@@ -170,9 +170,6 @@
         "reordered": "未保存：順序を変更",
         "noChanges": "変更なし",
         "reset": "リセット"
-      },
-      "mode": {
-        "form": "フォーム"
       }
     }
   }

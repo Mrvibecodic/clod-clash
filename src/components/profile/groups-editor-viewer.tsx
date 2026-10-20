@@ -43,6 +43,7 @@ import {
   Switch,
   VirtualList,
 } from '@/components/base'
+import { EditorModeSwitch } from '@/components/profile/editor-mode-switch'
 import { GroupItem } from '@/components/profile/group-item'
 import { ReadFailureNote } from '@/components/profile/read-failure-note'
 import { useSeqDocument } from '@/hooks/use-seq-document'
@@ -463,20 +464,19 @@ export const GroupsEditorViewer = (props: Props) => {
     >
       <DialogTitle>
         {
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
             {t('profiles.modals.groupsEditor.title')}
-            <Box>
-              <Button
-                variant="contained"
-                size="small"
-                disabled={!ready}
-                onClick={toggleVisualization}
-              >
-                {visualization
-                  ? t('shared.editorModes.advanced')
-                  : t('shared.editorModes.visualization')}
-              </Button>
-            </Box>
+            <EditorModeSwitch
+              visualization={visualization}
+              disabled={!ready}
+              onToggle={toggleVisualization}
+            />
           </Box>
         }
       </DialogTitle>

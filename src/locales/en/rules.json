@@ -170,9 +170,6 @@
         "reordered": "Unsaved: order changed",
         "noChanges": "No changes",
         "reset": "Reset"
-      },
-      "mode": {
-        "form": "Form"
       }
     }
   }

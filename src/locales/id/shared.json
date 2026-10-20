@@ -71,8 +71,7 @@
     "restore": "Restore size"
   },
   "editorModes": {
-    "visualization": "Visualisasi",
-    "advanced": "Lanjutan",
+    "form": "Formulir",
     "list": "List",
     "text": "Text"
   },
