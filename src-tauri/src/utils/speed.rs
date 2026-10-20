@@ -49,32 +49,27 @@ fn speed_text(bytes_per_sec: u64, separator: &str) -> String {
 mod tests {
     use super::speed_text;
 
-    /// Те же примеры, что в `src/utils/parse-traffic.test.ts`: строка меню и
-    /// окно пишут одну скорость одинаково.
+    #[derive(serde::Deserialize)]
+    struct Cases {
+        point: Vec<(u64, String)>,
+        comma: Vec<(u64, String)>,
+    }
+
+    /// Примеры общие с `src/utils/parse-traffic.test.ts`: строка меню и окно
+    /// пишут одну скорость одинаково.
     #[test]
     fn the_menu_bar_writes_speed_as_the_window_does() {
-        let cases = [
-            (0, "0.00 B/s"),
-            (5, "5.00 B/s"),
-            (512, "512 B/s"),
-            (999, "999 B/s"),
-            (1000, "0.977 KB/s"),
-            (1023, "0.999 KB/s"),
-            (1024, "1.00 KB/s"),
-            (1152, "1.13 KB/s"),
-            (10_235, "10.0 KB/s"),
-            (102_348, "99.9 KB/s"),
-            (1_023_385, "999 KB/s"),
-            (1_023_590, "0.976 MB/s"),
-            (1_042_432, "0.994 MB/s"),
-            (1_258_291, "1.20 MB/s"),
-            (13_314_398_618, "12.4 GB/s"),
-            (u64::MAX, "16.0 EB/s"),
-        ];
-        for (bytes, shown) in cases {
-            assert_eq!(speed_text(bytes, "."), shown, "{bytes}");
+        let cases: Option<Cases> = serde_json::from_str(include_str!("../../../src/utils/speed-cases.json")).ok();
+        assert!(
+            cases
+                .as_ref()
+                .is_some_and(|cases| !cases.point.is_empty() && !cases.comma.is_empty())
+        );
+        let Some(Cases { point, comma }) = cases else { return };
+        for (separator, cases) in [(".", point), (",", comma)] {
+            for (bytes, shown) in cases {
+                assert_eq!(speed_text(bytes, separator), shown, "{bytes}");
+            }
         }
-        assert_eq!(speed_text(1_258_291, ","), "1,20 MB/s");
-        assert_eq!(speed_text(512, ","), "512 B/s");
     }
 }
