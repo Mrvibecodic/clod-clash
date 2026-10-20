@@ -110,11 +110,9 @@ impl<'a> LogLineFilter for NoModuleFilter<'a> {
 pub mod startup {
     use log::{Level, LevelFilter, Log, Metadata, Record};
     use std::io::Write as _;
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Mutex, OnceLock};
 
     const HELD_CAP: usize = 200;
-    static INSTALLED: AtomicBool = AtomicBool::new(false);
 
     struct HeldLine {
         level: Level,
@@ -124,19 +122,19 @@ pub mod startup {
     }
 
     pub struct StartupLog {
+        redact: fn(&str) -> String,
         inner: OnceLock<Box<dyn Log>>,
         held: Mutex<Vec<HeldLine>>,
     }
 
-    static STARTUP_LOG: StartupLog = StartupLog {
-        inner: OnceLock::new(),
-        held: Mutex::new(Vec::new()),
-    };
+    static STARTUP_LOG: OnceLock<&'static StartupLog> = OnceLock::new();
 
-    fn held() -> std::sync::MutexGuard<'static, Vec<HeldLine>> {
-        match STARTUP_LOG.held.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
+    impl StartupLog {
+        fn held(&self) -> std::sync::MutexGuard<'_, Vec<HeldLine>> {
+            match self.held.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            }
         }
     }
 
@@ -161,9 +159,10 @@ pub mod startup {
             if record.level() > Level::Info {
                 return;
             }
-            let line = format!("[{}] [{}] {}", stamp(), record.level(), record.args());
+            let message = (self.redact)(&record.args().to_string());
+            let line = format!("[{}] [{}] {}", stamp(), record.level(), message);
             let _ = writeln!(std::io::stderr(), "{line}");
-            let mut held = held();
+            let mut held = self.held();
             if held.len() >= HELD_CAP {
                 held.remove(0);
             }
@@ -182,22 +181,27 @@ pub mod startup {
         }
     }
 
-    pub fn install() -> bool {
-        if log::set_logger(&STARTUP_LOG).is_err() {
+    pub fn install(redact: fn(&str) -> String) -> bool {
+        let startup_log: &'static StartupLog = Box::leak(Box::new(StartupLog {
+            redact,
+            inner: OnceLock::new(),
+            held: Mutex::new(Vec::new()),
+        }));
+        if log::set_logger(startup_log).is_err() {
             return false;
         }
-        INSTALLED.store(true, Ordering::Release);
+        let _ = STARTUP_LOG.set(startup_log);
         log::set_max_level(LevelFilter::Info);
         true
     }
 
     pub fn hand_over(logger: Box<dyn Log>) -> Result<(), log::SetLoggerError> {
-        if !INSTALLED.load(Ordering::Acquire) {
+        let Some(startup_log) = STARTUP_LOG.get() else {
             return log::set_boxed_logger(logger);
-        }
-        let Err(logger) = STARTUP_LOG.inner.set(logger) else {
-            let lines: Vec<HeldLine> = std::mem::take(&mut *held());
-            if let Some(inner) = STARTUP_LOG.inner.get() {
+        };
+        let Err(logger) = startup_log.inner.set(logger) else {
+            let lines: Vec<HeldLine> = std::mem::take(&mut *startup_log.held());
+            if let Some(inner) = startup_log.inner.get() {
                 for held_line in lines {
                     inner.log(
                         &Record::builder()
@@ -215,6 +219,33 @@ pub mod startup {
     }
 
     pub fn held_lines() -> Vec<String> {
-        held().iter().map(|held_line| held_line.line.clone()).collect()
+        STARTUP_LOG.get().map_or_else(Vec::new, |startup_log| {
+            startup_log
+                .held()
+                .iter()
+                .map(|held_line| held_line.line.clone())
+                .collect()
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::startup;
+
+    fn mask(line: &str) -> String {
+        line.replace("AbCd1234EfGh5678", "***")
+    }
+
+    #[test]
+    fn lines_before_the_main_log_are_edited() {
+        assert!(startup::install(mask));
+        log::info!(target: "app", "fetch https://panel.example.com/sub/AbCd1234EfGh5678 failed");
+        let lines = startup::held_lines();
+        assert!(
+            lines.iter().any(|line| line.contains("panel.example.com/sub/***")),
+            "{lines:?}"
+        );
+        assert!(lines.iter().all(|line| !line.contains("AbCd1234EfGh5678")), "{lines:?}");
     }
 }

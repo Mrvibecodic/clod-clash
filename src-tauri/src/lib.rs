@@ -256,7 +256,7 @@ mod app_init {
 
 pub fn run() {
     #[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
-    clash_verge_logging::startup::install();
+    clash_verge_logging::startup::install(utils::redact::redact);
 
     let _ = utils::dirs::init_portable_flag();
 
