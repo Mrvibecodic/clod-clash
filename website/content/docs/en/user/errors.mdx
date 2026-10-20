@@ -37,6 +37,8 @@ subscription with the ↻ button. With a device limit, only the provider can fre
    firewall warning on the home screen or switch to `gvisor`.
 4. Check whether a second VPN client is running: two clients don't work
    at the same time — there's one system proxy and one TUN adapter for everyone.
+5. On Windows with TUN nothing opens at all, while without TUN everything works —
+   see "TUN is on, but nothing opens at all (Windows)" below.
 
 ## "Port … is held by another application" notification
 
@@ -128,6 +130,85 @@ The "TUN is up but no traffic is flowing through the tunnel" notification appear
 through the core passed but the direct path is also alive. On Windows with `system`/`mixed` this is
 almost always the firewall — press "Fix" on the home screen. In other cases
 try a different stack in the TUN dialog.
+
+## TUN is on, but nothing opens at all (Windows)
+
+What it looks like: without TUN everything works, but with TUN the whole internet is
+gone — both through servers and directly. All servers show "Timeout", and there is no
+error on screen.
+
+A common cause is **IPv4 forwarding** turned on for the network adapter in
+Windows. It is turned on by, for example, Mobile hotspot and Internet Connection
+Sharing, and sometimes by virtualization software. While it is on, Windows sends
+the app's own connections back into the tunnel, and they go round in circles.
+
+**1. Check.** Turn TUN off, open PowerShell (Win+X → "Terminal") and run:
+
+```powershell
+Get-NetIPInterface -AddressFamily IPv4 | ft ifIndex,InterfaceAlias,Forwarding,ConnectionState -AutoSize
+```
+
+Example output:
+
+```text
+ifIndex InterfaceAlias              Forwarding ConnectionState
+------- --------------              ---------- ---------------
+     14 Wi-Fi                          Enabled       Connected
+      1 Loopback Pseudo-Interface 1   Disabled       Connected
+```
+
+Look at the adapter the computer uses to reach the internet — usually `Wi-Fi` or
+`Ethernet` with the `Connected` state. If its `Forwarding` column says `Enabled`,
+this is the cause — go to step 2. If it says `Disabled`, the problem is elsewhere:
+export the logs and ask in the chat (see "Didn't find yours" below).
+
+**2. Turn forwarding off.** Open PowerShell as administrator
+(Win+X → "Terminal (Admin)") and run the command, replacing `Wi-Fi` with your
+adapter's name from the `InterfaceAlias` column:
+
+```powershell
+Set-NetIPInterface -InterfaceAlias "Wi-Fi" -AddressFamily IPv4 -Forwarding Disabled
+```
+
+The command prints nothing — that's normal. Repeat the check from step 1; the
+adapter should now show `Disabled`:
+
+```text
+ifIndex InterfaceAlias              Forwarding ConnectionState
+------- --------------              ---------- ---------------
+     14 Wi-Fi                         Disabled       Connected
+      1 Loopback Pseudo-Interface 1   Disabled       Connected
+```
+
+Turn TUN on again — the internet should come back.
+
+**3. To keep forwarding from coming back after a reboot**, check the
+system-wide Windows setting:
+
+```powershell
+(Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters).IPEnableRouter
+```
+
+Example output:
+
+```text
+1
+```
+
+`1` means forwarding is on for the whole system and will come back after a
+reboot. Turn it off (PowerShell as administrator) and restart the computer:
+
+```powershell
+Set-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters -Name IPEnableRouter -Value 0
+```
+
+If the output is `0` or empty, this part is fine and step 2 is enough. Forwarding
+may turn on again when you start Mobile hotspot or Internet Connection Sharing —
+then repeat step 2.
+
+While forwarding is off, sharing the internet from this computer (hotspot,
+Internet Connection Sharing) doesn't work. To undo, run the step 2 command with
+`Enabled` instead of `Disabled`.
 
 ## The app froze
 
