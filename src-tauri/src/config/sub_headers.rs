@@ -248,9 +248,7 @@ impl SubHeaders {
             profile_logo: value(headers, "profile-logo").and_then(|raw| https_url(&raw)),
             home: value(headers, "profile-web-page-url").and_then(|raw| https_url(&raw)),
             support_url: value(headers, "support-url").and_then(|raw| contact_url(&raw)),
-            announce: value(headers, "clod-announce")
-                .or_else(|| value(headers, "announce"))
-                .map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
+            announce: value(headers, "announce").map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             announce_url: value(headers, "announce-url").and_then(|raw| https_url(&raw)),
             refill_date: value(headers, "subscription-refill-date")
                 .and_then(|raw| raw.trim().parse::<u64>().ok())
@@ -339,18 +337,31 @@ impl SubHeaders {
 }
 
 /// Заголовки с этим именем — сами по себе или с приставкой через дефис
-/// (`x-…`, `clod-…`) — как текст, по порядку.
+/// (`x-…`, `clod-…`) — как текст: сначала `clod-<имя>` (и с приставкой
+/// хранилища перед ним), потом само имя, потом прочие приставки, внутри
+/// каждого — по порядку.
 fn named<'a>(headers: &'a HeaderMap, name: &'a str) -> impl Iterator<Item = std::borrow::Cow<'a, str>> + 'a {
-    headers.iter().filter_map(move |(key, raw)| {
-        let key_lower = key.as_str().to_ascii_lowercase();
-        let matches = key_lower
-            .strip_suffix(name)
-            .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with('-'));
-        matches.then(|| match raw.to_str() {
-            Ok(text) => std::borrow::Cow::Borrowed(text),
-            Err(_) => std::string::String::from_utf8_lossy(raw.as_bytes()),
+    let mut found: Vec<_> = headers
+        .iter()
+        .filter_map(|(key, raw)| {
+            let key_lower = key.as_str().to_ascii_lowercase();
+            let rank = match key_lower.strip_suffix(name)? {
+                "" => 1,
+                prefix => match prefix.strip_suffix('-') {
+                    Some(owner) if owner == "clod" || owner.ends_with("-clod") => 0,
+                    Some(_) => 2,
+                    None => return None,
+                },
+            };
+            let text = match raw.to_str() {
+                Ok(text) => std::borrow::Cow::Borrowed(text),
+                Err(_) => std::string::String::from_utf8_lossy(raw.as_bytes()),
+            };
+            Some((rank, text))
         })
-    })
+        .collect();
+    found.sort_by_key(|(rank, _)| *rank);
+    found.into_iter().map(|(_, text)| text)
 }
 
 /// Первый заголовок с этим именем как есть: без расшифровки `base64:` и даже
@@ -758,6 +769,48 @@ mod tests {
 
         let empty_ours = SubHeaders::parse(&headers(&[("announce", "panel"), ("clod-announce", " ")]));
         assert_eq!(empty_ours.announce.as_deref(), Some("panel"));
+    }
+
+    #[test]
+    fn a_clod_header_wins_over_the_standard_one_and_other_prefixes() {
+        for order in [
+            [
+                ("support-url", "https://a.example.com"),
+                ("x-amz-meta-support-url", "https://c.example.com"),
+                ("clod-support-url", "https://b.example.com"),
+            ],
+            [
+                ("x-amz-meta-support-url", "https://c.example.com"),
+                ("clod-support-url", "https://b.example.com"),
+                ("support-url", "https://a.example.com"),
+            ],
+        ] {
+            let parsed = SubHeaders::parse(&headers(&order));
+            assert_eq!(
+                parsed.support_url.as_deref(),
+                Some("https://b.example.com"),
+                "{order:?}"
+            );
+        }
+
+        let panel_first = headers(&[
+            ("subscription-userinfo", "upload=1"),
+            ("clod-subscription-userinfo", "upload=2"),
+        ]);
+        assert_eq!(
+            raw_value(&panel_first, "subscription-userinfo").as_deref(),
+            Some("upload=2")
+        );
+
+        let stored = headers(&[("announce", "panel"), ("x-amz-meta-clod-announce", "ours")]);
+        assert_eq!(SubHeaders::parse(&stored).announce.as_deref(), Some("ours"));
+
+        let prefixed_first = headers(&[("x-profile-title", "other"), ("profile-title", "panel")]);
+        assert_eq!(
+            SubHeaders::parse(&prefixed_first).profile_title.as_deref(),
+            Some("panel"),
+            "само имя — раньше чужих приставок"
+        );
     }
 
     #[test]

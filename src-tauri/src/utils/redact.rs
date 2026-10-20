@@ -584,6 +584,8 @@ mod tests {
             "clod-lock-mode",
             "clod-connect-mode",
             "clod-theme",
+            "clod-support-url",
+            "clod-subscription-userinfo",
         ];
         let source = include_str!("../config/sub_headers.rs");
         let mut found = std::collections::BTreeSet::new();
