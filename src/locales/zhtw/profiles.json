@@ -232,7 +232,8 @@
         "format": "格式化文件"
       },
       "messages": {
-        "readOnly": "無法在唯讀模式下編輯"
+        "readOnly": "無法在唯讀模式下編輯",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

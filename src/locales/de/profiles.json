@@ -232,7 +232,8 @@
         "format": "Dokument formatieren"
       },
       "messages": {
-        "readOnly": "Bearbeitung im schreibgeschützten Modus nicht möglich"
+        "readOnly": "Bearbeitung im schreibgeschützten Modus nicht möglich",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

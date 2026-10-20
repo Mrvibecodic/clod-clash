@@ -232,7 +232,8 @@
         "format": "فرمت‌بندی سند"
       },
       "messages": {
-        "readOnly": "نمی‌توان در ویرایشگر فقط خواندنی ویرایش کرد"
+        "readOnly": "نمی‌توان در ویرایشگر فقط خواندنی ویرایش کرد",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

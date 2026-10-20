@@ -232,7 +232,8 @@
         "format": "Format document"
       },
       "messages": {
-        "readOnly": "Cannot edit in read-only editor"
+        "readOnly": "Cannot edit in read-only editor",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

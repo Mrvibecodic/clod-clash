@@ -232,7 +232,8 @@
         "format": "格式化文档"
       },
       "messages": {
-        "readOnly": "无法在只读模式下编辑"
+        "readOnly": "无法在只读模式下编辑",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

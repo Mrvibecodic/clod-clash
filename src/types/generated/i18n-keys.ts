@@ -328,6 +328,7 @@ export const translationKeys = [
   'profiles.modals.groupsEditor.actions.append',
   'profiles.modals.editor.actions.format',
   'profiles.modals.editor.messages.readOnly',
+  'profiles.modals.editor.messages.readFailed',
   'profiles.modals.confirmDelete.title',
   'profiles.modals.confirmDelete.message',
   'proxies.page.modes.rule',

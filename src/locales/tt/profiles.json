@@ -232,7 +232,8 @@
         "format": "Документны форматлау"
       },
       "messages": {
-        "readOnly": "Уку режимында үзгәртү мөмкин түгел"
+        "readOnly": "Уку режимында үзгәртү мөмкин түгел",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

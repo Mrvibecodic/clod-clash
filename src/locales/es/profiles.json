@@ -232,7 +232,8 @@
         "format": "Formatear documento"
       },
       "messages": {
-        "readOnly": "No se puede editar en modo de solo lectura"
+        "readOnly": "No se puede editar en modo de solo lectura",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

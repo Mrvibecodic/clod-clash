@@ -349,6 +349,7 @@ export interface TranslationResources {
             format: string
           }
           messages: {
+            readFailed: string
             readOnly: string
           }
         }

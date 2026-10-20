@@ -232,7 +232,8 @@
         "format": "تنسيق المستند"
       },
       "messages": {
-        "readOnly": "لا يمكن التعديل في محرر القراءة فقط"
+        "readOnly": "لا يمكن التعديل في محرر القراءة فقط",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

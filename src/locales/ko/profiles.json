@@ -232,7 +232,8 @@
         "format": "문서 포맷"
       },
       "messages": {
-        "readOnly": "읽기 전용 편집기에서는 편집할 수 없습니다"
+        "readOnly": "읽기 전용 편집기에서는 편집할 수 없습니다",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

@@ -12,16 +12,19 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  Typography,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { type ReactNode, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseLoadingOverlay, MonacoEditor } from '@/components/base'
+import { BaseEmpty, BaseLoadingOverlay, MonacoEditor } from '@/components/base'
 import { useWindowControls } from '@/hooks/use-window'
 import { showNotice } from '@/services/notice-service'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
+import { type EditorReadFailure, editorSaveBlocked } from '@/utils/editor-save'
+import { errorReason } from '@/utils/error-explanation'
 
 type EditorLanguage = 'yaml' | 'javascript'
 
@@ -32,6 +35,8 @@ export interface EditorViewerProps {
   language: EditorLanguage
   path: string
   loading?: boolean
+  failure?: EditorReadFailure | null
+  onRetry?: () => void
   dirty?: boolean
   onChange?: (value: string) => void
   onSave?: () => void | boolean | Promise<void | boolean>
@@ -45,6 +50,8 @@ export const EditorViewer = ({
   language,
   path,
   loading = false,
+  failure,
+  onRetry,
   dirty,
   onChange,
   onSave,
@@ -55,7 +62,8 @@ export const EditorViewer = ({
   const editorRef = useRef<MonacoEditorInstance | null>(null)
 
   const resolvedTitle = title ?? t('profiles.components.menu.editFile')
-  const disableSave = loading || dirty === false
+  const disableSave = editorSaveBlocked(loading, failure, dirty)
+  const unavailable = loading || Boolean(failure)
 
   const syncEditorValue = useCallback(() => {
     const model = editorRef.current?.getModel()
@@ -83,7 +91,7 @@ export const EditorViewer = ({
 
   const handlePaste = useLockFn(async () => {
     try {
-      if (loading || !editorRef.current) return
+      if (unavailable || !editorRef.current) return
 
       const text = await navigator.clipboard.readText()
       if (!text) return
@@ -111,7 +119,7 @@ export const EditorViewer = ({
 
   const handleFormat = useLockFn(async () => {
     try {
-      if (loading) return
+      if (unavailable) return
       await editorRef.current?.getAction('editor.action.formatDocument')?.run()
     } catch (error) {
       showNotice.error(error)
@@ -127,9 +135,9 @@ export const EditorViewer = ({
   })
 
   useEffect(() => {
-    if (!open || loading) return
+    if (!open || unavailable) return
     syncEditorValue()
-  }, [loading, open, syncEditorValue])
+  }, [unavailable, open, syncEditorValue])
 
   useEffect(() => {
     return () => {
@@ -159,7 +167,27 @@ export const EditorViewer = ({
       >
         <div style={{ position: 'relative', flex: '1 1 auto', minHeight: 0 }}>
           <BaseLoadingOverlay isLoading={loading} />
-          {!loading && (
+          {failure && (
+            <BaseEmpty
+              textKey="profiles.modals.editor.messages.readFailed"
+              extra={
+                <>
+                  <Typography
+                    variant="caption"
+                    sx={{ mt: 0.5, mb: 1, textAlign: 'center' }}
+                  >
+                    {errorReason(failure.reason, t)}
+                  </Typography>
+                  {onRetry && (
+                    <Button size="small" onClick={onRetry}>
+                      {t('shared.actions.retry')}
+                    </Button>
+                  )}
+                </>
+              }
+            />
+          )}
+          {!unavailable && (
             <MonacoEditor
               height="100%"
               path={path}
@@ -192,7 +220,7 @@ export const EditorViewer = ({
             size="medium"
             color="inherit"
             title={t('profiles.page.importForm.actions.paste')}
-            disabled={loading}
+            disabled={unavailable}
             onClick={() => {
               void handlePaste()
             }}
@@ -203,7 +231,7 @@ export const EditorViewer = ({
             size="medium"
             color="inherit"
             title={t('profiles.modals.editor.actions.format')}
-            disabled={loading}
+            disabled={unavailable}
             onClick={() => {
               void handleFormat()
             }}

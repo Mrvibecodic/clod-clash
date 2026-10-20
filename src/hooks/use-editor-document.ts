@@ -2,7 +2,7 @@
 import { useEffect } from 'foxact/use-abortable-effect'
 import { useCallback, useState } from 'react'
 
-import { showNotice } from '@/services/notice-service'
+import type { EditorReadFailure } from '@/utils/editor-save'
 
 interface UseEditorDocumentOptions {
   open: boolean
@@ -13,11 +13,14 @@ export const useEditorDocument = ({ open, load }: UseEditorDocumentOptions) => {
   const [value, setValue] = useState('')
   const [savedValue, setSavedValue] = useState('')
   const [loading, setLoading] = useState(true)
+  const [failure, setFailure] = useState<EditorReadFailure | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
   const resetDocumentState = useCallback(() => {
     setValue('')
     setSavedValue('')
     setLoading(true)
+    setFailure(null)
   }, [])
 
   const applyLoadedValue = useCallback(
@@ -41,14 +44,16 @@ export const useEditorDocument = ({ open, load }: UseEditorDocumentOptions) => {
           applyLoadedValue(nextValue)
         })
         .catch((error) => {
-          if (!signal.aborted) showNotice.error(error)
+          if (!signal.aborted) setFailure({ reason: error })
         })
         .finally(() => {
           if (!signal.aborted) setLoading(false)
         })
     },
-    [applyLoadedValue, load, open, resetDocumentState],
+    [applyLoadedValue, attempt, load, open, resetDocumentState],
   )
+
+  const retry = useCallback(() => setAttempt((n) => n + 1), [])
 
   const markSaved = useCallback((nextValue: string) => {
     setSavedValue(nextValue)
@@ -60,6 +65,8 @@ export const useEditorDocument = ({ open, load }: UseEditorDocumentOptions) => {
     value,
     setValue,
     loading,
+    failure,
+    retry,
     dirty,
     markSaved,
   }

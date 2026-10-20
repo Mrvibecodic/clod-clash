@@ -232,7 +232,8 @@
         "format": "文書を整形する"
       },
       "messages": {
-        "readOnly": "読み取り専用モードでは編集できません。"
+        "readOnly": "読み取り専用モードでは編集できません。",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

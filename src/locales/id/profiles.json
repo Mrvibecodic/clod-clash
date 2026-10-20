@@ -232,7 +232,8 @@
         "format": "Format dokumen"
       },
       "messages": {
-        "readOnly": "Tidak dapat mengedit di editor hanya baca"
+        "readOnly": "Tidak dapat mengedit di editor hanya baca",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

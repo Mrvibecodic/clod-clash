@@ -232,7 +232,8 @@
         "format": "Belgeyi biçimlendir"
       },
       "messages": {
-        "readOnly": "Salt okunur düzenleyicide düzenlenemez"
+        "readOnly": "Salt okunur düzenleyicide düzenlenemez",
+        "readFailed": "Could not read the file"
       }
     },
     "confirmDelete": {

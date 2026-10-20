@@ -988,6 +988,8 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           path={`profile:${uid}.yaml`}
           title={t(menuLabels.editFile)}
           loading={profileDocument.loading}
+          failure={profileDocument.failure}
+          onRetry={profileDocument.retry}
           dirty={profileDocument.dirty}
           onChange={profileDocument.setValue}
           onSave={handleSaveProfileDocument}
@@ -1032,6 +1034,8 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           path={`merge:${option?.merge ?? ''}.yaml`}
           title={t(menuLabels.extendConfig)}
           loading={mergeDocument.loading}
+          failure={mergeDocument.failure}
+          onRetry={mergeDocument.retry}
           dirty={mergeDocument.dirty}
           onChange={mergeDocument.setValue}
           onSave={handleSaveMergeDocument}
@@ -1046,6 +1050,8 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           path={`script:${option?.script ?? ''}.js`}
           title={t(menuLabels.extendScript)}
           loading={scriptDocument.loading}
+          failure={scriptDocument.failure}
+          onRetry={scriptDocument.retry}
           dirty={scriptDocument.dirty}
           onChange={scriptDocument.setValue}
           onSave={handleSaveScriptDocument}
