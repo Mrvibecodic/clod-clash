@@ -1774,17 +1774,10 @@ mod tests {
         );
     }
 
+    /// Подавление, бюджет попыток и память о сказанном — общие статики: тесты
+    /// идут параллельно, поэтому всё, что их трогает, живёт в одном тесте.
     #[test]
-    fn only_a_hand_made_retry_lets_the_same_failure_be_told_again() {
-        *LAST_NOTICED.lock() = Some(FAILURE_ADAPTER_BUSY);
-        clear_suppression();
-        assert_eq!(*LAST_NOTICED.lock(), Some(FAILURE_ADAPTER_BUSY));
-        clear_suppression_by_hand();
-        assert_eq!(*LAST_NOTICED.lock(), None);
-    }
-
-    #[test]
-    fn suppression_and_the_attempt_budget_are_session_state() {
+    fn suppression_the_attempt_budget_and_the_last_notice_are_session_state() {
         clear_suppression();
         assert!(!is_suppressed());
         suppress("test");
@@ -1793,6 +1786,16 @@ mod tests {
         clear_suppression();
         assert!(!is_suppressed());
         assert_eq!(START_ATTEMPTS.load(Ordering::Acquire), 0);
+
+        *LAST_NOTICED.lock() = Some(FAILURE_ADAPTER_BUSY);
+        clear_suppression();
+        assert_eq!(
+            *LAST_NOTICED.lock(),
+            Some(FAILURE_ADAPTER_BUSY),
+            "повтор сам по себе о сказанном не забывает"
+        );
+        clear_suppression_by_hand();
+        assert_eq!(*LAST_NOTICED.lock(), None, "повтор по действию человека — забывает");
     }
 
     #[test]
