@@ -170,11 +170,7 @@
   },
   "filters": {
     "logLevels": {
-      "all": "ALL",
-      "debug": "DEBUG",
-      "info": "INFO",
-      "warn": "WARN",
-      "error": "ERROR"
+      "all": "ALL"
     }
   },
   "providerLinks": {

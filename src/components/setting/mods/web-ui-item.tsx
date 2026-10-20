@@ -40,10 +40,10 @@ export const WebUIItem = (props: Props) => {
   const highlightedParts = useMemo(() => {
     const placeholderRegex = /(%host|%port|%secret)/g
     if (!value) {
-      return ['NULL']
+      return [t('shared.statuses.empty')]
     }
     return value.split(placeholderRegex).filter((part) => part !== '')
-  }, [value])
+  }, [t, value])
 
   if (editing || onlyEdit) {
     return (
@@ -63,6 +63,7 @@ export const WebUIItem = (props: Props) => {
           size="small"
           title={t('shared.actions.save')}
           sx={{ color: 'primary.main' }}
+          disabled={!editValue?.trim()}
           onClick={() => {
             onChange(editValue)
             setEditing(false)

@@ -216,7 +216,7 @@
           "language": "Spracheinstellungen",
           "themeMode": "Thema",
           "trayClickEvent": "Tray-Klickereignis",
-          "copyEnvType": "Umgebungsvariablentyp kopieren",
+          "copyEnvType": "Terminal proxy command",
           "startupScript": "Startskript",
           "themeSetting": "Thema-Einstellungen",
           "layoutSetting": "Layout-Einstellungen",

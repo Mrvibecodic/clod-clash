@@ -1697,10 +1697,6 @@ export interface TranslationResources {
       filters: {
         logLevels: {
           all: string
-          debug: string
-          error: string
-          info: string
-          warn: string
         }
       }
       labels: {

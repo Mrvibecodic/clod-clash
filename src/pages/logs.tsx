@@ -194,11 +194,17 @@ const LogPage = () => {
         >
           <MenuItem value="all">{t('shared.filters.logLevels.all')}</MenuItem>
           <MenuItem value="debug">
-            {t('shared.filters.logLevels.debug')}
+            {t('settings.sections.clash.form.options.logLevel.debug')}
           </MenuItem>
-          <MenuItem value="info">{t('shared.filters.logLevels.info')}</MenuItem>
-          <MenuItem value="warn">{t('shared.filters.logLevels.warn')}</MenuItem>
-          <MenuItem value="err">{t('shared.filters.logLevels.error')}</MenuItem>
+          <MenuItem value="info">
+            {t('settings.sections.clash.form.options.logLevel.info')}
+          </MenuItem>
+          <MenuItem value="warn">
+            {t('settings.sections.clash.form.options.logLevel.warning')}
+          </MenuItem>
+          <MenuItem value="err">
+            {t('settings.sections.clash.form.options.logLevel.error')}
+          </MenuItem>
         </BaseStyledSelect>
         <BaseSearchBox
           onSearch={(matcher, state) => {

@@ -216,7 +216,7 @@
           "language": "Bahasa",
           "themeMode": "Mode Tema",
           "trayClickEvent": "Acara Klik Tray",
-          "copyEnvType": "Salin Jenis Env",
+          "copyEnvType": "Terminal proxy command",
           "startupScript": "Skrip Startup",
           "themeSetting": "Pengaturan Tema",
           "layoutSetting": "Pengaturan Tata Letak",

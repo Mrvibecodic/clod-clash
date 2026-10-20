@@ -216,7 +216,7 @@
           "language": "اللغة",
           "themeMode": "وضع السمة",
           "trayClickEvent": "حدث النقر على الأيقونة في شريط المهام",
-          "copyEnvType": "نسخ نوع البيئة",
+          "copyEnvType": "Terminal proxy command",
           "startupScript": "سكريبت بدء التشغيل",
           "themeSetting": "إعدادات السمة",
           "layoutSetting": "إعدادات التخطيط",

@@ -216,7 +216,7 @@
           "language": "語言設定",
           "themeMode": "主題模式",
           "trayClickEvent": "系統匣點擊事件",
-          "copyEnvType": "複製環境變數類型",
+          "copyEnvType": "Terminal proxy command",
           "startupScript": "啟動指令碼",
           "themeSetting": "主題設定",
           "layoutSetting": "介面設定",

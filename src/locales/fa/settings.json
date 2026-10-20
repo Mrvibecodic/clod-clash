@@ -216,7 +216,7 @@
           "language": "زبان",
           "themeMode": "حالت تم",
           "trayClickEvent": "رویداد کلیک در سینی سیستم",
-          "copyEnvType": "کپی نوع محیط",
+          "copyEnvType": "Terminal proxy command",
           "startupScript": "اسکریپت راه‌اندازی",
           "themeSetting": "تنظیمات تم",
           "layoutSetting": "تنظیمات چیدمان",

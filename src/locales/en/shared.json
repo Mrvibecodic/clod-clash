@@ -156,8 +156,8 @@
         "mappingError": "YAML mapping error, changes reverted"
       },
       "merge": {
-        "syntaxError": "Merge file syntax error, changes reverted",
-        "mappingError": "Merge file mapping error, changes reverted"
+        "syntaxError": "Extend Config syntax error, changes reverted",
+        "mappingError": "Extend Config mapping error, changes reverted"
       }
     },
     "crash": {
@@ -170,11 +170,7 @@
   },
   "filters": {
     "logLevels": {
-      "all": "ALL",
-      "debug": "DEBUG",
-      "info": "INFO",
-      "warn": "WARN",
-      "error": "ERROR"
+      "all": "All"
     }
   },
   "providerLinks": {

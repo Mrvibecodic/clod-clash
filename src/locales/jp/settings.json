@@ -216,7 +216,7 @@
           "language": "言語設定",
           "themeMode": "テーマモード",
           "trayClickEvent": "トレイアイコンクリックイベント",
-          "copyEnvType": "環境変数タイプをコピー",
+          "copyEnvType": "Terminal proxy command",
           "startupScript": "起動スクリプト",
           "themeSetting": "テーマ設定",
           "layoutSetting": "レイアウト設定",
