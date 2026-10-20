@@ -6,8 +6,10 @@ import { Alert, AlertTitle, Button, Stack, Typography } from '@mui/material'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useEnableHwid } from '@/hooks/use-enable-hwid'
 import { useNoServersStatus } from '@/hooks/use-no-servers-status'
 import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
+import { useVerge } from '@/hooks/use-verge'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { profileDate, refillDateText } from '@/utils/date-text'
@@ -33,9 +35,9 @@ const date = (unix?: number, skew = 0) =>
  * An empty list is the honest result of the sentinel filter, but on its own it
  * explains nothing. The panel keeps sending real `subscription-userinfo` even
  * when it hands out placeholders instead of servers, so the reason is derived
- * from the subscription itself. Действие остаётся одно — написать в поддержку
- * (`support-url`), и кнопка есть только тогда, когда провайдер прислал этот
- * заголовок: своих ссылок приложение не выдумывает.
+ * from the subscription itself. Кнопка поддержки есть только тогда, когда
+ * провайдер прислал заголовок `support-url`: своих ссылок приложение не
+ * выдумывает.
  */
 export const NoServersStatus = ({ profile, quiet }: Props) => {
   const { t } = useTranslation()
@@ -52,6 +54,8 @@ export const NoServersStatus = ({ profile, quiet }: Props) => {
   }, [])
 
   const { updating, paused, refresh } = useSubscriptionUpdate(profile?.uid)
+  const { verge } = useVerge()
+  const enableHwid = useEnableHwid()
 
   const droppedNames = remarks.filter(Boolean)
   const droppedNamesText =
@@ -92,7 +96,7 @@ export const NoServersStatus = ({ profile, quiet }: Props) => {
       <CalendarMonthRoundedIcon fontSize="inherit" />
     ) : reason === 'traffic' ? (
       <DataUsageRoundedIcon fontSize="inherit" />
-    ) : reason === 'deviceLimit' ? (
+    ) : reason === 'deviceLimit' || reason === 'deviceNotIdentified' ? (
       <DevicesRoundedIcon fontSize="inherit" />
     ) : (
       <InfoOutlinedIcon fontSize="inherit" />
@@ -117,10 +121,10 @@ export const NoServersStatus = ({ profile, quiet }: Props) => {
               total: parseTraffic(extra?.total ?? 0),
             })
         : reason === 'deviceLimit'
-          ? profile.hwid_state === 'not_supported'
+          ? t('home.components.serverStatus.body.deviceLimit')
+          : reason === 'deviceNotIdentified'
             ? t('home.components.serverStatus.body.deviceNotIdentified')
-            : t('home.components.serverStatus.body.deviceLimit')
-          : t('home.components.serverStatus.body.provider')
+            : t('home.components.serverStatus.body.provider')
 
   // The panel's own words for the nodes it sent instead of servers: the only
   // hint available when the subscription data itself looks healthy.
@@ -147,8 +151,17 @@ export const NoServersStatus = ({ profile, quiet }: Props) => {
       ) : null}
 
       <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 1 }}>
-        {/* clod: платёжных кнопок здесь нет — в приложении их нет нигде.
-            Остаются поддержка и перечитать подписку. */}
+        {/* clod: платёжных кнопок здесь нет — в приложении их нет нигде. */}
+        {reason === 'deviceNotIdentified' && verge?.enable_hwid === false ? (
+          <Button
+            size="small"
+            variant="contained"
+            color={severity}
+            onClick={() => void enableHwid()}
+          >
+            {t('profiles.components.hwidDialog.enable')}
+          </Button>
+        ) : null}
         {profile.support_url ? (
           <Button
             size="small"

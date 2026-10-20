@@ -172,6 +172,7 @@ export interface TranslationResources {
           refresh: string
           row: {
             deviceLimit: string
+            deviceNotIdentified: string
             expired: string
             partiallyDropped: string
             provider: string
@@ -180,6 +181,7 @@ export interface TranslationResources {
           }
           title: {
             deviceLimit: string
+            deviceNotIdentified: string
             expired: string
             provider: string
             traffic: string

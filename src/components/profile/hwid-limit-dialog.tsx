@@ -10,8 +10,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useEnableHwid } from '@/hooks/use-enable-hwid'
 import { useTauriEvent } from '@/hooks/use-listen'
-import { useVerge } from '@/hooks/use-verge'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -37,7 +37,7 @@ interface Props {
 
 export const HwidLimitDialog = ({ drains }: Props) => {
   const { t } = useTranslation()
-  const { patchVerge } = useVerge()
+  const enable = useEnableHwid()
   const [queue, setQueue] = useState<HwidNotice[]>([])
   const notice = queue[0] ?? null
 
@@ -73,16 +73,11 @@ export const HwidLimitDialog = ({ drains }: Props) => {
   )
 
   const enableHwid = useCallback(async () => {
-    try {
-      await patchVerge({ enable_hwid: true })
-      showNotice.success('profiles.components.hwidDialog.enabled')
-      setQueue((pending) =>
-        pending.filter((queued) => queued.state !== 'not_supported'),
-      )
-    } catch (error) {
-      showNotice.error(error instanceof Error ? error.message : String(error))
-    }
-  }, [patchVerge])
+    if (!(await enable())) return
+    setQueue((pending) =>
+      pending.filter((queued) => queued.state !== 'not_supported'),
+    )
+  }, [enable])
 
   const openLink = useCallback(async (url?: string | null) => {
     if (!url) return

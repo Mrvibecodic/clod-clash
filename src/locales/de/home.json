@@ -42,7 +42,8 @@
         "expired": "Subscription expired",
         "traffic": "Out of traffic",
         "provider": "The provider sent no servers",
-        "deviceLimit": "Gerätelimit erreicht"
+        "deviceLimit": "Gerätelimit erreicht",
+        "deviceNotIdentified": "The provider did not recognise this device"
       },
       "body": {
         "expired": "The provider will hand out servers once the plan is renewed. It ran out on {{date}}.",
@@ -62,6 +63,7 @@
         "trafficNoDate": "Out of traffic",
         "provider": "The provider sent no servers",
         "deviceLimit": "Gerätelimit erreicht",
+        "deviceNotIdentified": "The provider did not recognise this device",
         "partiallyDropped": "Ausgeblendete Server ohne Verbindung: {{total}}"
       }
     },

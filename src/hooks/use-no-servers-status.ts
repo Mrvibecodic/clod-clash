@@ -42,7 +42,10 @@ export const useNoServersStatus = (profile?: IProfileItem) => {
   // the config-side confirmation that the panel sent placeholders. Лимит
   // устройств тоже: `subscription-userinfo` в таком ответе здоровый, и без
   // подтверждения баннер мог бы висеть над рабочим списком серверов.
-  const needsConfirmation = reason === 'provider' || reason === 'deviceLimit'
+  const needsConfirmation =
+    reason === 'provider' ||
+    reason === 'deviceLimit' ||
+    reason === 'deviceNotIdentified'
   const show =
     Boolean(profile) && (!needsConfirmation || Boolean(report?.only_sentinels))
 

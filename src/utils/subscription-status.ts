@@ -8,13 +8,20 @@
  * of these responses; the placeholders' names are the panel admin's own text
  * in a language of their choosing and are only ever quoted, never parsed.
  */
-export type NoServersReason = 'expired' | 'traffic' | 'deviceLimit' | 'provider'
+export type NoServersReason =
+  | 'expired'
+  | 'traffic'
+  | 'deviceLimit'
+  | 'deviceNotIdentified'
+  | 'provider'
 
 /** Насколько это серьёзно — один цвет на плашке и в строке шторки. */
 export const noServersSeverity = (reason: NoServersReason) =>
   reason === 'expired'
     ? 'error'
-    : reason === 'traffic' || reason === 'deviceLimit'
+    : reason === 'traffic' ||
+        reason === 'deviceLimit' ||
+        reason === 'deviceNotIdentified'
       ? 'warning'
       : 'info'
 
@@ -91,11 +98,8 @@ export const noServersReason = (profile?: IProfileItem): NoServersReason => {
   // него заглушками, но `subscription-userinfo` в этом ответе здоровый —
   // подписка действует, трафик на месте. Без этой ветки экран обвинил бы
   // провайдера в том, что он «не выдал серверы».
-  if (
-    profile?.hwid_state === 'limit' ||
-    profile?.hwid_state === 'not_supported'
-  )
-    return 'deviceLimit'
+  if (profile?.hwid_state === 'limit') return 'deviceLimit'
+  if (profile?.hwid_state === 'not_supported') return 'deviceNotIdentified'
 
   const extra = profile?.extra
   if (extra) {

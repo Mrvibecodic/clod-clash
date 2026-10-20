@@ -66,7 +66,7 @@ describe('noServersReason', () => {
     )
     assert.equal(
       noServersReason(profile({ hwid_state: 'not_supported' })),
-      'deviceLimit',
+      'deviceNotIdentified',
     )
     // Даже когда подписка вдобавок истекла — виновата не она.
     assert.equal(
@@ -173,6 +173,7 @@ describe('noServersSeverity', () => {
     assert.equal(noServersSeverity('expired'), 'error')
     assert.equal(noServersSeverity('traffic'), 'warning')
     assert.equal(noServersSeverity('deviceLimit'), 'warning')
+    assert.equal(noServersSeverity('deviceNotIdentified'), 'warning')
     assert.equal(noServersSeverity('provider'), 'info')
   })
 })
