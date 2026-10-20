@@ -42,7 +42,8 @@
     "enabled": "Diaktifkan",
     "disabled": "Dinonaktifkan",
     "saving": "Saving...",
-    "empty": "Kosong"
+    "empty": "Kosong",
+    "notFound": "Nothing found"
   },
   "units": {
     "milliseconds": "milidetik",

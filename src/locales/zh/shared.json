@@ -42,7 +42,8 @@
     "enabled": "已启用",
     "disabled": "未启用",
     "saving": "保存中...",
-    "empty": "空空如也"
+    "empty": "空空如也",
+    "notFound": "Nothing found"
   },
   "units": {
     "milliseconds": "毫秒",

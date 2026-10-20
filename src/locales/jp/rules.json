@@ -8,7 +8,8 @@
         "update": "更新"
       }
     },
-    "title": "ルール"
+    "title": "ルール",
+    "loadFailed": "Could not read the core's rules"
   },
   "feedback": {
     "notifications": {

@@ -8,7 +8,8 @@
         "update": "Обновить"
       }
     },
-    "title": "Правила"
+    "title": "Правила",
+    "loadFailed": "Не удалось прочитать правила ядра"
   },
   "feedback": {
     "notifications": {

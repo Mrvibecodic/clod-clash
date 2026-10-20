@@ -8,7 +8,8 @@
         "update": "업데이트"
       }
     },
-    "title": "규칙"
+    "title": "규칙",
+    "loadFailed": "Could not read the core's rules"
   },
   "feedback": {
     "notifications": {

@@ -42,7 +42,8 @@
     "enabled": "Aktiviert",
     "disabled": "Deaktiviert",
     "saving": "Saving...",
-    "empty": "Leer"
+    "empty": "Leer",
+    "notFound": "Nothing found"
   },
   "units": {
     "milliseconds": "Millisekunden",

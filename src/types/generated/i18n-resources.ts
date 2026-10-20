@@ -789,6 +789,7 @@ export interface TranslationResources {
         }
       }
       page: {
+        loadFailed: string
         provider: {
           actions: {
             update: string
@@ -1738,6 +1739,7 @@ export interface TranslationResources {
         disabled: string
         empty: string
         enabled: string
+        notFound: string
         saving: string
       }
       units: {

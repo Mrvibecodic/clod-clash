@@ -42,7 +42,8 @@
     "enabled": "توانایی فعال شد",
     "disabled": "غیرفعال شد",
     "saving": "Saving...",
-    "empty": "خالی خالی"
+    "empty": "خالی خالی",
+    "notFound": "Nothing found"
   },
   "units": {
     "milliseconds": "میلی‌ثانیه",

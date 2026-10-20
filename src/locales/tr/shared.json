@@ -42,7 +42,8 @@
     "enabled": "Etkin",
     "disabled": "Devre Dışı",
     "saving": "Saving...",
-    "empty": "Boş"
+    "empty": "Boş",
+    "notFound": "Nothing found"
   },
   "units": {
     "milliseconds": "ms",

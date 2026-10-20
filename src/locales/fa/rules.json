@@ -8,7 +8,8 @@
         "update": "به‌روزرسانی"
       }
     },
-    "title": "قوانین"
+    "title": "قوانین",
+    "loadFailed": "Could not read the core's rules"
   },
   "feedback": {
     "notifications": {

@@ -160,7 +160,11 @@ export const AppDataProvider = ({
     revalidateOnMount: false,
   })
 
-  const { data: rulesData, refetch: _refetchRules } = useQuery({
+  const {
+    data: rulesData,
+    error: rulesError,
+    refetch: _refetchRules,
+  } = useQuery({
     queryKey: ['getRules'],
     queryFn: getRules,
     ...TQ_MIHOMO,
@@ -317,9 +321,10 @@ export const AppDataProvider = ({
     () => ({
       rules: rulesData?.rules ?? [],
       rulesLoaded: rulesData !== undefined,
+      rulesError: rulesData === undefined ? rulesError : undefined,
       ruleProviders: ruleProviders?.providers || {},
     }),
-    [rulesData, ruleProviders],
+    [rulesData, rulesError, ruleProviders],
   )
 
   const clashConfigValue = useMemo(() => ({ clashConfig }), [clashConfig])

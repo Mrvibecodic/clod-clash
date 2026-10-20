@@ -42,7 +42,8 @@
     "enabled": "ممكّن",
     "disabled": "معطّل",
     "saving": "Saving...",
-    "empty": "فارغ"
+    "empty": "فارغ",
+    "notFound": "Nothing found"
   },
   "units": {
     "milliseconds": "ميلي ثانية",

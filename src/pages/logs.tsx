@@ -19,12 +19,15 @@ import {
   VirtualList,
   type VirtualListHandle,
 } from '@/components/base'
+import { CoreStatus } from '@/components/home/core-status'
 import LogItem from '@/components/log/log-item'
 import { useClashLog } from '@/hooks/use-clash-log'
 import { useLogData } from '@/hooks/use-log-data'
+import { useSystemState } from '@/hooks/use-system-state'
 import { useVisibility } from '@/hooks/use-visibility'
 import { saveLogText } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { emptyState } from '@/utils/empty-state'
 
 const LogPage = () => {
   const { t } = useTranslation()
@@ -37,6 +40,7 @@ const LogPage = () => {
 
   const [match, setMatch] = useState(() => (_: string) => true)
   const [searchState, setSearchState] = useState<SearchState>()
+  const { isCoreDown } = useSystemState()
   const {
     response: { data: logData },
     clearLogs,
@@ -67,6 +71,13 @@ const LogPage = () => {
     () => (isDescending ? [...filterLogs].reverse() : filterLogs),
     [filterLogs, isDescending],
   )
+
+  const empty = emptyState({
+    coreDown: isCoreDown,
+    belowCoreLevel,
+    searching: Boolean(searchState?.text),
+    hasData: (logData?.length ?? 0) > 0,
+  })
 
   const scrollRef = useRef({ isNearBottom: true })
   const virtuosoRef = useRef<VirtualListHandle>(null)
@@ -230,9 +241,19 @@ const LogPage = () => {
           }}
           style={{ flex: 1 }}
         />
+      ) : empty === 'coreDown' ? (
+        <Box sx={{ m: 'auto', px: 2 }}>
+          <CoreStatus />
+        </Box>
       ) : (
         <BaseEmpty
-          textKey={belowCoreLevel ? 'logs.messages.belowCoreLevel' : undefined}
+          textKey={
+            empty === 'belowCoreLevel'
+              ? 'logs.messages.belowCoreLevel'
+              : empty === 'notFound'
+                ? 'shared.statuses.notFound'
+                : undefined
+          }
         />
       )}
     </BasePage>

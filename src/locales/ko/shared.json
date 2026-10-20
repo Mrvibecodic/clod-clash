@@ -42,7 +42,8 @@
     "enabled": "사용",
     "disabled": "비활성화",
     "saving": "저장 중...",
-    "empty": "비어있음"
+    "empty": "비어있음",
+    "notFound": "Nothing found"
   },
   "units": {
     "milliseconds": "밀리초",

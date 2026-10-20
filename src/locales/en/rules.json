@@ -8,7 +8,8 @@
         "update": "Update"
       }
     },
-    "title": "Rules"
+    "title": "Rules",
+    "loadFailed": "Could not read the core's rules"
   },
   "feedback": {
     "notifications": {

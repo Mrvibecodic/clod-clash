@@ -42,7 +42,8 @@
     "enabled": "有効",
     "disabled": "無効",
     "saving": "Saving...",
-    "empty": "空っぽ"
+    "empty": "空っぽ",
+    "notFound": "Nothing found"
   },
   "units": {
     "milliseconds": "ミリ秒",

@@ -8,7 +8,8 @@
         "update": "تحديث"
       }
     },
-    "title": "القواعد"
+    "title": "القواعد",
+    "loadFailed": "Could not read the core's rules"
   },
   "feedback": {
     "notifications": {

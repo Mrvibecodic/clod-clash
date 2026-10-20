@@ -42,7 +42,8 @@
     "enabled": "Включено",
     "disabled": "Отключено",
     "saving": "Сохранение...",
-    "empty": "Пусто"
+    "empty": "Пусто",
+    "notFound": "Ничего не найдено"
   },
   "units": {
     "milliseconds": "мс",

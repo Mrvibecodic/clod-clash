@@ -1,4 +1,4 @@
-import { Box, CircularProgress } from '@mui/material'
+import { Box, Button, CircularProgress, Typography } from '@mui/material'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,12 +16,14 @@ import RuleItem from '@/components/rule/rule-item'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
+import { emptyState } from '@/utils/empty-state'
+import { errorReason } from '@/utils/error-explanation'
 import { enumText } from '@/utils/plugin-enum'
 import { policyName } from '@/utils/rule-labels'
 
 const RulesPage = () => {
   const { t } = useTranslation()
-  const { rules = [], rulesLoaded } = useRulesData()
+  const { rules = [], rulesLoaded, rulesError } = useRulesData()
   const { isCoreDown } = useSystemState()
   const [searching, setSearching] = useState(false)
   const { refreshRules, refreshRuleProviders } = useAppRefreshers()
@@ -51,6 +53,14 @@ const RulesPage = () => {
       ),
     )
   }, [rules, match, t])
+
+  const empty = emptyState({
+    coreDown: isCoreDown,
+    failed: Boolean(rulesError),
+    loading: !rulesLoaded,
+    searching,
+    hasData: rules.length > 0,
+  })
 
   const handleScroll = useCallback((e: Event) => {
     setShowScrollTop((e.target as HTMLElement).scrollTop > 100)
@@ -106,18 +116,38 @@ const RulesPage = () => {
           />
           <ScrollTopButton onClick={scrollToTop} show={showScrollTop} />
         </>
-      ) : isCoreDown ? (
+      ) : empty === 'coreDown' ? (
         <Box sx={{ m: 'auto', px: 2 }}>
           <CoreStatus />
         </Box>
-      ) : !rulesLoaded ? (
+      ) : empty === 'failed' ? (
+        <BaseEmpty
+          textKey="rules.page.loadFailed"
+          extra={
+            <>
+              <Typography
+                variant="caption"
+                sx={{ mt: 0.5, mb: 1, textAlign: 'center' }}
+              >
+                {errorReason(rulesError, t)}
+              </Typography>
+              <Button
+                size="small"
+                onClick={() => void refreshRules().catch(() => {})}
+              >
+                {t('shared.actions.retry')}
+              </Button>
+            </>
+          }
+        />
+      ) : empty === 'loading' ? (
         <Box sx={{ m: 'auto' }}>
           <CircularProgress size={24} />
         </Box>
       ) : (
         <BaseEmpty
           textKey={
-            searching && rules.length > 0
+            empty === 'notFound'
               ? 'rules.modals.editor.list.notFound'
               : undefined
           }

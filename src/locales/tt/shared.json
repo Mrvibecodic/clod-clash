@@ -42,7 +42,8 @@
     "enabled": "Кушылган",
     "disabled": "Сүнгән",
     "saving": "Saving...",
-    "empty": "Буш"
+    "empty": "Буш",
+    "notFound": "Nothing found"
   },
   "units": {
     "milliseconds": "Миллисекундлар",

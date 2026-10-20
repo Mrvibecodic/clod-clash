@@ -52,12 +52,15 @@ import {
   type ConnectionTableSorting,
 } from '@/components/connection/connection-table'
 import { connTextSx } from '@/components/connection/connection-text'
+import { CoreStatus } from '@/components/home/core-status'
 import { useConnectionData } from '@/hooks/use-connection-data'
 import { useConnectionSetting } from '@/hooks/use-connection-setting'
+import { useSystemState } from '@/hooks/use-system-state'
 import { useTrafficData } from '@/hooks/use-traffic-data'
 import { useVisibility } from '@/hooks/use-visibility'
 import { NARROW_QUERY } from '@/pages/_theme'
 import { showNotice } from '@/services/notice-service'
+import { emptyState } from '@/utils/empty-state'
 import parseTraffic from '@/utils/parse-traffic'
 import { pressable } from '@/utils/pressable'
 
@@ -217,6 +220,7 @@ const ConnectionsPage = () => {
   } = useTrafficData({ enabled: pageVisible })
 
   const [setting, setSetting] = useConnectionSetting()
+  const { isCoreDown } = useSystemState()
 
   const narrow = useMediaQuery(NARROW_QUERY, { noSsr: true })
   const isTableLayout = setting.layout === 'table' && !narrow
@@ -338,6 +342,11 @@ const ConnectionsPage = () => {
     [],
   )
   const hasTableData = filterConn.length > 0
+  const empty = emptyState({
+    coreDown: isCoreDown,
+    searching: hasSearch,
+    hasData: selectedConnections.length > 0,
+  })
 
   return (
     <BasePage
@@ -553,7 +562,17 @@ const ConnectionsPage = () => {
       </Box>
 
       {!hasTableData ? (
-        <BaseEmpty />
+        empty === 'coreDown' ? (
+          <Box sx={{ m: 'auto', px: 2 }}>
+            <CoreStatus />
+          </Box>
+        ) : (
+          <BaseEmpty
+            textKey={
+              empty === 'notFound' ? 'shared.statuses.notFound' : undefined
+            }
+          />
+        )
       ) : isTableLayout ? (
         <ConnectionTable
           connections={filterConn}

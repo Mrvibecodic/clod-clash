@@ -8,7 +8,8 @@
         "update": "Perbarui"
       }
     },
-    "title": "Aturan"
+    "title": "Aturan",
+    "loadFailed": "Could not read the core's rules"
   },
   "feedback": {
     "notifications": {
