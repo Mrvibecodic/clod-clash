@@ -5,7 +5,7 @@ use crate::{
         dirs, help,
         network::ProxyType,
         public_url::{MAX_IMAGE_BYTES, is_refused, read_image, request_image},
-        retry::try_strategies,
+        retry::try_strategies_unless,
     },
 };
 use anyhow::{Result, bail};
@@ -247,7 +247,7 @@ async fn download(stem: &str, max_bytes: usize, url: &str) -> Result<bool> {
         .map(|(validators, local)| validators.conditional_for(url, local))
         .unwrap_or_default();
     let conditional = &conditional;
-    try_strategies(ProxyType::Localhost, [ProxyType::System], |proxy| async move {
+    let attempt = |proxy| async move {
         let mut headers = HeaderMap::new();
         headers.insert(
             reqwest::header::ACCEPT,
@@ -267,8 +267,8 @@ async fn download(stem: &str, max_bytes: usize, url: &str) -> Result<bool> {
         let (bytes, extension) = read_image(response, max_bytes).await?;
         store_fresh(&cache_dir()?, stem, url, extension, &validators_headers, &bytes).await?;
         Ok(true)
-    })
-    .await
+    };
+    try_strategies_unless(ProxyType::Localhost, [ProxyType::System], attempt, is_refused).await
 }
 
 /// Записать свежую картинку: файл, затем убрать её прежнюю под другим

@@ -8,7 +8,24 @@ use std::future::Future;
 pub async fn try_strategies<S, T, E, Fut, const N: usize>(
     first: S,
     rest: [S; N],
+    operation: impl FnMut(S) -> Fut + Send,
+) -> Result<T, E>
+where
+    S: Copy + Send,
+    T: Send,
+    E: Send,
+    Fut: Future<Output = Result<T, E>> + Send,
+{
+    try_strategies_unless(first, rest, operation, |_| false).await
+}
+
+/// То же, но неудача, для которой `settled` верно, — окончательная: другой
+/// маршрут её не исправит, и он не пробуется.
+pub async fn try_strategies_unless<S, T, E, Fut, const N: usize>(
+    first: S,
+    rest: [S; N],
     mut operation: impl FnMut(S) -> Fut + Send,
+    settled: impl Fn(&E) -> bool + Send,
 ) -> Result<T, E>
 where
     S: Copy + Send,
@@ -18,8 +35,9 @@ where
 {
     let mut result = operation(first).await;
     for strategy in rest {
-        if result.is_ok() {
-            break;
+        match &result {
+            Err(err) if !settled(err) => {}
+            _ => break,
         }
         result = operation(strategy).await;
     }
@@ -28,7 +46,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::try_strategies;
+    use super::{try_strategies, try_strategies_unless};
 
     #[tokio::test]
     async fn routes_are_tried_in_order_until_the_first_success() {
@@ -52,6 +70,23 @@ mod tests {
         .await;
         assert_eq!(found, Err(30));
         assert_eq!(tried, vec![1, 2, 3]);
+    }
+
+    #[tokio::test]
+    async fn a_settled_failure_is_not_taken_to_the_next_route() {
+        let mut tried = Vec::new();
+        let found: Result<u8, &str> = try_strategies_unless(
+            1_u8,
+            [2, 3],
+            |route| {
+                tried.push(route);
+                async move { Err(if route == 1 { "refused" } else { "no" }) }
+            },
+            |err| *err == "refused",
+        )
+        .await;
+        assert_eq!(found, Err("refused"));
+        assert_eq!(tried, vec![1]);
     }
 
     #[test]
@@ -87,7 +122,10 @@ mod tests {
             );
             for function in functions {
                 let body = fn_body(code, function).unwrap_or_default();
-                assert!(body.contains("try_strategies("), "{name} {function}");
+                assert!(
+                    body.contains("try_strategies(") || body.contains("try_strategies_unless("),
+                    "{name} {function}"
+                );
             }
         }
 

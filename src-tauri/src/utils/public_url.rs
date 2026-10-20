@@ -1,4 +1,4 @@
-use crate::utils::network::{MAX_REDIRECTS, NetworkManager, ProxyType};
+use crate::utils::network::{BodyTooLarge, MAX_REDIRECTS, NetworkManager, ProxyType};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 /// Срок запроса и потолок картинки провайдера (логотип, значок группы).
@@ -79,10 +79,13 @@ impl reqwest::dns::Resolve for PublicResolver {
 /// это, решают сами байты, а не Content-Type: хранилища часто отдают
 /// картинки как application/octet-stream.
 pub async fn read_image(response: reqwest::Response, cap: usize) -> anyhow::Result<(Vec<u8>, &'static str)> {
-    if response.content_length().is_some_and(|len| len > cap as u64) {
-        return Err(Refused(TOO_LARGE).into());
-    }
-    let bytes = NetworkManager::read_capped_bytes(response, cap).await?;
+    let bytes = NetworkManager::read_capped_bytes(response, cap).await.map_err(|err| {
+        if err.is::<BodyTooLarge>() {
+            Refused(TOO_LARGE).into()
+        } else {
+            err
+        }
+    })?;
     let extension = image_extension(&bytes).ok_or(Refused(NOT_AN_IMAGE))?;
     Ok((bytes, extension))
 }
@@ -311,7 +314,7 @@ pub(crate) mod tests {
     /// CI не запускается, как и обмены в `network`.
     #[cfg(not(windows))]
     mod transport {
-        use super::super::{is_refused, public_client};
+        use super::super::{MAX_IMAGE_BYTES, is_refused, public_client, read_image};
         use crate::utils::network::ProxyType;
 
         /// Слушатель, который считает, пришло ли к нему соединение.
@@ -372,6 +375,41 @@ pub(crate) mod tests {
                 .expect_err("имя указывает в локальную сеть");
             assert!(is_refused(&err), "{err:?}");
             assert!(never_reached(&local).await, "запрос дошёл до локальной сети");
+        }
+
+        #[tokio::test]
+        async fn a_picture_over_the_cap_is_refused_with_or_without_its_size() {
+            use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+            for head in [
+                "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n".to_owned(),
+                format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", MAX_IMAGE_BYTES + 1),
+            ] {
+                let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+                    .await
+                    .expect("порт для теста");
+                let port = listener.local_addr().expect("адрес слушателя").port();
+                tokio::spawn(async move {
+                    let Ok((mut stream, _)) = listener.accept().await else {
+                        return;
+                    };
+                    let mut buffer = [0_u8; 1024];
+                    let _ = stream.read(&mut buffer).await;
+                    let _ = stream.write_all(head.as_bytes()).await;
+                    let _ = stream.write_all(&vec![0_u8; MAX_IMAGE_BYTES + 1]).await;
+                    let _ = stream.shutdown().await;
+                });
+                let response = crate::utils::network::NetworkManager::new()
+                    .create_request(ProxyType::None, Some(10), Some("test".into()))
+                    .await
+                    .expect("клиент")
+                    .get(format!("http://127.0.0.1:{port}/logo.png"))
+                    .send()
+                    .await
+                    .expect("ответ пришёл");
+                let err = read_image(response, MAX_IMAGE_BYTES).await.expect_err("сверх потолка");
+                assert!(is_refused(&err), "картинки не будет, а не «ещё качается»: {err:?}");
+            }
         }
     }
 }

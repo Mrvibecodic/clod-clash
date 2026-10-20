@@ -53,6 +53,21 @@ pub(crate) const MAX_REDIRECTS: usize = 10;
 /// Больше этого тело ответа не читается: подписка столько не весит.
 const MAX_BODY: usize = 64 << 20;
 
+/// Тело ответа больше потолка (в байтах).
+#[derive(Debug)]
+pub(crate) struct BodyTooLarge(usize);
+
+impl std::fmt::Display for BodyTooLarge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&clash_verge_i18n::t!(
+            "errors.responseTooLarge",
+            mib = (self.0 >> 20).to_string()
+        ))
+    }
+}
+
+impl std::error::Error for BodyTooLarge {}
+
 pub(crate) const DOWNGRADE_REFUSED: &str = "redirect from https to http is refused";
 
 /// Сервер принял запрос и закрыл его, не ответив: соединение (и TLS) уже
@@ -381,12 +396,7 @@ impl NetworkManager {
 
     /// Тело ответа байтами, но не больше `cap` байт после распаковки.
     pub(crate) async fn read_capped_bytes(mut response: reqwest::Response, cap: usize) -> Result<Vec<u8>> {
-        let too_large = || {
-            anyhow::anyhow!(
-                "{}",
-                clash_verge_i18n::t!("errors.responseTooLarge", mib = (cap >> 20).to_string())
-            )
-        };
+        let too_large = || anyhow::Error::new(BodyTooLarge(cap));
         if response.content_length().is_some_and(|len| len > cap as u64) {
             return Err(too_large());
         }
