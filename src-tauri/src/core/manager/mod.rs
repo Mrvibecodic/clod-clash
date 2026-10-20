@@ -209,7 +209,7 @@ impl CoreManager {
     /// новый процесс встал бы вторым ядром на тот же порт.
     pub(super) fn refuse_to_double_the_core(&self) -> Result<()> {
         if self.stop_failed() {
-            anyhow::bail!("ядро прежнего запуска не остановилось — второй процесс не поднимаем");
+            anyhow::bail!("{}", clash_verge_i18n::t!("core.previousNotStopped"));
         }
         Ok(())
     }

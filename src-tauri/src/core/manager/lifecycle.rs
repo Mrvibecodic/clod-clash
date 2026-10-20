@@ -246,7 +246,7 @@ impl CoreManager {
         self.take_the_core_back();
         self.watch_the_core_again_locked();
         self.after_core_process();
-        anyhow::bail!("ядро прежнего запуска не остановилось — перезапуск отменён, оно продолжает работать")
+        anyhow::bail!("{}", clash_verge_i18n::t!("core.previousStillRunning"))
     }
 
     /// Вызывающий должен уже удерживать `lifecycle_lock`.
@@ -261,7 +261,7 @@ impl CoreManager {
         // Конфиг при запуске приложения отвергнут ядром (или не собрался), а
         // принятого нет: поднимать нечего. Снимается первой принятой доставкой.
         if let Some(reason) = self.startup_refusal() {
-            anyhow::bail!("ядро не запускается: конфиг отвергнут при запуске приложения — {reason}");
+            anyhow::bail!("{}", clash_verge_i18n::t!("core.refusedAtStartup", reason = reason));
         }
 
         // Идемпотентность при уже работающем ядре; для рестарта использовать restart_core.
@@ -395,7 +395,7 @@ impl CoreManager {
                 return Ok(());
             }
             if matches!(*self.get_running_mode(), RunningMode::NotRunning) {
-                anyhow::bail!("ядро завершилось, не ответив");
+                anyhow::bail!("{}", clash_verge_i18n::t!("core.exitedWithoutAnswer"));
             }
 
             let probe = {
@@ -405,7 +405,7 @@ impl CoreManager {
             match probe {
                 Ok(Ok(_)) => return Ok(()),
                 Ok(Err(error)) => last = Some(error.to_string()),
-                Err(_) => last = Some("ядро не ответило за отведённое время".to_owned()),
+                Err(_) => last = Some(clash_verge_i18n::t!("core.noAnswerInTime").into_owned()),
             }
 
             // На процесс смотрим только когда ядро не ответило: здоровый старт
@@ -414,7 +414,7 @@ impl CoreManager {
                 && !crate::core::orphan::process_is_alive(pid).await
             {
                 super::state::handle_core_exit(
-                    &format!("процесс ядра {} завершился во время проверки готовности", pid),
+                    &clash_verge_i18n::t!("core.diedWhileStarting", pid = pid.to_string()),
                     &RunningMode::Sidecar,
                     Some(pid),
                 );
@@ -424,7 +424,10 @@ impl CoreManager {
             tokio::time::sleep(timing::CORE_READY_INTERVAL).await;
         }
 
-        anyhow::bail!("{}", last.unwrap_or_else(|| "причина неизвестна".to_owned()))
+        anyhow::bail!(
+            "{}",
+            last.unwrap_or_else(|| clash_verge_i18n::t!("core.reasonUnknown").into_owned())
+        )
     }
 
     /// Убедиться, что ядро слушает свой порт, и только потом указать на него
@@ -481,7 +484,7 @@ impl CoreManager {
 
     pub async fn the_core_must_serve_its_mixed_port(&self) -> Result<()> {
         if matches!(*self.get_running_mode(), RunningMode::NotRunning) {
-            anyhow::bail!("ядро не запущено — системный прокси оставлен как был");
+            anyhow::bail!("{}", clash_verge_i18n::t!("core.notRunningProxyKept"));
         }
         let generation = MIXED_PORT_CHECK_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
         let expected = Config::mixed_port_the_core_was_started_with().await;
@@ -499,7 +502,10 @@ impl CoreManager {
                 Ok(())
             }
             PortVerdict::Refuted => {
-                anyhow::bail!("ядро не подтвердило порт {expected} — системный прокси оставлен как был")
+                anyhow::bail!(
+                    "{}",
+                    clash_verge_i18n::t!("core.portNotConfirmed", port = expected.to_string())
+                )
             }
         }
     }
@@ -630,7 +636,9 @@ impl CoreManager {
             let reason = match tokio::time::timeout(stop_budget, self.stop_core_inner()).await {
                 Ok(Ok(())) => return ExitStop::Stopped,
                 Ok(Err(error)) => format!("{error:#}"),
-                Err(_) => format!("нет ответа за {} с", stop_budget.as_secs()),
+                Err(_) => {
+                    clash_verge_i18n::t!("core.noStopAnswer", secs = stop_budget.as_secs().to_string()).into_owned()
+                }
             };
             (mode_before, pid_before, reason)
         };
@@ -678,7 +686,7 @@ impl CoreManager {
     /// `restart_core_during_config_update`, очередь у него уже есть.
     pub async fn restart_core(&self) -> Result<()> {
         let Some(_turn) = self.queue_for_config_update().await else {
-            anyhow::bail!("очередь применения конфига закрыта");
+            anyhow::bail!("{}", clash_verge_i18n::t!("core.queueClosed"));
         };
         self.restart_core_during_config_update().await
     }
@@ -689,7 +697,7 @@ impl CoreManager {
         // старт, остановка ядра при выходе упёрлась бы в занятый замок — и ядро
         // осталось бы жить после закрытия приложения.
         if Handle::global().is_exiting() {
-            anyhow::bail!("перезапуск ядра пропущен: выход уже идёт");
+            anyhow::bail!("{}", clash_verge_i18n::t!("common.exitInProgress"));
         }
         // Блокировка удерживается на весь stop+start, чтобы избежать вклинивания
         // других операций жизненного цикла.
@@ -719,12 +727,12 @@ impl CoreManager {
         // clod:Э3-03 — подмена сборки тоже меняет ядро под ногами у применения
         // конфига: ждёт своей очереди.
         let Some(_turn) = self.queue_for_config_update().await else {
-            anyhow::bail!("очередь применения конфига закрыта");
+            anyhow::bail!("{}", clash_verge_i18n::t!("core.queueClosed"));
         };
         // Выход мог начаться, пока ждали очереди: ядро на выходе не стартует, и
         // замена без проверки запуска осталась бы до следующего запуска.
         if Handle::global().is_exiting() {
-            anyhow::bail!("замена ядра пропущена: выход уже идёт");
+            anyhow::bail!("{}", clash_verge_i18n::t!("common.exitInProgress"));
         }
         let _life = self.lifecycle_lock.lock().await;
         let _pause = self.planned_pause();
@@ -797,7 +805,7 @@ impl CoreManager {
         // Пока обновляется файл ядра, ядро не меняем: обновление подменило бы файл
         // уже не выбранного ядра, а проверкой ему служил бы старт другого.
         if crate::core::core_updater::is_updating() {
-            return Err("идёт обновление ядра — смените ядро, когда оно закончится".into());
+            return Err(clash_verge_i18n::t!("core.updateInProgress").into_owned().into());
         }
         let _serialized = crate::feat::patch_verge_lock().lock().await;
         // Выбор ложится в черновик уже в своей очереди: всё, что шло впереди,

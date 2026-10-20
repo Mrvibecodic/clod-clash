@@ -66,12 +66,46 @@ common:
   configApplying: The configuration is being applied right now — try again in a couple of seconds.
   exitInProgress: "Кушымта эшен тәмамлый: чыгу барганда гамәл кире кагылды."
   restoreNotApplied: "The backup was restored, but its settings could not be applied. Restart the app. Reason: {reason}"
+core:
+  updateAlreadyRunning: "a core update is already running"
+  switchInProgress: "the core is being switched — update it once the switch is done"
+  noBuildInRelease: "the release has no {base} build"
+  writeFailed: "could not write {path}"
+  spareCopyNotRemoved: "could not remove the spare copy of the core {path}"
+  foreignBackup: "next to the core lies a copy of the previous core that differs from the running one ({path}): put it back or delete it"
+  notRunningForUpdate: "the core is not running — start it and try the update again"
+  fileNotReplaceable: "the app cannot replace the core file of this installation"
+  noBuildForPlatform: "there is no core build for this platform"
+  stoppedDuringUpdate: "the core was stopped while it was being updated — the update was cancelled"
+  switchedDuringUpdate: "the core was switched while it was being updated — the update was cancelled"
+  newCoreDoesNotRun: "the downloaded core does not run"
+  previousNotRestored: "could not bring the previous core back"
+  previousNotSaved: "could not keep a copy of the previous core"
+  newNotPlaced: "could not put the new core in place"
+  noSelfUpdate: "the core of this installation does not update itself"
+  notAnswering: "the core is not answering — there is nothing to update"
+  updateInProgress: "the core is being updated — switch the core once the update is done"
+  previousStillRunning: "the core from the previous run did not stop — the restart was cancelled and it keeps running"
+  previousNotStopped: "the core from the previous run did not stop — a second one is not started"
+  refusedAtStartup: "the core does not start: the configuration was rejected when the app started — {reason}"
+  exitedWithoutAnswer: "the core exited without answering"
+  notRunningProxyKept: "the core is not running — the system proxy was left as it was"
+  portNotConfirmed: "the core did not confirm port {port} — the system proxy was left as it was"
+  queueClosed: "the configuration queue is closed"
+  noAcceptedConfig: "there is no accepted core configuration — it has not been built yet or the core rejected it"
+  noFileName: "the core path has no file name: {path}"
+  noAnswerInTime: "the core did not answer in time"
+  reasonUnknown: "reason unknown"
+  noStopAnswer: "no answer in {secs} s"
+  diedWhileStarting: "the core process {pid} exited while it was being checked"
+  stillRunning: "the core process {pid} did not stop: it is still in the process table"
 service:
   adminInstallPrompt: Система хезмәтен урнаштыру өчен администратор хокуклары кирәк.
   adminUninstallPrompt: Система хезмәтен бетерү өчен администратор хокуклары кирәк.
   selinuxBlocked: >-
     SELinux фон хезмәтен җибәрмәде. Башкарыгыз: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: Кушымта вакытлыча юлдан (App Translocation) эшли һәм ядрәне таба алмый. Аны Applications папкасына күчерегез дә яңадан ачыгыз.
+  noChannel: "the service is not answering: its channel is gone"
 tray:
   dashboard: Идарә панеле
   ruleMode: Кагыйдәләр режимы

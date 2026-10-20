@@ -765,8 +765,8 @@ impl CoreManager {
         }
         self.note_stop_failed();
         anyhow::bail!(
-            "процесс ядра {} не остановлен: он всё ещё в таблице процессов",
-            pid.unwrap_or(0)
+            "{}",
+            clash_verge_i18n::t!("core.stillRunning", pid = pid.unwrap_or(0).to_string())
         )
     }
 
@@ -842,7 +842,7 @@ impl CoreManager {
         let config = accepted
             .config
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("принятого конфига ядра нет — конфиг ещё не собран или отвергнут ядром"))?;
+            .ok_or_else(|| anyhow::anyhow!("{}", clash_verge_i18n::t!("core.noAcceptedConfig")))?;
         Config::write_config_file(ConfigType::Run, config).await?;
 
         #[cfg(target_os = "windows")]

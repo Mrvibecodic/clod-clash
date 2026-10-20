@@ -1026,7 +1026,7 @@ fn the_service_channel_is_there() -> Result<()> {
     if is_service_ipc_path_exists() {
         Ok(())
     } else {
-        bail!("служба не отвечает: её канала нет")
+        bail!("{}", clash_verge_i18n::t!("service.noChannel"))
     }
 }
 

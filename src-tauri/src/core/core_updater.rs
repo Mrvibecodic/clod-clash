@@ -181,7 +181,7 @@ fn pick_asset(assets: &[GhAsset], base: &str) -> Result<(GhAsset, String)> {
             let version = rest.strip_suffix(".gz").or_else(|| rest.strip_suffix(".zip"))?;
             is_plain_version(version).then(|| (asset.clone(), version.to_owned()))
         })
-        .ok_or_else(|| anyhow!("в релизе нет сборки {base}"))
+        .ok_or_else(|| anyhow!("{}", clash_verge_i18n::t!("core.noBuildInRelease", base = base)))
 }
 
 async fn http_client(proxy: ProxyType, timeout: u64) -> Result<reqwest::Client> {
@@ -397,7 +397,7 @@ struct UpdateGuard;
 impl UpdateGuard {
     fn acquire() -> Result<Self> {
         if UPDATING.swap(true, Ordering::AcqRel) {
-            bail!("a core update is already running");
+            bail!("{}", clash_verge_i18n::t!("core.updateAlreadyRunning"));
         }
         Ok(Self)
     }
@@ -411,9 +411,12 @@ impl Drop for UpdateGuard {
 
 /// Файл рядом с ядром: `verge-mihomo.new`, `verge-mihomo.old`.
 fn beside(target: &Path, suffix: &str) -> Result<PathBuf> {
-    let name = target
-        .file_name()
-        .ok_or_else(|| anyhow!("у пути ядра нет имени файла: {}", target.display()))?;
+    let name = target.file_name().ok_or_else(|| {
+        anyhow!(
+            "{}",
+            clash_verge_i18n::t!("core.noFileName", path = target.display().to_string())
+        )
+    })?;
     let mut name = name.to_os_string();
     name.push(".");
     name.push(suffix);
@@ -423,7 +426,7 @@ fn beside(target: &Path, suffix: &str) -> Result<PathBuf> {
 async fn write_executable(path: &Path, data: &[u8]) -> Result<()> {
     tokio::fs::write(path, data)
         .await
-        .with_context(|| format!("не удалось записать {}", path.display()))?;
+        .with_context(|| clash_verge_i18n::t!("core.writeFailed", path = path.display().to_string()))?;
 
     #[cfg(unix)]
     {
@@ -454,7 +457,7 @@ async fn the_settled_choice() -> Result<String> {
     let verge = Config::verge().await;
     let accepted = verge.data_arc().get_valid_clash_core();
     if verge.latest_arc().get_valid_clash_core() != accepted {
-        bail!("идёт смена ядра — обновите ядро, когда она закончится");
+        bail!("{}", clash_verge_i18n::t!("core.switchInProgress"));
     }
     Ok(accepted.to_string())
 }
@@ -486,13 +489,13 @@ async fn keep_or_drop_a_leftover_backup(target: &Path, backup: &Path) -> Result<
     if the_leftover_backup_is_spare(current.as_deref(), copy.as_deref(), on_trial.as_deref()) {
         tokio::fs::remove_file(backup)
             .await
-            .with_context(|| format!("не удалось убрать лишнюю копию ядра {}", backup.display()))?;
+            .with_context(|| clash_verge_i18n::t!("core.spareCopyNotRemoved", path = backup.display().to_string()))?;
         let _ = tokio::fs::remove_file(&trial).await;
         return Ok(());
     }
     bail!(
-        "рядом с ядром лежит копия прежнего ядра, отличная от работающего ({}): верните её на место или удалите",
-        backup.display()
+        "{}",
+        clash_verge_i18n::t!("core.foreignBackup", path = backup.display().to_string())
     );
 }
 
@@ -503,19 +506,19 @@ pub async fn update_bundled_core() -> Result<BundledCoreUpdate> {
     // Остановленное ядро не поднимаем обновлением: его остановил человек или
     // конфиг, и проверить, поднимется ли новое, было бы не на чем.
     if CoreManager::global().is_down() {
-        bail!("ядро не запущено — запустите его и повторите обновление");
+        bail!("{}", clash_verge_i18n::t!("core.notRunningForUpdate"));
     }
     let chosen = the_settled_choice().await?;
     let target = replaceable_core_file()
         .await
-        .ok_or_else(|| anyhow!("файл ядра этой установки приложению не заменить"))?;
+        .ok_or_else(|| anyhow!("{}", clash_verge_i18n::t!("core.fileNotReplaceable")))?;
     let staged = beside(&target, "new")?;
     let backup = beside(&target, "old")?;
     keep_or_drop_a_leftover_backup(&target, &backup).await?;
     let slot = CoreSlot::of(&chosen);
     let base = slot
         .asset_base(std::env::consts::OS, std::env::consts::ARCH)
-        .ok_or_else(|| anyhow!("для этой платформы сборки ядра нет"))?;
+        .ok_or_else(|| anyhow!("{}", clash_verge_i18n::t!("core.noBuildForPlatform")))?;
 
     let release = fetch_release(slot.release_api()).await?;
     let (asset, version) = pick_asset(&release.assets, base)?;
@@ -542,10 +545,10 @@ pub async fn update_bundled_core() -> Result<BundledCoreUpdate> {
     // Пока качали, ядро могли остановить (остановленное не поднимаем) или
     // сменить (файл был бы уже не выбранного ядра).
     if CoreManager::global().is_down() {
-        bail!("ядро остановили, пока шло обновление — обновление отменено");
+        bail!("{}", clash_verge_i18n::t!("core.stoppedDuringUpdate"));
     }
     if the_settled_choice().await? != chosen {
-        bail!("ядро сменили, пока шло обновление — обновление отменено");
+        bail!("{}", clash_verge_i18n::t!("core.switchedDuringUpdate"));
     }
     let old_digest = core_integrity::digest_of(&target).await.ok();
     let new_digest = core_integrity::digest_of_bytes(&binary);
@@ -556,7 +559,7 @@ pub async fn update_bundled_core() -> Result<BundledCoreUpdate> {
             logging!(info, Type::Core, "новое ядро отвечает: {probe}");
             swap_in(&target, &staged, &backup, &new_digest, old_digest.as_deref()).await
         }
-        Err(err) => Err(err.context("скачанное ядро не запускается")),
+        Err(err) => Err(err.context(clash_verge_i18n::t!("core.newCoreDoesNotRun"))),
     };
     let _ = tokio::fs::remove_file(&staged).await;
     match (&swapped, old_digest) {
@@ -657,7 +660,7 @@ async fn give_the_old_core_back(
             async || {
                 tokio::fs::rename(backup, target)
                     .await
-                    .context("не удалось вернуть прежнее ядро")?;
+                    .context(clash_verge_i18n::t!("core.previousNotRestored"))?;
                 core_integrity::pin_known_binary(target, old_digest).await;
                 Ok(())
             },
@@ -720,11 +723,11 @@ where
 pub async fn upgrade_through_core() -> Result<SelfUpgrade> {
     let _guard = UpdateGuard::acquire()?;
     if current_update_method().await != UpdateMethod::Core {
-        bail!("ядро этой установки само себя не обновляет");
+        bail!("{}", clash_verge_i18n::t!("core.noSelfUpdate"));
     }
     let before = running_core_version()
         .await
-        .ok_or_else(|| anyhow!("ядро не отвечает — обновлять нечего"))?;
+        .ok_or_else(|| anyhow!("{}", clash_verge_i18n::t!("core.notAnswering")))?;
     // Обновлённое ядро служба поднимет в новый файл журнала.
     if matches!(
         *CoreManager::global().get_running_mode(),
@@ -799,17 +802,17 @@ async fn swap_in(
             async || {
                 tokio::fs::copy(target, backup)
                     .await
-                    .context("не удалось сохранить прежнее ядро")?;
+                    .context(clash_verge_i18n::t!("core.previousNotSaved"))?;
                 tokio::fs::rename(staged, target)
                     .await
-                    .context("не удалось поставить новое ядро на место")?;
+                    .context(clash_verge_i18n::t!("core.newNotPlaced"))?;
                 core_integrity::pin_known_binary(target, new_digest).await;
                 Ok(())
             },
             async || {
                 tokio::fs::rename(backup, target)
                     .await
-                    .context("не удалось вернуть прежнее ядро")?;
+                    .context(clash_verge_i18n::t!("core.previousNotRestored"))?;
                 if let Some(digest) = old_digest {
                     core_integrity::pin_known_binary(target, digest).await;
                 }
@@ -1071,5 +1074,35 @@ mod tests {
     fn broken_archives_are_rejected() {
         assert!(unpack_binary("mihomo-linux-amd64-v1.gz", b"garbage").is_err());
         assert!(unpack_binary("mihomo-windows-amd64-v1.zip", b"garbage").is_err());
+    }
+
+    /// Отказы обновления и смены ядра, его старта и перезапуска доходят до
+    /// окна: их текст берётся из локалей, а не зашит в код на одном языке.
+    #[test]
+    fn the_core_refusals_speak_the_language_of_the_window() {
+        let cyrillic = |text: &str| text.chars().any(|c| matches!(c, 'а'..='я' | 'А'..='Я' | 'ё' | 'Ё'));
+        for source in [
+            include_str!("core_updater.rs"),
+            include_str!("manager/lifecycle.rs"),
+            include_str!("manager/mod.rs"),
+            include_str!("manager/state.rs"),
+        ] {
+            let code = crate::utils::source_scan::without_test_modules(source);
+            for opening in [
+                "bail!(",
+                "anyhow!(",
+                ".context(\"",
+                "Err(\"",
+                "Err(format!(",
+                "Some(\"",
+                "format!(\"",
+            ] {
+                for (at, _) in code.match_indices(opening) {
+                    let call = code[at..].split(';').next().unwrap_or_default();
+                    let literal = call.split('"').nth(1).unwrap_or_default();
+                    assert!(!cyrillic(literal), "{call}");
+                }
+            }
+        }
     }
 }
