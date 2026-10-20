@@ -60,6 +60,7 @@ import { isValidIpCidr } from '@/utils/network'
 import { readEachFile } from '@/utils/profile-files'
 import { BUILTIN_RULE_POLICIES } from '@/utils/proxy-groups'
 import { isBuiltinPolicy, policyName, ruleTypeName } from '@/utils/rule-labels'
+import { isNetwork, isPortList, normalizeNetwork } from '@/utils/rule-values'
 import { EMPTY_SEQ_LISTS } from '@/utils/seq-unsaved'
 import { parseYamlSafe } from '@/utils/yaml'
 
@@ -70,12 +71,6 @@ interface Props {
   property: string
   open: boolean
   onClose: () => void
-}
-
-const portValidator = (value: string): boolean => {
-  return new RegExp(
-    '^(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5])$',
-  ).test(value)
 }
 
 type RuleGroup =
@@ -96,6 +91,7 @@ const rules: {
   example?: string
   noResolve?: boolean
   validator?: (value: string) => boolean
+  normalize?: (value: string) => string
 }[] = [
   {
     name: 'DOMAIN',
@@ -183,25 +179,26 @@ const rules: {
     name: 'SRC-PORT',
     group: 'source',
     example: '7777',
-    validator: (value) => portValidator(value),
+    validator: isPortList,
   },
   {
     name: 'DST-PORT',
     group: 'port',
     example: '80',
-    validator: (value) => portValidator(value),
+    validator: isPortList,
   },
   {
     name: 'IN-PORT',
     group: 'port',
     example: '7897',
-    validator: (value) => portValidator(value),
+    validator: isPortList,
   },
   {
     name: 'NETWORK',
     group: 'port',
     example: 'udp',
-    validator: (value) => ['tcp', 'udp'].includes(value),
+    validator: isNetwork,
+    normalize: normalizeNetwork,
   },
   {
     name: 'DSCP',
@@ -632,7 +629,9 @@ export const RulesEditorViewer = (props: Props) => {
   }, [])
 
   const required = ruleType.required ?? true
-  const value = ruleContent.trim()
+  const value = ruleType.normalize
+    ? ruleType.normalize(ruleContent.trim())
+    : ruleContent.trim()
   const rawRule = `${ruleType.name}${required && value ? ',' + value : ''},${proxyPolicy}${
     ruleType.noResolve && noResolve ? ',no-resolve' : ''
   }`
