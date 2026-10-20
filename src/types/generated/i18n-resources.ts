@@ -264,6 +264,7 @@ export interface TranslationResources {
       }
       messages: {
         belowCoreLevel: string
+        coreSilent: string
         exported: string
       }
       page: {

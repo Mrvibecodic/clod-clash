@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 
-import { emptyState } from './empty-state.ts'
+import { coreLevelHides, emptyState } from './empty-state.ts'
 
 const page = { coreDown: false, searching: false, hasData: false }
 
@@ -49,5 +49,18 @@ describe('emptyState', () => {
       assert.match(source, /emptyState\(\{/, file)
       assert.match(source, /<CoreStatus \/>/, file)
     }
+  })
+})
+
+describe('coreLevelHides', () => {
+  it('a silent core hides every entry, whatever the filter', () => {
+    assert.equal(coreLevelHides('all', []), true)
+    assert.equal(coreLevelHides('info', []), true)
+  })
+
+  it('a filter below the level of the core hides its entries', () => {
+    assert.equal(coreLevelHides('debug', ['info', 'warning', 'error']), true)
+    assert.equal(coreLevelHides('info', ['info', 'warning', 'error']), false)
+    assert.equal(coreLevelHides('all', ['error']), false)
   })
 })

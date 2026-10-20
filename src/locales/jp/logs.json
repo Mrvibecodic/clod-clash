@@ -9,6 +9,7 @@
   },
   "messages": {
     "exported": "ログを保存しました",
-    "belowCoreLevel": "The core does not write entries of this level. Change it in Settings → “Log Level”"
+    "belowCoreLevel": "The core does not write entries of this level. Change it in Settings → “Log Level”",
+    "coreSilent": "The core writes no log: “Silent” is chosen in Settings → “Log Level”"
   }
 }

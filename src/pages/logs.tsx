@@ -27,7 +27,7 @@ import { useSystemState } from '@/hooks/use-system-state'
 import { useVisibility } from '@/hooks/use-visibility'
 import { saveLogText } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { emptyState } from '@/utils/empty-state'
+import { coreLevelHides, emptyState } from '@/utils/empty-state'
 
 const LogPage = () => {
   const { t } = useTranslation()
@@ -47,8 +47,7 @@ const LogPage = () => {
     allowedTypes,
   } = useLogData({ enabled: pageVisible })
   // Уровень ниже уровня журнала ядра до окна не доходит.
-  const belowCoreLevel =
-    logState !== 'all' && !allowedTypes.some((type) => type.includes(logState))
+  const belowCoreLevel = coreLevelHides(logState, allowedTypes)
 
   const filterLogs = useMemo(() => {
     if (!logData || logData.length === 0) {
@@ -249,7 +248,9 @@ const LogPage = () => {
         <BaseEmpty
           textKey={
             empty === 'belowCoreLevel'
-              ? 'logs.messages.belowCoreLevel'
+              ? allowedTypes.length === 0
+                ? 'logs.messages.coreSilent'
+                : 'logs.messages.belowCoreLevel'
               : empty === 'notFound'
                 ? 'shared.statuses.notFound'
                 : undefined

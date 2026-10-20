@@ -25,3 +25,7 @@ export const emptyState = (page: {
           : page.searching && page.hasData
             ? 'notFound'
             : 'empty'
+
+export const coreLevelHides = (filter: string, allowed: readonly string[]) =>
+  allowed.length === 0 ||
+  (filter !== 'all' && !allowed.some((type) => type.includes(filter)))

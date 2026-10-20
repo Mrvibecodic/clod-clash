@@ -173,6 +173,7 @@ export const translationKeys = [
   'logs.actions.export',
   'logs.messages.exported',
   'logs.messages.belowCoreLevel',
+  'logs.messages.coreSilent',
   'profiles.page.actions.updateAll',
   'profiles.page.actions.addSubscription',
   'profiles.page.batch.actions.delete',
