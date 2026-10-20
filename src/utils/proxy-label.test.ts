@@ -127,7 +127,7 @@ describe('clod-hide-badges', () => {
     // цепочке — состав передаётся в подпись.
     assert.match(
       read('../components/home/server-select.tsx'),
-      /isGroup && !hidesType\(record, current\?\.hide_badges\)/,
+      /typeShown: !hidesType\(record, current\?\.hide_badges\)/,
     )
     assert.match(
       read('../components/proxy/proxy-chain.tsx'),
@@ -234,6 +234,7 @@ describe('nodeName', () => {
     const raw =
       /(?:[^=\w$]\{|(?:title|now)=\{|nameWithoutFlag\()\s*(?:node\.name|proxy\??\.name|proxy\??\.now|group\??\.now|leaf|step|last|behind\??\.server)\s*[)}]/
     for (const file of [
+      './server-row.ts',
       '../components/home/server-select.tsx',
       '../components/proxy/proxy-item.tsx',
       '../components/proxy/proxy-item-mini.tsx',
@@ -246,5 +247,13 @@ describe('nodeName', () => {
       assert.match(source, /(?:nodeName|serverName)\(/, file)
       assert.doesNotMatch(source, raw, file)
     }
+  })
+
+  it('the Home server list strips flags only from group chips by itself', () => {
+    const source = readFileSync(
+      new URL('../components/home/server-select.tsx', import.meta.url),
+      'utf8',
+    )
+    assert.doesNotMatch(source, /nameWithoutFlag\((?!item\.name\))/)
   })
 })
