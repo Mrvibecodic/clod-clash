@@ -202,6 +202,7 @@ export const GroupsEditorViewer = (props: Props) => {
                   key={item.name}
                   type="prepend"
                   group={item}
+                  profileUid={profileUid}
                   onDelete={() => {
                     setPrependSeq(
                       prependSeq.filter((v) => v.name !== item.name),
@@ -224,6 +225,7 @@ export const GroupsEditorViewer = (props: Props) => {
               : 'original'
           }
           group={filteredGroupList[newIndex]}
+          profileUid={profileUid}
           onDelete={() => {
             if (deleteSeq.includes(filteredGroupList[newIndex].name)) {
               setDeleteSeq(
@@ -256,6 +258,7 @@ export const GroupsEditorViewer = (props: Props) => {
                   key={item.name}
                   type="append"
                   group={item}
+                  profileUid={profileUid}
                   onDelete={() => {
                     setAppendSeq(appendSeq.filter((v) => v.name !== item.name))
                   }}

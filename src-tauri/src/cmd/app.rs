@@ -130,11 +130,6 @@ pub async fn restart_app() -> CmdResult<()> {
     Ok(())
 }
 #[tauri::command]
-pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String> {
-    feat::download_icon_cache(url, name).await
-}
-
-#[tauri::command]
 pub async fn copy_icon_file(path: String, name: String) -> CmdResult<String> {
     feat::copy_icon_file(path, name).await
 }

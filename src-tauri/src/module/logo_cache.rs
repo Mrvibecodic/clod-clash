@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use smartstring::alias::String;
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     path::{Path, PathBuf},
 };
 use tokio::fs;
@@ -200,6 +200,13 @@ async fn remember_validators(dir: &Path, stem: &str, validators: Option<Validato
 pub async fn clear(uid: &str) {
     clear_picture(Picture::Logo, uid).await;
     clear_picture(Picture::Background, uid).await;
+    if let Ok(dir) = cache_dir()
+        && is_safe_uid(uid)
+    {
+        for stem in cached_icons(&dir, uid).await {
+            remove_stem(&dir, &stem).await;
+        }
+    }
 }
 
 /// Что значит ответ сервера на запрос картинки.
@@ -227,16 +234,11 @@ fn reply_to(asked_conditionally: bool, status: reqwest::StatusCode) -> Reply {
 
 /// Скачать картинку. `true` — файл записан заново, `false` — сервер ответил,
 /// что она не менялась (304), и на диске ничего не тронуто.
-async fn download(picture: Picture, uid: &str, url: &str) -> Result<bool> {
-    if !is_safe_uid(uid) {
-        bail!("refusing to cache a logo under an unexpected profile id");
-    }
-    let stem = picture.stem(uid);
-    let max_bytes = picture.max_bytes();
+async fn download(stem: &str, max_bytes: usize, url: &str) -> Result<bool> {
     let saved = match cache_dir() {
         Ok(dir) => {
-            help::sweep_staging_leftovers_of(&dir, &stem).await;
-            saved_validators(&dir, &stem).await
+            help::sweep_staging_leftovers_of(&dir, stem).await;
+            saved_validators(&dir, stem).await
         }
         Err(_) => None,
     };
@@ -244,7 +246,7 @@ async fn download(picture: Picture, uid: &str, url: &str) -> Result<bool> {
         .as_ref()
         .map(|(validators, local)| validators.conditional_for(url, local))
         .unwrap_or_default();
-    let (conditional, stem) = (&conditional, stem.as_str());
+    let conditional = &conditional;
     try_strategies(ProxyType::Localhost, [ProxyType::System], |proxy| async move {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -292,50 +294,136 @@ async fn store_fresh(
 /// (скачана заново или убрана).
 async fn sync_picture(picture: Picture, uid: &str) -> bool {
     match picture.url(uid).await {
-        Some(url) if !url.trim().is_empty() => match download(picture, uid, url.trim()).await {
-            Ok(written) => written,
-            Err(err) => {
-                logging!(warn, Type::Config, "profile {picture:?} for {uid} not cached: {err:#}");
-                false
+        Some(url) if !url.trim().is_empty() => {
+            match download(&picture.stem(uid), picture.max_bytes(), url.trim()).await {
+                Ok(written) => written,
+                Err(err) => {
+                    logging!(warn, Type::Config, "profile {picture:?} for {uid} not cached: {err:#}");
+                    false
+                }
             }
-        },
+        }
         _ => clear_picture(picture, uid).await,
     }
 }
 
 /// `true` — было что убрать.
 async fn clear_picture(picture: Picture, uid: &str) -> bool {
-    if !is_safe_uid(uid) {
-        return false;
-    }
     let Ok(dir) = cache_dir() else { return false };
-    let stem = picture.stem(uid);
+    is_safe_uid(uid) && remove_stem(&dir, &picture.stem(uid)).await
+}
+
+/// `true` — было что убрать.
+async fn remove_stem(dir: &Path, stem: &str) -> bool {
     let mut removed = false;
     for extension in KNOWN_EXTENSIONS {
         removed |= fs::remove_file(dir.join(format!("{stem}.{extension}"))).await.is_ok();
     }
-    let _ = fs::remove_file(validators_path(&dir, &stem)).await;
-    help::sweep_staging_leftovers_of(&dir, &stem).await;
+    let _ = fs::remove_file(validators_path(dir, stem)).await;
+    help::sweep_staging_leftovers_of(dir, stem).await;
     removed
+}
+
+const ICON_INFIX: &str = ".icon-";
+
+/// Значок группы подписки `uid`: имя файла — от подписки и адреса целиком,
+/// имя группы в нём не участвует.
+fn icon_stem(uid: &str, url: &str) -> std::string::String {
+    format!("{uid}{ICON_INFIX}{}", fingerprint(url.as_bytes()))
+}
+
+/// Скачанные значки групп подписки `uid` — имена файлов без расширения.
+async fn cached_icons(dir: &Path, uid: &str) -> BTreeSet<std::string::String> {
+    let prefix = format!("{uid}{ICON_INFIX}");
+    let mut found = BTreeSet::new();
+    let Ok(mut entries) = fs::read_dir(dir).await else {
+        return found;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if let Some(hash) = name.strip_prefix(&prefix).and_then(|rest| rest.split('.').next()) {
+            found.insert(format!("{prefix}{hash}"));
+        }
+    }
+    found
+}
+
+fn icons_of(groups: Option<&serde_yaml_ng::Value>) -> impl Iterator<Item = std::string::String> + '_ {
+    groups
+        .and_then(serde_yaml_ng::Value::as_sequence)
+        .into_iter()
+        .flatten()
+        .filter_map(|group| group.get("icon")?.as_str())
+        .map(str::trim)
+        .filter(|url| !url.is_empty())
+        .map(str::to_owned)
+}
+
+/// Адреса значков групп подписки и её собственных групп человека; `None` —
+/// подписку прочитать не удалось, и судить, какие значки ей не нужны, нельзя.
+async fn group_icon_urls(uid: &str) -> Option<BTreeSet<std::string::String>> {
+    let (item, own_groups) = {
+        let profiles = Config::profiles().await;
+        let arc = profiles.latest_arc();
+        let item = arc.get_item(uid).ok()?.clone();
+        let own_groups = item
+            .current_groups()
+            .and_then(|groups| arc.get_item(groups).ok())
+            .cloned();
+        drop(arc);
+        (item, own_groups)
+    };
+    let subscription: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(&item.read_file().await.ok()?).ok()?;
+    let mut urls: BTreeSet<_> = icons_of(subscription.get("proxy-groups")).collect();
+    if let Some(own_groups) = own_groups
+        && let Ok(raw) = own_groups.read_file().await
+        && let Ok(own) = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&raw)
+    {
+        urls.extend(icons_of(own.get("prepend")));
+        urls.extend(icons_of(own.get("append")));
+    }
+    Some(urls)
+}
+
+/// Значки групп — как логотип: после обновления подписки скачанные
+/// перепроверяются, а тех, что подписке больше не нужны, на диске не остаётся.
+async fn sync_icons(uid: &str) -> bool {
+    let (Ok(dir), Some(wanted)) = (cache_dir(), group_icon_urls(uid).await) else {
+        return false;
+    };
+    let wanted: HashMap<_, _> = wanted.into_iter().map(|url| (icon_stem(uid, &url), url)).collect();
+    let mut changed = false;
+    for stem in cached_icons(&dir, uid).await {
+        changed |= match wanted.get(&stem) {
+            Some(url) => download(&stem, MAX_IMAGE_BYTES, url).await.unwrap_or_else(|err| {
+                logging!(warn, Type::Config, "group icon for {uid} not refreshed: {err:#}");
+                false
+            }),
+            None => remove_stem(&dir, &stem).await,
+        };
+    }
+    changed
 }
 
 /// После обновления подписки: картинки — к её заголовкам; сменившуюся окно
 /// перечитывает по событию, а не по дате обновления подписки, которая меняется
 /// раньше, чем картинка докачана.
 pub async fn sync(uid: &str) {
+    if !is_safe_uid(uid) {
+        return;
+    }
     for picture in [Picture::Logo, Picture::Background] {
         if sync_picture(picture, uid).await {
             handle::Handle::notify_profile_picture(uid, picture.name());
         }
     }
+    if sync_icons(uid).await {
+        handle::Handle::notify_profile_picture(uid, "icons");
+    }
 }
 
-pub async fn read(picture: Picture, uid: &str) -> Option<String> {
-    if !is_safe_uid(uid) {
-        return None;
-    }
+async fn read(stem: &str) -> Option<String> {
     let dir = cache_dir().ok()?;
-    let stem = picture.stem(uid);
     for extension in KNOWN_EXTENSIONS {
         let path = dir.join(format!("{stem}.{extension}"));
         let Ok(bytes) = fs::read(&path).await else {
@@ -367,7 +455,7 @@ fn recent_cold_miss(stem: &str) -> Option<Shown> {
     (at.elapsed() < RETRY_AFTER).then_some(if refused { Shown::Never } else { Shown::Pending })
 }
 
-const MAX_COLD_MISSES: usize = 64;
+const MAX_COLD_MISSES: usize = 256;
 
 fn remember_cold_miss(stem: &str, refused: bool) -> Shown {
     if let Ok(mut slot) = cold_misses().lock() {
@@ -381,37 +469,56 @@ fn remember_cold_miss(stem: &str, refused: bool) -> Shown {
     if refused { Shown::Never } else { Shown::Pending }
 }
 
-pub async fn read_or_fetch(picture: Picture, uid: &str) -> Shown {
-    if let Some(cached) = read(picture, uid).await {
+/// Копия есть — она; нет — скачать сейчас же, если прошлая неудача не свежая.
+/// Холодный кэш получает картинку самим этим ответом, событие окну не нужно.
+async fn cached_or_fetched(stem: &str, url: Option<&str>, max_bytes: usize) -> Shown {
+    if let Some(cached) = read(stem).await {
         return Shown::Ready(cached);
     }
-    let stem = picture.stem(uid);
-    if let Some(shown) = recent_cold_miss(&stem) {
+    if let Some(shown) = recent_cold_miss(stem) {
         return shown;
     }
-    let Some(url) = picture.url(uid).await.filter(|url| !url.trim().is_empty()) else {
+    let Some(url) = url else {
         return Shown::Never;
     };
-    // Холодный кэш: картинку получает сам этот ответ, событие окну не нужно.
-    let refused = match download(picture, uid, url.trim()).await {
+    let refused = match download(stem, max_bytes, url).await {
         Ok(_) => false,
         Err(err) => {
-            logging!(warn, Type::Config, "profile {picture:?} for {uid} not cached: {err:#}");
+            logging!(warn, Type::Config, "provider picture {stem} not cached: {err:#}");
             is_refused(&err)
         }
     };
-    match read(picture, uid).await {
+    match read(stem).await {
         Some(fresh) => Shown::Ready(fresh),
-        None => remember_cold_miss(&stem, refused),
+        None => remember_cold_miss(stem, refused),
     }
+}
+
+pub async fn read_or_fetch(picture: Picture, uid: &str) -> Shown {
+    if !is_safe_uid(uid) {
+        return Shown::Never;
+    }
+    let url = picture.url(uid).await;
+    let url = url.as_deref().map(str::trim).filter(|url| !url.is_empty());
+    cached_or_fetched(&picture.stem(uid), url, picture.max_bytes()).await
+}
+
+/// Значок группы подписки `uid`; копия своя у каждой подписки и уходит вместе
+/// с ней.
+pub async fn group_icon(uid: &str, url: &str) -> Shown {
+    let url = url.trim();
+    if !is_safe_uid(uid) || url.is_empty() || Config::profiles().await.latest_arc().get_item(uid).is_err() {
+        return Shown::Never;
+    }
+    cached_or_fetched(&icon_stem(uid, url), Some(url), MAX_IMAGE_BYTES).await
 }
 
 #[allow(clippy::expect_used, clippy::panic)]
 #[cfg(test)]
 mod tests {
     use super::{
-        KNOWN_EXTENSIONS, Reply, Validators, is_safe_uid, mime_for, reply_to, saved_validators, store_fresh,
-        validators_path,
+        KNOWN_EXTENSIONS, Reply, Validators, cached_icons, icon_stem, icons_of, is_safe_uid, mime_for, remove_stem,
+        reply_to, saved_validators, store_fresh, validators_path,
     };
     use reqwest::header::{ETAG, HeaderMap, HeaderValue, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 
@@ -549,5 +656,81 @@ mod tests {
         for uid in ["", "../../etc/passwd", "/etc/hosts", r"..\..\win.ini", "a/b", "a.b"] {
             assert!(!is_safe_uid(uid), "{uid}");
         }
+    }
+
+    #[test]
+    fn a_group_icon_is_stored_under_a_name_every_system_accepts() {
+        let tail = "https://cdn.example/a/icon.png";
+        for url in [
+            tail,
+            "https://cdn.example/icon.png?v=2",
+            "https://cdn.example/x|y:z.png",
+        ] {
+            let stem = icon_stem("sub1", url);
+            assert!(
+                stem.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+                    && !stem.contains(".."),
+                "{url} -> {stem}"
+            );
+        }
+        assert_ne!(
+            icon_stem("sub1", tail),
+            icon_stem("sub2", tail),
+            "у каждой подписки своя копия"
+        );
+        assert_ne!(
+            icon_stem("sub1", tail),
+            icon_stem("sub1", "https://cdn.example/b/icon.png"),
+            "одинаковый хвост адреса — не тот же значок"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_icons_of_a_subscription_are_its_own() {
+        let dir = std::env::temp_dir().join(format!("clod-group-icons-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&dir).await;
+        tokio::fs::create_dir_all(&dir).await.expect("dir");
+        let (first, second) = ("https://cdn.example/a.png", "https://cdn.example/b.svg");
+        let ours = icon_stem("sub1", first);
+        let names = [
+            "sub1.png".to_owned(),
+            "sub1.meta".to_owned(),
+            "sub1.bg.png".to_owned(),
+            format!("{ours}.png"),
+            format!("{ours}.meta"),
+            format!("{}.svg", icon_stem("sub1", second)),
+            format!("{}.png", icon_stem("sub2", first)),
+        ];
+        for name in &names {
+            tokio::fs::write(dir.join(name), b"x").await.expect("written");
+        }
+
+        let found = cached_icons(&dir, "sub1").await;
+        assert_eq!(found, [ours.clone(), icon_stem("sub1", second)].into_iter().collect());
+
+        assert!(remove_stem(&dir, &ours).await);
+        assert!(!dir.join(format!("{ours}.png")).exists());
+        assert!(!dir.join(format!("{ours}.meta")).exists());
+        assert!(dir.join("sub1.png").exists(), "логотип на месте");
+        assert!(
+            dir.join(format!("{}.png", icon_stem("sub2", first))).exists(),
+            "чужая подписка на месте"
+        );
+
+        let _ = tokio::fs::remove_dir_all(&dir).await;
+    }
+
+    #[test]
+    fn the_icons_wanted_are_those_of_the_groups() {
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(
+            "proxy-groups:\n  - {name: 'A | B', icon: ' https://cdn.example/a.png '}\n  - {name: X/Y}\n  - {name: Z, icon: 5}\n  - {name: W, icon: ''}\n",
+        )
+        .expect("yaml");
+        assert_eq!(
+            icons_of(config.get("proxy-groups")).collect::<Vec<_>>(),
+            ["https://cdn.example/a.png"]
+        );
+        assert_eq!(icons_of(None).count(), 0);
     }
 }

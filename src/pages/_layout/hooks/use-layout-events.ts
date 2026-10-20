@@ -105,10 +105,14 @@ export const useLayoutEvents = (
     void revalidateKeys(['freezeMarks'])
   })
 
-  // clod: логотип или фон подписки на диске сменился — скачан заново или убран.
-  useTauriEvent<{ uid: string; picture: 'logo' | 'background' }>(
+  // clod: картинка подписки на диске сменилась — скачана заново или убрана.
+  useTauriEvent<{ uid: string; picture: 'logo' | 'background' | 'icons' }>(
     'clod://profile-picture',
     ({ payload }) => {
+      if (payload.picture === 'icons') {
+        void revalidateQueriesByPrefix(['groupIcon'])
+        return
+      }
       const key =
         payload.picture === 'logo' ? 'profileLogo' : 'profileBackground'
       void revalidateQueries([[key, payload.uid]])

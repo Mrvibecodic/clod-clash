@@ -40,6 +40,8 @@ interface RenderProps {
    */
   descriptions?: Record<string, string>
   freezeMarks?: ReadonlySet<string>
+  /** Подписка, чьи группы на экране: значки групп — её копии. */
+  profileUid?: string
 }
 
 export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
@@ -59,6 +61,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
     hideBadges,
     descriptions,
     freezeMarks,
+    profileUid,
   } = props
   const { type, group, headState, proxy, proxyCol } = item
   const selectable = isChainMode || SELECTABLE_GROUP_TYPES.has(groupType(group))
@@ -137,7 +140,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         >
           <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
             {enable_group_icon && (
-              <GroupIcon icon={group.icon} name={group.name} />
+              <GroupIcon icon={group.icon} uid={profileUid} />
             )}
             <Box sx={{ flex: '0 1 auto', minWidth: 0 }}>
               <StyledPrimary>{group.name}</StyledPrimary>

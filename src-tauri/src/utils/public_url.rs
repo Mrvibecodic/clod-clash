@@ -138,16 +138,11 @@ pub(crate) mod tests {
 
     #[test]
     fn every_provider_image_goes_through_the_one_request() {
-        for (file, source) in [
-            ("logo_cache.rs", include_str!("../module/logo_cache.rs")),
-            ("icon.rs", include_str!("../feat/icon.rs")),
-        ] {
-            let code = crate::utils::source_scan::production_code(source);
-            assert!(code.contains("request_image("), "{file}");
-            assert!(code.contains("read_image("), "{file}: картинку признают по байтам");
-            assert!(!code.contains("CONTENT_TYPE"), "{file}: а не по Content-Type");
-            assert!(!code.contains("create_request("), "{file}");
-        }
+        let code = crate::utils::source_scan::production_code(include_str!("../module/logo_cache.rs"));
+        assert!(code.contains("request_image("));
+        assert!(code.contains("read_image("), "картинку признают по байтам");
+        assert!(!code.contains("CONTENT_TYPE"), "а не по Content-Type");
+        assert!(!code.contains("create_request("));
     }
 
     #[tokio::test]

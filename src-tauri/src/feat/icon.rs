@@ -1,17 +1,11 @@
 use crate::{
     cmd::{CmdResult, StringifyErr as _},
-    utils::{
-        dirs::{self, PathBufExec as _},
-        network::ProxyType,
-        public_url::{MAX_IMAGE_BYTES, read_image, request_image},
-        retry::try_strategies,
-    },
+    utils::dirs::{self, PathBufExec as _},
 };
 use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
 use std::path::{Component, Path, PathBuf};
 use tokio::fs;
-use tokio::io::AsyncWriteExt as _;
 
 fn normalize_icon_segment(name: &str) -> CmdResult<String> {
     let trimmed = name.trim();
@@ -36,65 +30,6 @@ fn ensure_icon_cache_target(icon_cache_dir: &Path, file_name: &str) -> CmdResult
     }
 
     Ok(icon_path)
-}
-
-async fn fetch_icon(url: &str) -> anyhow::Result<Vec<u8>> {
-    try_strategies(ProxyType::Localhost, [ProxyType::System], |proxy| async move {
-        let response = request_image(url, proxy, reqwest::header::HeaderMap::new())
-            .await?
-            .error_for_status()?;
-        Ok(read_image(response, MAX_IMAGE_BYTES).await?.0)
-    })
-    .await
-}
-
-pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String> {
-    let icon_cache_dir = dirs::app_home_dir().stringify_err()?.join("icons").join("cache");
-    let icon_name = normalize_icon_segment(name.as_str())?;
-    let icon_path = ensure_icon_cache_target(&icon_cache_dir, icon_name.as_str())?;
-
-    if icon_path.exists() {
-        return Ok(icon_path.to_string_lossy().into());
-    }
-
-    if !icon_cache_dir.exists() {
-        fs::create_dir_all(&icon_cache_dir).await.stringify_err()?;
-    }
-
-    let temp_name = format!("{icon_name}.downloading");
-    let temp_path = ensure_icon_cache_target(&icon_cache_dir, temp_name.as_str())?;
-
-    let content = fetch_icon(url.as_str()).await.stringify_err()?;
-
-    {
-        let mut file = match fs::File::create(&temp_path).await {
-            Ok(file) => file,
-            Err(_) => {
-                if icon_path.exists() {
-                    return Ok(icon_path.to_string_lossy().into());
-                }
-                return Err("Failed to create temporary file".into());
-            }
-        };
-        file.write_all(content.as_ref()).await.stringify_err()?;
-        file.flush().await.stringify_err()?;
-    }
-
-    if !icon_path.exists() {
-        match fs::rename(&temp_path, &icon_path).await {
-            Ok(_) => {}
-            Err(_) => {
-                let _ = temp_path.remove_if_exists().await;
-                if icon_path.exists() {
-                    return Ok(icon_path.to_string_lossy().into());
-                }
-            }
-        }
-    } else {
-        let _ = temp_path.remove_if_exists().await;
-    }
-
-    Ok(icon_path.to_string_lossy().into())
 }
 
 fn icon_stamp<'a>(path: &'a Path, icon_name: &str) -> &'a str {

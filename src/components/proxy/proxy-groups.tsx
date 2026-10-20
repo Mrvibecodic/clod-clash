@@ -547,6 +547,7 @@ function NormalProxyGroups(props: { mode: string }) {
         hideBadges={hideBadges}
         descriptions={descriptions}
         freezeMarks={freezeMarks}
+        profileUid={current?.uid}
       />
     ),
     [
@@ -560,6 +561,7 @@ function NormalProxyGroups(props: { mode: string }) {
       hideBadges,
       descriptions,
       freezeMarks,
+      current?.uid,
     ],
   )
 

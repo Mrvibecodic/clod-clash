@@ -14,11 +14,12 @@ import { GroupIcon } from '@/components/proxy/group-icon'
 interface Props {
   type: 'prepend' | 'original' | 'delete' | 'append'
   group: IProxyGroupConfig
+  profileUid: string
   onDelete: () => void
 }
 
 export const GroupItem = (props: Props) => {
-  const { type, group, onDelete } = props
+  const { type, group, profileUid, onDelete } = props
   const sortable = type === 'prepend' || type === 'append'
 
   const {
@@ -57,7 +58,7 @@ export const GroupItem = (props: Props) => {
         zIndex: isDragging ? 'calc(infinity)' : undefined,
       })}
     >
-      <GroupIcon icon={group.icon} name={group.name} />
+      <GroupIcon icon={group.icon} uid={profileUid} />
       <ListItemText
         {...(dragAttributes ?? {})}
         {...(dragListeners ?? {})}

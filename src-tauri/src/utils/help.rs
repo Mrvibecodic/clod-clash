@@ -228,10 +228,18 @@ pub async fn sweep_staging_leftovers(dir: &Path) -> usize {
     sweep_matching(dir, is_staging_leftover).await
 }
 
-/// Черновики `write_atomic`, брошенные на полпути, только для файлов `<stem>.*`.
+/// Черновики `write_atomic`, брошенные на полпути, только для файлов
+/// `<stem>.<расширение>`: черновик соседа `<stem>.<ещё>.<расширение>` может
+/// писаться прямо сейчас.
 pub async fn sweep_staging_leftovers_of(dir: &Path, stem: &str) -> usize {
     let prefix = format!(".{stem}.");
-    sweep_matching(dir, |name| name.starts_with(&prefix) && is_staging_leftover(name)).await
+    sweep_matching(dir, |name| {
+        is_staging_leftover(name)
+            && name
+                .strip_prefix(&prefix)
+                .is_some_and(|rest| rest.matches('.').count() == 2)
+    })
+    .await
 }
 
 /// Только для каталога подписок: в других каталогах `*.new` — чужие файлы.
@@ -556,13 +564,17 @@ mod tests {
         let dir = scratch_dir("stem-drafts");
         for name in [
             ".uid.png.AbCdEf12.tmp",
+            ".uid.meta.AbCdEf12.tmp",
             ".uid.bg.png.AbCdEf12.tmp",
+            ".uid.icon-0a1b.png.AbCdEf12.tmp",
             ".other.png.AbCdEf12.tmp",
             "uid.png",
         ] {
             assert!(std::fs::write(dir.join(name), b"x").is_ok());
         }
         assert_eq!(sweep_staging_leftovers_of(&dir, "uid").await, 2);
+        assert!(dir.join(".uid.bg.png.AbCdEf12.tmp").exists(), "черновик соседа");
+        assert!(dir.join(".uid.icon-0a1b.png.AbCdEf12.tmp").exists(), "черновик соседа");
         assert!(dir.join(".other.png.AbCdEf12.tmp").exists());
         assert!(dir.join("uid.png").exists());
         let _ = std::fs::remove_dir_all(&dir);

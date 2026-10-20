@@ -549,8 +549,8 @@ export async function copyIconFile(
   return invoke<string>('copy_icon_file', { path, name })
 }
 
-export async function downloadIconCache(url: string, name: string) {
-  return invoke<string>('download_icon_cache', { url, name })
+export async function getGroupIcon(uid: string, url: string) {
+  return invoke<ProviderPicture>('get_group_icon', { uid, url })
 }
 
 export async function getNetworkInterfaces() {

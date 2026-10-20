@@ -1,11 +1,24 @@
 import { Box } from '@mui/material'
 
-import { useIconCache } from '@/hooks/use-icon-cache'
-import { providerImageView } from '@/utils/provider-image'
+import { getGroupIcon } from '@/services/cmds'
+import { useQuery } from '@/services/query-client'
+import {
+  awaitsCopy,
+  PICTURE_RETRY_MS,
+  providerImageView,
+} from '@/utils/provider-image'
 
-export const GroupIcon = ({ icon, name }: { icon?: string; name: string }) => {
-  const cached = useIconCache({ icon, cacheKey: name.replaceAll(' ', '') })
-  const view = providerImageView(icon, cached ? { ready: cached } : undefined)
+/** Значок группы подписки `uid`: копию по адресу из её конфига держит приложение. */
+export const GroupIcon = ({ icon, uid }: { icon?: string; uid?: string }) => {
+  const url = icon?.trim() ?? ''
+  const { data } = useQuery({
+    queryKey: ['groupIcon', uid, url],
+    queryFn: () => getGroupIcon(uid as string, url),
+    enabled: !!uid && url.startsWith('http'),
+    refetchInterval: (cached) => (awaitsCopy(cached) ? PICTURE_RETRY_MS : 0),
+    refetchOnWindowFocus: false,
+  })
+  const view = providerImageView(icon, uid ? data : 'never')
 
   if (view === undefined) return null
   if (view === 'pending') {

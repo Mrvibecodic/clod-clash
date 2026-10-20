@@ -17,12 +17,13 @@ import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
 import { getProfileLogo } from '@/services/cmds'
 import { profileDisplayName } from '@/utils/profile-name'
-import { awaitsCopy, providerImageView } from '@/utils/provider-image'
+import {
+  awaitsCopy,
+  PICTURE_RETRY_MS,
+  providerImageView,
+} from '@/utils/provider-image'
 import { clockSkew, missedUpdates } from '@/utils/subscription-status'
 
-// Чаще спрашивать незачем: после неудачной загрузки бэкенд столько же не идёт
-// за картинкой снова (`logo_cache::RETRY_AFTER`).
-const LOGO_RETRY_MS = 10 * 60_000
 const LOGO_SX = { width: 42, height: 42, borderRadius: '12px', flex: 'none' }
 
 interface Props {
@@ -71,7 +72,7 @@ export const ProviderHeader = ({ profile, showSettings }: Props) => {
     {
       revalidateOnFocus: false,
       refreshInterval: (data) =>
-        profile.logo && awaitsCopy(data) ? LOGO_RETRY_MS : 0,
+        profile.logo && awaitsCopy(data) ? PICTURE_RETRY_MS : 0,
     },
   )
   const logo = providerImageView(profile.logo, cachedLogo)

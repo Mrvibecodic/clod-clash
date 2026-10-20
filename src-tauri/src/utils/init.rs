@@ -645,6 +645,10 @@ pub async fn init_config() -> Result<()> {
                 );
             }
         }
+        // Значки групп раньше лежали здесь общими для всех подписок.
+        if let Ok(dir) = dirs::app_icons_dir() {
+            let _ = tokio::fs::remove_dir_all(dir.join("cache")).await;
+        }
         if let Err(e) = delete_log().await {
             logging!(warn, Type::Setup, "Failed to clean old logs: {}", e);
         }

@@ -802,6 +802,12 @@ pub async fn get_profile_background(uid: String) -> CmdResult<Option<String>> {
     )
 }
 
+/// Значок группы подписки `uid` по адресу из её конфига — копия этой подписки.
+#[tauri::command]
+pub async fn get_group_icon(uid: String, url: String) -> CmdResult<crate::module::logo_cache::Shown> {
+    Ok(crate::module::logo_cache::group_icon(&uid, &url).await)
+}
+
 #[cfg(test)]
 mod delete_tests {
     use super::{OnStageRefused, delete_unless_current_in, on_stage_refused, without};
