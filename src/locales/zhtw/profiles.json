@@ -53,7 +53,7 @@
     "menu": {
       "subscriptionPage": "訂閱頁面",
       "select": "使用",
-      "editInfo": "編輯資訊",
+      "editInfo": "Edit subscription",
       "editFile": "編輯檔案",
       "editRules": "編輯規則",
       "editProxies": "編輯節點",

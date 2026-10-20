@@ -231,7 +231,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     : Math.max(0, Math.ceil((expireSeconds - (now / 1000 + skew)) / 86400))
   const expire = neverExpires
     ? t('profiles.components.profileItem.labels.neverExpires')
-    : daysLeft !== undefined
+    : daysLeft !== undefined && daysLeft > 0
       ? t('profiles.components.profileItem.labels.expiresIn', {
           count: daysLeft,
           date: profileDate(expireSeconds - skew),

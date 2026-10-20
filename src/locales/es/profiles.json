@@ -53,7 +53,7 @@
     "menu": {
       "subscriptionPage": "Página de la suscripción",
       "select": "Usar",
-      "editInfo": "Editar información",
+      "editInfo": "Edit subscription",
       "editFile": "Editar archivo",
       "editRules": "Editar reglas",
       "editProxies": "Editar nodos",

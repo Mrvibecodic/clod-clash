@@ -53,7 +53,7 @@
     "menu": {
       "subscriptionPage": "Abo-Seite",
       "select": "Verwenden",
-      "editInfo": "Informationen bearbeiten",
+      "editInfo": "Edit subscription",
       "editFile": "Datei bearbeiten",
       "editRules": "Regeln bearbeiten",
       "editProxies": "Knoten bearbeiten",
