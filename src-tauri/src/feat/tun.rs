@@ -1462,6 +1462,15 @@ pub async fn init_startup_setup() {
 
     let outcome = ensure_ready(false).await;
     logging!(info, Type::Service, "startup TUN readiness: {:?}", outcome);
+    if startup_owes_the_rights_notice(outcome, last_failure()) {
+        announce_once(FAILURE_NO_RIGHTS, "tun::no_rights");
+    }
+}
+
+/// Старт без службы отложил совет «нет прав» до итога подготовки; итог «окно
+/// прав так и не ответили» о себе не говорит — совет остаётся за стартом.
+fn startup_owes_the_rights_notice(outcome: SetupOutcome, failure: Option<&'static str>) -> bool {
+    outcome == SetupOutcome::Pending && failure == Some(FAILURE_NO_RIGHTS)
 }
 
 #[cfg(test)]
@@ -1784,6 +1793,21 @@ mod tests {
         clear_suppression();
         assert!(!is_suppressed());
         assert_eq!(START_ATTEMPTS.load(Ordering::Acquire), 0);
+    }
+
+    #[test]
+    fn a_startup_left_without_an_answer_to_the_rights_prompt_still_says_tun_is_off() {
+        for outcome in EVERY_OUTCOME {
+            assert_eq!(
+                startup_owes_the_rights_notice(outcome, Some(FAILURE_NO_RIGHTS)),
+                outcome == SetupOutcome::Pending,
+                "{outcome:?}: о себе молчит только исход «окно прав не ответили»"
+            );
+            assert!(
+                !startup_owes_the_rights_notice(outcome, None),
+                "{outcome:?}: старт без службы TUN не гасил — сказать нечего"
+            );
+        }
     }
 
     const EVERY_OUTCOME: [SetupOutcome; 8] = [
