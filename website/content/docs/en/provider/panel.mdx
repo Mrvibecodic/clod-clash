@@ -12,8 +12,8 @@ Here is the minimum without which the client won't work.
 In **Subscription response rules** add a rule with the regular expression
 `^ClodClash` (or case-insensitive — `caseSensitive: false`, as in the example below) and
 the **MIHOMO** format. Without it the panel returns its default response, and the client
-won't accept the subscription (for a base64 list of links it shows "The panel returned a link
-list instead of a configuration — it did not recognise the client").
+won't accept the subscription (for a base64 list of links it shows "The provider returned a link
+list instead of a configuration — its panel did not recognise the client").
 
 The client identifies itself as `ClodClash/<version>`, and the version may have a suffix
 (`0.1.11-alpha.3`) — so match the prefix, not an exact string. For server descriptions
