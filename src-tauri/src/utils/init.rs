@@ -935,6 +935,25 @@ mod tests {
     use serde_yaml_ng::{Mapping, Value};
     use std::time::{Duration, SystemTime};
 
+    #[test]
+    fn the_start_up_file_fixes_do_not_load_the_settings_into_memory() {
+        use crate::utils::source_scan::{fn_body, without_test_modules};
+        let init = without_test_modules(include_str!("init.rs"));
+        let files = fn_body(init, "async fn initialize_config_files()").unwrap_or_default();
+        assert!(
+            !files.is_empty(),
+            "тело initialize_config_files не найдено — тест ослеп"
+        );
+        assert!(!files.contains("Config::"), "{files}");
+        let verge = without_test_modules(include_str!("../config/verge.rs"));
+        let fix = fn_body(verge, "pub async fn validate_and_fix_config()").unwrap_or_default();
+        assert!(!fix.is_empty(), "тело validate_and_fix_config не найдено — тест ослеп");
+        assert!(
+            !fix.contains("Config::") && !fix.contains("reload_config_after_fix"),
+            "{fix}"
+        );
+    }
+
     fn settings(core: Option<&str>, moved: Option<bool>) -> Mapping {
         let mut verge = Mapping::new();
         if let Some(core) = core {

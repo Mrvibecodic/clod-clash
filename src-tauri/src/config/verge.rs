@@ -1,4 +1,3 @@
-use crate::config::Config;
 use crate::{
     config::{DEFAULT_PAC, deserialize_encrypted, serialize_encrypted},
     utils::{dirs, help},
@@ -338,13 +337,7 @@ impl IVerge {
         if needs_fix {
             logging!(info, Type::Config, "Сохраняю исправленный конфиг...");
             help::save_yaml(&config_path, &config, Some(help::VERGE_CONFIG_HEADER)).await?;
-            logging!(
-                info,
-                Type::Config,
-                "Исправление конфига завершено, требуется перезагрузка конфига"
-            );
-
-            Self::reload_config_after_fix(config).await?;
+            logging!(info, Type::Config, "Исправление конфига завершено");
         } else {
             logging!(
                 info,
@@ -353,23 +346,6 @@ impl IVerge {
                 config.clash_core
             );
         }
-
-        Ok(())
-    }
-
-    async fn reload_config_after_fix(updated_config: Self) -> Result<()> {
-        logging!(
-            info,
-            Type::Config,
-            "Конфиг в памяти принудительно обновлён, новый clash_core: {:?}",
-            &updated_config.clash_core
-        );
-
-        let config_draft = Config::verge().await;
-        config_draft.edit_draft(|d| {
-            *d = updated_config;
-        });
-        config_draft.apply();
 
         Ok(())
     }
