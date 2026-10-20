@@ -251,39 +251,51 @@ function clashMeta(version) {
 // =======================
 // download helper (расширено: status + magic bytes)
 // =======================
+async function keepFailedDownload(outPath, body) {
+  const errorPath = path.join(TEMP_DIR, `${path.basename(outPath)}.error`)
+  await fsp.mkdir(TEMP_DIR, { recursive: true })
+  await fsp.writeFile(errorPath, body)
+  log_error(`server response saved to ${errorPath}`)
+}
+
 async function downloadFile(url, outPath) {
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/octet-stream' },
   })
   if (!response.ok) {
     const body = await response.text().catch(() => '')
-    // Записываем body в файл для диагностики (можно посмотреть во временном каталоге)
-    await fsp.mkdir(path.dirname(outPath), { recursive: true })
-    await fsp.writeFile(outPath, body)
+    await keepFailedDownload(outPath, body)
     throw new Error(`Failed to download ${url}: status ${response.status}`)
   }
 
   const buf = Buffer.from(await response.arrayBuffer())
-  await fsp.mkdir(path.dirname(outPath), { recursive: true })
 
   // Простая проверка magic bytes
   if (url.endsWith('.gz')) {
     if (!(buf[0] === 0x1f && buf[1] === 0x8b)) {
-      await fsp.writeFile(outPath, buf)
+      await keepFailedDownload(outPath, buf)
       throw new Error(
         `Downloaded file for ${url} is not a valid gzip (magic mismatch).`,
       )
     }
   } else if (url.endsWith('.zip')) {
     if (!(buf[0] === 0x50 && buf[1] === 0x4b)) {
-      await fsp.writeFile(outPath, buf)
+      await keepFailedDownload(outPath, buf)
       throw new Error(
         `Downloaded file for ${url} is not a valid zip (magic mismatch).`,
       )
     }
   }
 
-  await fsp.writeFile(outPath, buf)
+  await fsp.mkdir(path.dirname(outPath), { recursive: true })
+  const partPath = `${outPath}.part`
+  try {
+    await fsp.writeFile(partPath, buf)
+    await fsp.rename(partPath, outPath)
+  } catch (err) {
+    await fsp.rm(partPath, { force: true })
+    throw err
+  }
   log_success(`download finished: ${url}`)
 }
 
