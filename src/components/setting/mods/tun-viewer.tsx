@@ -26,6 +26,7 @@ import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
+import { withListDraft } from '@/utils/list-draft'
 import { areValidIpCidrs } from '@/utils/network'
 import {
   TUN_RESET,
@@ -62,6 +63,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const [values, setValues] = useState(FRESH)
   // Что было при открытии: сохраняется только то, что человек поменял.
   const [initial, setInitial] = useState(FRESH)
+  const [routeExcludeDraft, setRouteExcludeDraft] = useState('')
 
   const effectiveStack = (
     tunRuntimeStack ??
@@ -100,15 +102,26 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
     CAPPED_STACKS.includes(subscriptionStack as string) &&
     effectiveStack === 'gvisor'
 
-  const changes = useChangeCount(initial, values)
+  const withDraft = {
+    ...values,
+    routeExcludeAddress: withListDraft(
+      values.routeExcludeAddress,
+      routeExcludeDraft,
+      ',',
+    ),
+  }
+  const changes = useChangeCount(initial, withDraft)
 
   const routeExcludeAddressItems = splitRouteExcludeAddress(
     values.routeExcludeAddress,
   )
-  const routeExcludeAddressError =
-    values.autoRoute &&
-    routeExcludeAddressItems.length > 0 &&
-    !areValidIpCidrs(routeExcludeAddressItems)
+  const routeExcludeInvalid = (address: string) => {
+    const items = splitRouteExcludeAddress(address)
+    return values.autoRoute && items.length > 0 && !areValidIpCidrs(items)
+  }
+  const routeExcludeAddressError = routeExcludeInvalid(
+    values.routeExcludeAddress,
+  )
   const routeExcludeAddressHelperText = routeExcludeAddressError
     ? t('settings.modals.tun.messages.invalidRouteExcludeAddress')
     : t('settings.modals.tun.messages.routeExcludeAddressHint')
@@ -124,13 +137,14 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
       setValues(opened)
       setInitial(opened)
+      setRouteExcludeDraft('')
     },
     close: () => setOpen(false),
   }))
 
   const onSave = useLockFn(async () => {
     try {
-      if (routeExcludeAddressError) {
+      if (routeExcludeInvalid(withDraft.routeExcludeAddress)) {
         showNotice.error(
           'settings.modals.tun.messages.invalidRouteExcludeAddress',
         )
@@ -156,7 +170,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         await patchVerge(overrides)
         mutateVerge({ ...verge, ...overrides })
       }
-      const tun = tunPatch(initial, values, OS)
+      const tun = tunPatch(initial, withDraft, OS)
       if (Object.keys(tun).length > 0) {
         await patchClash({ tun })
       }
@@ -204,7 +218,10 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
       dividers
       changes={changes}
-      onReset={() => setValues(initial)}
+      onReset={() => {
+        setValues(initial)
+        setRouteExcludeDraft('')
+      }}
       contentSx={{ width: 512 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
@@ -377,6 +394,8 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
       <BaseSplitChipEditor
         value={values.routeExcludeAddress}
+        draft={routeExcludeDraft}
+        onDraftChange={setRouteExcludeDraft}
         placeholder="192.168.0.0/16"
         ariaLabel={t('settings.modals.tun.fields.routeExcludeAddress')}
         disabled={!values.autoRoute}

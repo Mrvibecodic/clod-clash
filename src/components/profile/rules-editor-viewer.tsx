@@ -644,6 +644,22 @@ export const RulesEditorViewer = (props: Props) => {
           ? t('rules.modals.editor.form.validation.duplicate')
           : null
   const showError = tried && ruleError !== null
+  const pendingRule = visualization && required && value !== ''
+  const withPending = pendingRule && ruleError === null
+  const nextPrepend = useMemo(
+    () =>
+      withPending && position === 'prepend'
+        ? [rawRule, ...prependSeq]
+        : prependSeq,
+    [withPending, position, rawRule, prependSeq],
+  )
+  const nextAppend = useMemo(
+    () =>
+      withPending && position === 'append'
+        ? [...appendSeq, rawRule]
+        : appendSeq,
+    [withPending, position, rawRule, appendSeq],
+  )
 
   const addRule = () => {
     setTried(true)
@@ -663,21 +679,25 @@ export const RulesEditorViewer = (props: Props) => {
       from.filter((item) => !to.includes(item)).length
     return {
       added:
-        missing(prependSeq, disk.prepend) +
-        missing(appendSeq, disk.append) +
+        missing(nextPrepend, disk.prepend) +
+        missing(nextAppend, disk.append) +
         missing(disk.delete, deleteSeq),
       removed:
-        missing(disk.prepend, prependSeq) +
-        missing(disk.append, appendSeq) +
+        missing(disk.prepend, nextPrepend) +
+        missing(disk.append, nextAppend) +
         missing(deleteSeq, disk.delete),
       onDisk: baseline !== null,
     }
-  }, [ready, baseline, prependSeq, appendSeq, deleteSeq])
-  const unchanged = visualization && changes !== null && !dirty
+  }, [ready, baseline, nextPrepend, nextAppend, deleteSeq])
+  const unchanged = visualization && changes !== null && !dirty && !pendingRule
 
   const handleSave = useLockFn(async () => {
     try {
-      if (await save()) onClose()
+      if (pendingRule && ruleError) {
+        setTried(true)
+        return
+      }
+      if (await save({ prepend: nextPrepend, append: nextAppend })) onClose()
     } catch (err: any) {
       showNotice.error(err)
     }
@@ -727,7 +747,7 @@ export const RulesEditorViewer = (props: Props) => {
   return (
     <Dialog
       open={open}
-      onClose={dismissUnlessDirty(dirty, onClose)}
+      onClose={dismissUnlessDirty(dirty || pendingRule, onClose)}
       maxWidth="xl"
       fullWidth
       disableEnforceFocus={!visualization}
@@ -1142,7 +1162,7 @@ export const RulesEditorViewer = (props: Props) => {
         >
           <ReadFailureNote failure={readFailure} />
           {visualization && changes ? (
-            dirty ? (
+            dirty || withPending ? (
               <>
                 <Box
                   component="span"

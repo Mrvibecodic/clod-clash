@@ -32,6 +32,7 @@ import { getNetworkInterfacesInfo, getSystemHostname } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
 import getSystem from '@/utils/get-system'
+import { withListDraft } from '@/utils/list-draft'
 import { LOOPBACK_PROXY_HOSTS } from '@/utils/ports'
 
 const DEFAULT_PAC = `function FindProxyForURL(url, host) {
@@ -124,10 +125,12 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
 
   const [value, setValue] = useState(snapshot)
   const [initial, setInitial] = useState(value)
-  const changes = useChangeCount(initial, value)
+  const [bypassDraft, setBypassDraft] = useState('')
   const [bypassExpanded, setBypassExpanded] = useState(false)
 
   const separator = useMemo(() => (isWindows ? ';' : ','), [isWindows])
+  const bypass = withListDraft(value.bypass, bypassDraft, separator)
+  const changes = useChangeCount(initial, { ...value, bypass })
 
   const defaultBypass = () => {
     if (isWindows) {
@@ -167,6 +170,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       const opened = snapshot()
       setValue(opened)
       setInitial(opened)
+      setBypassDraft('')
       setBypassExpanded(false)
       fetchNetworkInterfaces()
     },
@@ -240,8 +244,8 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     if (
       value.enable_bypass_check &&
       !value.pac &&
-      value.bypass &&
-      !validReg.test(value.bypass)
+      bypass &&
+      !validReg.test(bypass)
     ) {
       showNotice.error('settings.modals.sysproxy.messages.invalidBypass')
       return
@@ -275,8 +279,8 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     if (value.duration !== proxy_guard_duration) {
       patch.proxy_guard_duration = value.duration
     }
-    if (value.bypass !== system_proxy_bypass) {
-      patch.system_proxy_bypass = value.bypass
+    if (bypass !== system_proxy_bypass) {
+      patch.system_proxy_bypass = bypass
     }
     if (value.pac !== proxy_auto_config) {
       patch.proxy_auto_config = value.pac
@@ -334,7 +338,10 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       title={t('settings.modals.sysproxy.title')}
       dividers
       changes={changes}
-      onReset={() => setValue(initial)}
+      onReset={() => {
+        setValue(initial)
+        setBypassDraft('')
+      }}
       contentSx={{ width: 532 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
@@ -546,6 +553,8 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
           </FormRow>
           <BaseSplitChipEditor
             value={value.bypass ?? ''}
+            draft={bypassDraft}
+            onDraftChange={setBypassDraft}
             separator={separator}
             error={bypassError}
             helperText={

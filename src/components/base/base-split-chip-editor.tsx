@@ -10,6 +10,8 @@ import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { splitList, withListDraft } from '@/utils/list-draft'
+
 import { BaseSegmented, FormHint, FormTile } from './base-form'
 import { MONO_INPUT, MONO_TEXT } from './base-mono'
 
@@ -18,6 +20,8 @@ type BaseSplitChipEditorMode = 'visual' | 'advanced'
 interface BaseSplitChipEditorProps {
   value?: string
   onChange: (value: string) => void
+  draft: string
+  onDraftChange: (draft: string) => void
   disabled?: boolean
   error?: boolean
   helperText?: ReactNode
@@ -26,14 +30,6 @@ interface BaseSplitChipEditorProps {
   ariaLabel?: string
   renderHeader?: (modeToggle: ReactNode) => ReactNode
 }
-
-const DEFAULT_SPLIT_PATTERN = /[,\n;\r]+/
-
-const splitValue = (value: string) =>
-  value
-    .split(DEFAULT_SPLIT_PATTERN)
-    .map((item) => item.trim())
-    .filter(Boolean)
 
 interface BaseListTilesProps {
   items: { key: string | number; value: string }[]
@@ -134,6 +130,8 @@ export const BaseListTiles = ({
 export const BaseSplitChipEditor = ({
   value = '',
   onChange,
+  draft,
+  onDraftChange,
   disabled = false,
   error = false,
   helperText,
@@ -144,9 +142,8 @@ export const BaseSplitChipEditor = ({
 }: BaseSplitChipEditorProps) => {
   const { t } = useTranslation()
   const [mode, setMode] = useState<BaseSplitChipEditorMode>('visual')
-  const [draft, setDraft] = useState('')
 
-  const values = useMemo(() => splitValue(value), [value])
+  const values = useMemo(() => splitList(value), [value])
 
   const items = useMemo(() => {
     const counts = new Map<string, number>()
@@ -161,13 +158,11 @@ export const BaseSplitChipEditor = ({
   }, [values])
 
   const handleAddDraft = () => {
-    const nextValues = splitValue(draft)
-    if (!nextValues.length) {
+    if (!splitList(draft).length) {
       return
     }
-    const nextValue = [...values, ...nextValues].join(separator)
-    onChange(nextValue)
-    setDraft('')
+    onChange(withListDraft(value, draft, separator))
+    onDraftChange('')
   }
 
   const handleRemoveItem = (index: number) => {
@@ -185,8 +180,8 @@ export const BaseSplitChipEditor = ({
         ]}
         onChange={(nextMode) => {
           setMode(nextMode)
-          if (nextMode === 'visual') {
-            setDraft('')
+          if (nextMode === 'advanced') {
+            handleAddDraft()
           }
         }}
       />
@@ -208,7 +203,7 @@ export const BaseSplitChipEditor = ({
             items={items}
             onRemove={handleRemoveItem}
             draft={draft}
-            onDraftChange={setDraft}
+            onDraftChange={onDraftChange}
             onAdd={handleAddDraft}
             placeholder={placeholder}
             disabled={disabled}

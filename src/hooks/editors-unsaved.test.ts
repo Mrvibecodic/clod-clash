@@ -31,10 +31,28 @@ describe('окна с несохранённым', () => {
     ]) {
       assert.match(
         source(path),
-        /onClose=\{dismissUnlessDirty\(dirty, (onClose|handleClose)\)\}/,
+        /onClose=\{dismissUnlessDirty\(dirty( \|\| pendingRule)?, (onClose|handleClose)\)\}/,
         path,
       )
     }
+  })
+
+  it('набранное, но не добавленное — тоже несохранённое, «Сохранить» его добавляет', () => {
+    const rules = source('../components/profile/rules-editor-viewer.tsx')
+    assert.match(rules, /dismissUnlessDirty\(dirty \|\| pendingRule, onClose\)/)
+    assert.match(
+      rules,
+      /save\(\{ prepend: nextPrepend, append: nextAppend \}\)/,
+    )
+    const sysproxy = source('../components/setting/mods/sysproxy-viewer.tsx')
+    assert.match(
+      sysproxy,
+      /useChangeCount\(initial, \{ \.\.\.value, bypass \}\)/,
+    )
+    assert.match(sysproxy, /patch\.system_proxy_bypass = bypass/)
+    const tun = source('../components/setting/mods/tun-viewer.tsx')
+    assert.match(tun, /useChangeCount\(initial, withDraft\)/)
+    assert.match(tun, /tunPatch\(initial, withDraft, OS\)/)
   })
 
   it('признак несохранённого у наглядного вида — от диска, у текста — от чистого текста', () => {

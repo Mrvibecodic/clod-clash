@@ -105,11 +105,8 @@ export const useSeqDocument = <T>(
     }
   }, [applyText, isItem, open, property, readDelete])
 
-  const dump = () =>
-    yaml.dump(
-      { prepend: prependSeq, append: appendSeq, delete: deleteSeq },
-      { forceQuotes: true },
-    )
+  const dump = (prepend = prependSeq, append = appendSeq) =>
+    yaml.dump({ prepend, append, delete: deleteSeq }, { forceQuotes: true })
 
   const seqDirty = seqUnsaved(status === 'ready', baseline, {
     prepend: prependSeq,
@@ -144,8 +141,13 @@ export const useSeqDocument = <T>(
     setDeleteSeq(baseline.delete)
   }
 
-  const save = async () => {
-    if (!(await saveProfileFile(property, visualization ? dump() : text))) {
+  const save = async (next?: { prepend: T[]; append: T[] }) => {
+    if (
+      !(await saveProfileFile(
+        property,
+        visualization ? dump(next?.prepend, next?.append) : text,
+      ))
+    ) {
       return false
     }
     showNotice.success('shared.feedback.notifications.saved')
