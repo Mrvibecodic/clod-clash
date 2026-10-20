@@ -26,8 +26,8 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Proxy Count",
-      "noProxies": "No Proxies"
+      "proxyCount": "Node count",
+      "noProxies": "No nodes"
     },
     "tooltips": {
       "locate": "رفتن به گره انتخاب‌شده",
@@ -80,8 +80,8 @@
         "updateSuccess": "{{name}} updated successfully",
         "updateFailed": "Failed to update {{name}}: {{message}}",
         "genericError": "Update failed: {{message}}",
-        "none": "No server sets to update",
-        "allUpdated": "All server sets updated"
+        "none": "No node sets to update",
+        "allUpdated": "All node sets updated"
       }
     }
   },

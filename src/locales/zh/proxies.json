@@ -27,7 +27,7 @@
     },
     "labels": {
       "proxyCount": "节点数量",
-      "noProxies": "No Proxies"
+      "noProxies": "No nodes"
     },
     "tooltips": {
       "locate": "定位到所选节点",

@@ -27,7 +27,7 @@
     },
     "labels": {
       "proxyCount": "Número de nodos",
-      "noProxies": "No Proxies"
+      "noProxies": "No nodes"
     },
     "tooltips": {
       "locate": "Ir al nodo seleccionado",
@@ -80,8 +80,8 @@
         "updateSuccess": "{{name}} updated successfully",
         "updateFailed": "Failed to update {{name}}: {{message}}",
         "genericError": "Update failed: {{message}}",
-        "none": "No server sets to update",
-        "allUpdated": "All server sets updated"
+        "none": "No node sets to update",
+        "allUpdated": "All node sets updated"
       }
     }
   },
