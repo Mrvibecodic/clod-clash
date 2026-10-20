@@ -233,7 +233,8 @@
       },
       "messages": {
         "readOnly": "읽기 전용 편집기에서는 편집할 수 없습니다",
-        "readFailed": "Could not read the file"
+        "readFailed": "Could not read the file",
+        "partialRead": "Some subscription files could not be read — the lists in this window may be incomplete: {{reason}}"
       }
     },
     "confirmDelete": {

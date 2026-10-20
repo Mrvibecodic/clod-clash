@@ -233,7 +233,8 @@
       },
       "messages": {
         "readOnly": "لا يمكن التعديل في محرر القراءة فقط",
-        "readFailed": "Could not read the file"
+        "readFailed": "Could not read the file",
+        "partialRead": "Some subscription files could not be read — the lists in this window may be incomplete: {{reason}}"
       }
     },
     "confirmDelete": {

@@ -44,6 +44,7 @@ import {
   MonacoEditor,
   StickyVirtualList,
 } from '@/components/base'
+import { ReadFailureNote } from '@/components/profile/read-failure-note'
 import { RuleItem } from '@/components/profile/rule-item'
 import { useSeqDocument } from '@/hooks/use-seq-document'
 import { NARROW } from '@/pages/_theme'
@@ -52,8 +53,10 @@ import { showNotice } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
+import type { EditorReadFailure } from '@/utils/editor-save'
 import getSystem from '@/utils/get-system'
 import { isValidIpCidr } from '@/utils/network'
+import { readEachFile } from '@/utils/profile-files'
 import { BUILTIN_RULE_POLICIES } from '@/utils/proxy-groups'
 import { isBuiltinPolicy, policyName, ruleTypeName } from '@/utils/rule-labels'
 import { EMPTY_SEQ_LISTS } from '@/utils/seq-unsaved'
@@ -372,6 +375,7 @@ export const RulesEditorViewer = (props: Props) => {
   const [ruleList, setRuleList] = useState<string[]>([])
   const [ruleSetList, setRuleSetList] = useState<string[]>([])
   const [subRuleList, setSubRuleList] = useState<string[]>([])
+  const [readFailure, setReadFailure] = useState<EditorReadFailure | null>(null)
 
   const filteredPrependSeq = useMemo(
     () => prependSeq.filter((rule) => match(rule)),
@@ -545,9 +549,11 @@ export const RulesEditorViewer = (props: Props) => {
   }
 
   const fetchProfile = useCallback(async () => {
-    const data = await readProfileFile(profileUid) // исходный конфиг-файл
-    const groupsData = await readProfileFile(groupsUid) // конфиг-файл groups
-    const mergeData = await readProfileFile(mergeUid) // конфиг-файл merge
+    const {
+      texts: [data, groupsData, mergeData],
+      failure,
+    } = await readEachFile([profileUid, groupsUid, mergeUid], readProfileFile)
+    setReadFailure(failure)
 
     const rulesObj = parseYamlSafe(data) as { rules: [] } | null
 
@@ -1149,6 +1155,7 @@ export const RulesEditorViewer = (props: Props) => {
         <Box
           sx={{ flex: 1, minWidth: 0, fontSize: 13, color: 'text.secondary' }}
         >
+          <ReadFailureNote failure={readFailure} />
           {visualization && changes ? (
             dirty ? (
               <>

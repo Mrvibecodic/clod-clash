@@ -233,7 +233,8 @@
       },
       "messages": {
         "readOnly": "No se puede editar en modo de solo lectura",
-        "readFailed": "Could not read the file"
+        "readFailed": "Could not read the file",
+        "partialRead": "Some subscription files could not be read — the lists in this window may be incomplete: {{reason}}"
       }
     },
     "confirmDelete": {

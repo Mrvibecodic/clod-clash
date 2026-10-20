@@ -44,13 +44,16 @@ import {
   VirtualList,
 } from '@/components/base'
 import { GroupItem } from '@/components/profile/group-item'
+import { ReadFailureNote } from '@/components/profile/read-failure-note'
 import { useSeqDocument } from '@/hooks/use-seq-document'
 import { getNetworkInterfaces, readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
+import type { EditorReadFailure } from '@/utils/editor-save'
 import { optionalInt } from '@/utils/optional-int'
+import { readEachFile } from '@/utils/profile-files'
 import { BUILTIN_GROUP_POLICIES } from '@/utils/proxy-groups'
 import { parseYamlSafe } from '@/utils/yaml'
 
@@ -168,6 +171,10 @@ export const GroupsEditorViewer = (props: Props) => {
   const [groupList, setGroupList] = useState<IProxyGroupConfig[]>([])
   const [proxyPolicyList, setProxyPolicyList] = useState<string[]>([])
   const [proxyProviderList, setProxyProviderList] = useState<string[]>([])
+  const [profileReadFailure, setProfileReadFailure] =
+    useState<EditorReadFailure | null>(null)
+  const [policyReadFailure, setPolicyReadFailure] =
+    useState<EditorReadFailure | null>(null)
 
   const filteredPrependSeq = useMemo(
     () => prependSeq.filter((group) => match(group.name)),
@@ -317,8 +324,11 @@ export const GroupsEditorViewer = (props: Props) => {
     }
   }
   const fetchProxyPolicy = useCallback(async () => {
-    const data = await readProfileFile(profileUid)
-    const proxiesData = await readProfileFile(proxiesUid)
+    const {
+      texts: [data, proxiesData],
+      failure,
+    } = await readEachFile([profileUid, proxiesUid], readProfileFile)
+    setPolicyReadFailure(failure)
     const originGroupsObj = parseYamlSafe(data) as {
       'proxy-groups': IProxyGroupConfig[]
     } | null
@@ -363,8 +373,11 @@ export const GroupsEditorViewer = (props: Props) => {
     setProxyPolicyList(Array.from(new Set(computedPolicyList)))
   }, [appendSeq, deleteSeq, prependSeq, profileUid, proxiesUid])
   const fetchProfile = useCallback(async () => {
-    const data = await readProfileFile(profileUid)
-    const mergeData = await readProfileFile(mergeUid)
+    const {
+      texts: [data, mergeData],
+      failure,
+    } = await readEachFile([profileUid, mergeUid], readProfileFile)
+    setProfileReadFailure(failure)
 
     const originGroupsObj = parseYamlSafe(data) as {
       'proxy-groups': IProxyGroupConfig[]
@@ -1065,6 +1078,9 @@ export const GroupsEditorViewer = (props: Props) => {
       </DialogContent>
 
       <DialogActions>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <ReadFailureNote failure={profileReadFailure ?? policyReadFailure} />
+        </Box>
         <Button onClick={onClose} variant="outlined">
           {t('shared.actions.cancel')}
         </Button>

@@ -39,11 +39,14 @@ import {
   VirtualList,
 } from '@/components/base'
 import { ProxyItem } from '@/components/profile/proxy-item'
+import { ReadFailureNote } from '@/components/profile/read-failure-note'
 import { useSeqDocument } from '@/hooks/use-seq-document'
 import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
+import type { EditorReadFailure } from '@/utils/editor-save'
+import { readEachFile } from '@/utils/profile-files'
 import parseUri from '@/utils/uri-parser'
 import { parseYamlSafe } from '@/utils/yaml'
 
@@ -78,6 +81,7 @@ export const ProxiesEditorViewer = (props: Props) => {
   const [proxyUri, setProxyUri] = useState<string>('')
 
   const [proxyList, setProxyList] = useState<IProxyConfig[]>([])
+  const [readFailure, setReadFailure] = useState<EditorReadFailure | null>(null)
 
   // clod: имя ноды служит и ключом React, и идентификатором в сортировке.
   // Нода без имени (вставили в текстовом режиме кусок конфига без `name`)
@@ -295,7 +299,11 @@ export const ProxiesEditorViewer = (props: Props) => {
     parseBatch()
   }
   const fetchProfile = useCallback(async () => {
-    const data = await readProfileFile(profileUid)
+    const {
+      texts: [data],
+      failure,
+    } = await readEachFile([profileUid], readProfileFile)
+    setReadFailure(failure)
 
     const originProxiesObj = parseYamlSafe(data) as {
       proxies: IProxyConfig[]
@@ -457,6 +465,9 @@ export const ProxiesEditorViewer = (props: Props) => {
       </DialogContent>
 
       <DialogActions>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <ReadFailureNote failure={readFailure} />
+        </Box>
         <Button onClick={onClose} variant="outlined">
           {t('shared.actions.cancel')}
         </Button>
