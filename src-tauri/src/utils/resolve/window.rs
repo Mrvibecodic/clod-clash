@@ -523,7 +523,7 @@ pub fn on_web_content_process_terminated(webview: &tauri::Webview) {
 
     let webview = webview.clone();
     crate::process::AsyncHandler::spawn(move || async move {
-        if let Err(err) = handle::Handle::mihomo().clear_all_ws_connections() {
+        if let Err(err) = crate::utils::window_manager::WindowManager::close_the_page_streams() {
             logging!(
                 warn,
                 Type::Window,

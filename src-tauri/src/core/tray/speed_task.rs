@@ -99,6 +99,7 @@ impl TraySpeedController {
 
                 Self::set_speed_connection_id(&speed_connection_id, Some(speed_stream.connection_id));
 
+                let mut closed_with_the_page = false;
                 loop {
                     let next_state = speed_stream
                         .next_event(TRAY_SPEED_STALE_TIMEOUT, || handle::Handle::global().is_exiting())
@@ -117,6 +118,10 @@ impl TraySpeedController {
                             Self::apply_tray_speed(0, 0);
                             break;
                         }
+                        connections_stream::StreamConsumeState::ClosedWithThePage => {
+                            closed_with_the_page = true;
+                            break;
+                        }
                         connections_stream::StreamConsumeState::Closed
                         | connections_stream::StreamConsumeState::ExitRequested => {
                             break;
@@ -128,6 +133,9 @@ impl TraySpeedController {
 
                 if handle::Handle::global().is_exiting() || !Self::has_main_tray() {
                     break;
+                }
+                if closed_with_the_page {
+                    continue;
                 }
 
                 // Ветка Stale уже сбросила значение до 0/0 во внутреннем loop;

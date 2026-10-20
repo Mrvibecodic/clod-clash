@@ -333,6 +333,14 @@ impl WindowManager {
         })
     }
 
+    /// Закрыть потоки окна. Плагин держит их в одном наборе с потоками
+    /// бэкенда и закрывает только всем набором: бэкенду об этом говорится.
+    pub fn close_the_page_streams() -> Result<(), tauri_plugin_mihomo::Error> {
+        #[cfg(target_os = "macos")]
+        crate::utils::connections_stream::the_page_streams_are_closing();
+        handle::Handle::mihomo().clear_all_ws_connections()
+    }
+
     pub fn destroy_main_window() -> WindowOperationResult {
         if let Some(window) = Self::get_main_window() {
             crate::core::notification::frontend_stopped_listening();
@@ -340,7 +348,7 @@ impl WindowManager {
             logging!(info, Type::Window, "Окно уничтожено");
             // Потоки страницы (трафик, соединения, журнал) у плагина живут
             // отдельно от окна: без окна их данные разбирались бы впустую.
-            if let Err(err) = handle::Handle::mihomo().clear_all_ws_connections() {
+            if let Err(err) = Self::close_the_page_streams() {
                 logging!(warn, Type::Window, "потоки окна не закрыты: {err}");
             }
             #[cfg(target_os = "macos")]

@@ -1,6 +1,7 @@
 use crate::{Type, logging};
 use anyhow::Result;
 use serde::Deserialize;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tauri_plugin_mihomo::models::WsConnectionId;
 use tokio::sync::mpsc;
@@ -11,6 +12,9 @@ use tokio::time::Instant;
 const MIHOMO_WS_STREAM_BUFFER_SIZE: usize = 8;
 const MIHOMO_WS_STREAM_FORCE_CLOSE_WAIT_MS: u64 = 0;
 const MIHOMO_WS_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Сколько раз закрывались потоки окна, а с ними и здешние.
+static PAGE_STREAMS_CLOSED: AtomicU64 = AtomicU64::new(0);
 
 /// Событие мгновенной скорости `/traffic` (байт/сек).
 #[derive(Debug, Clone, Copy)]
@@ -25,6 +29,9 @@ pub enum StreamConsumeState<T> {
     Event(T),
     /// Соединение закрыто или поток сообщений завершился.
     Closed,
+    /// Поток закрыло само приложение вместе с потоками окна; ядро живо, можно
+    /// переподключаться сразу.
+    ClosedWithThePage,
     /// Не получено ни одного валидного события за таймаут, нужно переподключение.
     Stale,
     /// Вышестоящий код запросил выход из цикла потребления.
@@ -43,6 +50,8 @@ pub struct MihomoWsEventStream<T> {
     receiver: mpsc::Receiver<InternalWsEvent<T>>,
     /// Метка времени последнего валидного события.
     last_valid_event_at: Instant,
+    /// `PAGE_STREAMS_CLOSED` в момент подключения.
+    page_streams_closed_at_connect: u64,
 }
 
 #[derive(Deserialize)]
@@ -74,6 +83,7 @@ fn try_send_internal_event<T>(message_tx: &mpsc::Sender<InternalWsEvent<T>>, eve
 pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeedEvent>> {
     // Используем ограниченный mpsc-канал для приёма событий из колбэка, ограничивая накопление сообщений.
     let (message_tx, message_rx) = mpsc::channel::<InternalWsEvent<TrafficSpeedEvent>>(MIHOMO_WS_STREAM_BUFFER_SIZE);
+    let page_streams_closed_at_connect = PAGE_STREAMS_CLOSED.load(Ordering::Acquire);
     // Устанавливаем подписку WebSocket `/traffic` Mihomo.
     let core = crate::core::handle::Handle::mihomo();
     let subscribed = tokio::time::timeout(
@@ -103,7 +113,13 @@ pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeed
         connection_id,
         receiver: message_rx,
         last_valid_event_at: Instant::now(),
+        page_streams_closed_at_connect,
     })
+}
+
+/// Потоки окна сейчас закроются, а с ними и потоки, открытые здесь.
+pub fn the_page_streams_are_closing() {
+    PAGE_STREAMS_CLOSED.fetch_add(1, Ordering::AcqRel);
 }
 
 impl<T> MihomoWsEventStream<T> {
@@ -132,7 +148,7 @@ impl<T> MihomoWsEventStream<T> {
                             sleep.as_mut().reset(self.last_valid_event_at + stale_timeout);
                             return StreamConsumeState::Event(event);
                         }
-                        None => return StreamConsumeState::Closed,
+                        None => return self.closed(),
                     }
                 }
                 _ = &mut sleep => {
@@ -142,6 +158,14 @@ impl<T> MihomoWsEventStream<T> {
                     sleep.as_mut().reset(self.last_valid_event_at + stale_timeout);
                 }
             }
+        }
+    }
+
+    fn closed(&self) -> StreamConsumeState<T> {
+        if PAGE_STREAMS_CLOSED.load(Ordering::Acquire) == self.page_streams_closed_at_connect {
+            StreamConsumeState::Closed
+        } else {
+            StreamConsumeState::ClosedWithThePage
         }
     }
 }
@@ -161,5 +185,41 @@ pub async fn disconnect_connection(connection_id: WsConnectionId) {
             Type::Tray,
             "не удалось отключить подключение Mihomo WebSocket: {err}"
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InternalWsEvent, MihomoWsEventStream, PAGE_STREAMS_CLOSED, StreamConsumeState, WsConnectionId};
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+    use tokio::sync::mpsc;
+    use tokio::time::Instant;
+
+    fn a_closed_stream() -> MihomoWsEventStream<u8> {
+        let (sender, receiver) = mpsc::channel::<InternalWsEvent<u8>>(1);
+        drop(sender);
+        MihomoWsEventStream {
+            connection_id: WsConnectionId::default(),
+            receiver,
+            last_valid_event_at: Instant::now(),
+            page_streams_closed_at_connect: PAGE_STREAMS_CLOSED.load(Ordering::Acquire),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_stream_closed_along_with_the_page_streams_is_told_from_one_the_core_dropped() {
+        let mut along_with_the_page = a_closed_stream();
+        PAGE_STREAMS_CLOSED.fetch_add(1, Ordering::AcqRel);
+        let mut dropped_by_the_core = a_closed_stream();
+
+        assert!(matches!(
+            along_with_the_page.next_event(Duration::from_secs(5), || false).await,
+            StreamConsumeState::ClosedWithThePage
+        ));
+        assert!(matches!(
+            dropped_by_the_core.next_event(Duration::from_secs(5), || false).await,
+            StreamConsumeState::Closed
+        ));
     }
 }
