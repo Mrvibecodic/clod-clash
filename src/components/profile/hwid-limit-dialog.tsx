@@ -12,7 +12,6 @@ import { useTranslation } from 'react-i18next'
 
 import { useTauriEvent } from '@/hooks/use-listen'
 import { useVerge } from '@/hooks/use-verge'
-import { useVisibility } from '@/hooks/use-visibility'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -32,7 +31,11 @@ interface HwidNotice {
 
 const EVENT_NAME = 'clod://hwid-notice'
 
-export const HwidLimitDialog = () => {
+interface Props {
+  drains: number
+}
+
+export const HwidLimitDialog = ({ drains }: Props) => {
   const { t } = useTranslation()
   const { patchVerge } = useVerge()
   const [queue, setQueue] = useState<HwidNotice[]>([])
@@ -54,13 +57,12 @@ export const HwidLimitDialog = () => {
   useTauriEvent<HwidNotice>(EVENT_NAME, ({ payload }) => enqueue(payload))
 
   // Отказ, пришедший без окна (программа жила в трее), бэкенд держит до показа.
-  const visible = useVisibility()
   useEffect(() => {
-    if (!visible) return
+    if (drains === 0) return
     invoke<HwidNotice[]>('take_unseen_device_refusals')
       .then((refusals) => refusals.forEach(enqueue))
       .catch((error) => console.error('[hwid] refusals not taken:', error))
-  }, [visible, enqueue])
+  }, [drains, enqueue])
 
   const close = useCallback(
     () =>

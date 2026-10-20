@@ -101,7 +101,10 @@ describe('окно не перечитывает лишнего', () => {
 
   it('очередь уведомлений забирается один раз за показ окна', () => {
     const layout = source('../_layout.tsx')
-    assert.match(layout, /if \(!drainedRef\.current\) drainPendingNotices\(\)/)
+    assert.match(
+      layout,
+      /if \(!drainedRef\.current\) void drainPendingNotices\(\)/,
+    )
     assert.match(layout, /drainedRef\.current = false/)
   })
 })

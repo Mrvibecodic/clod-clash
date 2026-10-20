@@ -1,7 +1,15 @@
 import { Box, Paper, ThemeProvider } from '@mui/material'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
@@ -108,20 +116,21 @@ const Layout = () => {
   // Очередь уже забрана в этот показ окна: при показе из трея приходят и
   // событие показа, и смена видимости, а второй забор был бы пустым.
   const drainedRef = useRef(false)
-  const drainPendingNotices = useCallback(() => {
+  const [drains, setDrains] = useState(0)
+  const drainPendingNotices = useCallback(async () => {
     drainedRef.current = true
-    takePendingNotices()
-      .then((pending) => {
-        for (const [status, msg, repeats] of pending) {
-          const id = handleNotice([status, msg])
-          if (id !== undefined && repeats > 1) {
-            repeatNotice(id, repeats - 1)
-          }
+    try {
+      const pending = await takePendingNotices()
+      for (const [status, msg, repeats] of pending) {
+        const id = handleNotice([status, msg])
+        if (id !== undefined && repeats > 1) {
+          repeatNotice(id, repeats - 1)
         }
-      })
-      .catch((error) => {
-        console.error('[Обработка уведомлений] Очередь не прочитана:', error)
-      })
+      }
+    } catch (error) {
+      console.error('[Обработка уведомлений] Очередь не прочитана:', error)
+    }
+    setDrains((count) => count + 1)
   }, [handleNotice])
 
   // При монтировании и при каждом показе окна: пока окно спрятано в трее,
@@ -131,7 +140,7 @@ const Layout = () => {
   // (разворачивание из панели задач).
   useEffect(() => {
     if (pageVisible) {
-      if (!drainedRef.current) drainPendingNotices()
+      if (!drainedRef.current) void drainPendingNotices()
     } else {
       drainedRef.current = false
       stopListeningNotices().catch((error) => {
@@ -156,7 +165,7 @@ const Layout = () => {
         position={verge?.notice_position}
         belowTitlebar={decorated === false}
       />
-      <HwidLimitDialog />
+      <HwidLimitDialog drains={drains} />
       <UpdateButton />
       <Paper
         square

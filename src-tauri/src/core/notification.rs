@@ -155,6 +155,16 @@ fn withdraw_from(pending: &mut VecDeque<PendingNotice>, status: &str) -> bool {
     pending.len() != before
 }
 
+fn keep_unless_heard(unseen: &mut Vec<std::string::String>, uid: &str, the_page_hears: bool) -> bool {
+    if the_page_hears {
+        return false;
+    }
+    if !unseen.iter().any(|held| held == uid) {
+        unseen.push(uid.to_owned());
+    }
+    true
+}
+
 #[derive(Debug)]
 pub enum FrontendEvent<'a> {
     RefreshClash,
@@ -206,15 +216,10 @@ impl NotificationSystem {
 
     /// Окно лимита устройств — не тост и в очередь уведомлений не идёт; если
     /// страница сейчас не слушает, подписка запоминается, и страница спросит
-    /// отказ заново, когда её покажут.
-    pub fn keep_device_refusal_until_seen(app_handle: &AppHandle, uid: &str) {
-        if Self::the_page_hears(app_handle) {
-            return;
-        }
-        let mut unseen = unseen_device_refusals();
-        if !unseen.iter().any(|held| held == uid) {
-            unseen.push(uid.to_owned());
-        }
+    /// отказ заново, когда её покажут. `true` — отказ запомнен и слать его
+    /// странице не нужно.
+    pub fn keep_device_refusal_until_seen(app_handle: &AppHandle, uid: &str) -> bool {
+        keep_unless_heard(&mut unseen_device_refusals(), uid, Self::the_page_hears(app_handle))
     }
 
     /// Страница на месте и слушает: сказанное ей сейчас человек увидит.
@@ -371,7 +376,7 @@ struct QueuedEvent {
 mod tests {
     use super::{
         Delivery, FrontendEvent, NEVER_HELD_STATUSES, NotificationSystem, PENDING_NOTICES_CAP, PendingNotice,
-        can_reach_the_page, collapse_into, decide_delivery, withdraw_from, worth_holding,
+        can_reach_the_page, collapse_into, decide_delivery, keep_unless_heard, withdraw_from, worth_holding,
     };
     use crate::utils::source_scan::fn_body;
     use std::collections::{BTreeSet, VecDeque};
@@ -509,6 +514,16 @@ mod tests {
             "окно спрятано или страница ещё не слушает"
         );
         assert!(!can_reach_the_page(false, false));
+    }
+
+    #[test]
+    fn a_refusal_kept_for_a_hidden_page_is_not_also_sent_to_it() {
+        let mut unseen = Vec::new();
+        assert!(keep_unless_heard(&mut unseen, "a", false));
+        assert!(keep_unless_heard(&mut unseen, "a", false));
+        assert_eq!(unseen, ["a"]);
+        assert!(!keep_unless_heard(&mut unseen, "b", true));
+        assert_eq!(unseen, ["a"]);
     }
 
     #[test]
