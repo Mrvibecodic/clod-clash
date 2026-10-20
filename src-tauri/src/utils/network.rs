@@ -107,6 +107,15 @@ pub fn system_proxy_url() -> Option<std::string::String> {
     }
 }
 
+/// Ошибка TLS под ошибкой запроса. rustls отдаёт её внутри `io::Error`, а тот
+/// своё содержимое причиной не называет.
+pub(crate) fn tls_failure<'a>(err: &'a (dyn std::error::Error + 'static)) -> Option<&'a rustls::Error> {
+    if let Some(tls) = err.downcast_ref::<rustls::Error>() {
+        return Some(tls);
+    }
+    tls_failure(err.downcast_ref::<std::io::Error>()?.get_ref()?)
+}
+
 pub struct NetworkManager;
 
 impl Default for NetworkManager {
@@ -221,35 +230,20 @@ impl NetworkManager {
                     .is_some_and(reqwest::Error::is_connect)
             })
         };
-        if (single_use && !never_sent()) || err.chain().any(Self::is_legacy_tls_protocol_error) {
+        if single_use && !never_sent() {
             return false;
         }
 
-        // Наш отказ от понижения до http — не беда с сертификатами. Проверка ниже
-        // ищет ключевые слова во всей цепочке, а в ней есть хост запроса: хост, где
-        // случайно встретилось `ssl` или `crl`, запустил бы бессмысленный второй
-        // запрос к панели.
-        if err.chain().any(|e| e.to_string().contains(DOWNGRADE_REFUSED)) {
-            return false;
-        }
-
-        err.chain().any(|e| {
-            let msg = e.to_string().to_ascii_lowercase();
-            [
-                "certificate",
-                "cert",
-                "tls",
-                "ssl",
-                "rustls",
-                "webpki",
-                "revocation",
-                "ocsp",
-                "crl",
-                "issuer",
-                "unknownissuer",
-            ]
-            .iter()
-            .any(|kw| msg.contains(kw))
+        // Вшитые корни помогают, только когда корня нет в системе или её проверка
+        // сама не сработала. Отзыв, срок и чужое имя они не исправят, а отзыв и
+        // не проверяют вовсе.
+        err.chain().filter_map(tls_failure).any(|tls| {
+            matches!(
+                tls,
+                rustls::Error::InvalidCertificate(
+                    rustls::CertificateError::UnknownIssuer | rustls::CertificateError::Other(_)
+                ) | rustls::Error::General(_)
+            )
         })
     }
 
@@ -613,14 +607,84 @@ mod redirect_tests {
 mod retry_tests {
     use super::NetworkManager;
 
+    /// Ошибка проверки сертификата так, как её приносит запрос: rustls внутри
+    /// `io::Error` рукопожатия, а тот — внутри `io::Error` соединения.
+    fn refused_certificate(cause: rustls::CertificateError) -> anyhow::Error {
+        refused_handshake(rustls::Error::InvalidCertificate(cause))
+    }
+
+    fn refused_handshake(cause: rustls::Error) -> anyhow::Error {
+        anyhow::Error::new(std::io::Error::other(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            cause,
+        )))
+        .context("Request failed")
+    }
+
     #[test]
     fn only_a_single_use_request_is_not_sent_again_after_it_left() {
-        let cut = || {
-            anyhow::anyhow!("peer closed connection without sending TLS close_notify")
-                .context("Failed to read response body")
-        };
-        assert!(NetworkManager::should_retry_with_static_webpki_roots(&cut(), false));
-        assert!(!NetworkManager::should_retry_with_static_webpki_roots(&cut(), true));
+        let unknown = || refused_certificate(rustls::CertificateError::UnknownIssuer);
+        assert!(NetworkManager::should_retry_with_static_webpki_roots(&unknown(), false));
+        assert!(!NetworkManager::should_retry_with_static_webpki_roots(&unknown(), true));
+    }
+
+    #[test]
+    fn only_a_missing_root_or_a_failed_system_check_is_asked_again_with_the_bundled_roots() {
+        use rustls::CertificateError;
+
+        let other = rustls::OtherError(std::sync::Arc::new(std::io::Error::other("CERT_E_CHAINING")));
+        for (case, err, retry) in [
+            (
+                "корня нет в системе",
+                refused_certificate(CertificateError::UnknownIssuer),
+                true,
+            ),
+            (
+                "прочий отказ проверки системы",
+                refused_certificate(CertificateError::Other(other)),
+                true,
+            ),
+            (
+                "проверка системы недоступна",
+                refused_handshake(rustls::Error::General("verification was unavailable".into())),
+                true,
+            ),
+            ("отозван", refused_certificate(CertificateError::Revoked), false),
+            ("просрочен", refused_certificate(CertificateError::Expired), false),
+            (
+                "не для этого имени",
+                refused_certificate(CertificateError::NotValidForName),
+                false,
+            ),
+            (
+                "не для сервера",
+                refused_certificate(CertificateError::InvalidPurpose),
+                false,
+            ),
+            (
+                "таймаут хоста со словами tls и ssl в имени",
+                anyhow::anyhow!("operation timed out")
+                    .context("error sending request for url (https://ssl.tls-cert.example.com/)"),
+                false,
+            ),
+            (
+                "оборванное тело",
+                anyhow::anyhow!("peer closed connection without sending TLS close_notify")
+                    .context("Failed to read response body"),
+                false,
+            ),
+            (
+                "отказ от понижения до http",
+                anyhow::anyhow!(super::DOWNGRADE_REFUSED).context("Request failed"),
+                false,
+            ),
+        ] {
+            assert_eq!(
+                NetworkManager::should_retry_with_static_webpki_roots(&err, false),
+                retry,
+                "{case}"
+            );
+        }
     }
 }
 
@@ -674,6 +738,81 @@ pub(crate) mod transport_tests {
             let _ = stream.shutdown().await;
         })
         .await
+    }
+
+    /// Самоподписанный сертификат на 127.0.0.1 и localhost и его ключ (DER, base64).
+    const SELF_SIGNED_CERT: &str = "MIIB0TCCAXigAwIBAgIUUK2t9TGftqAqW5oBiO3MUAmQfiAwCgYIKoZIzj0EAwIwJjEkMCIGA1UEAwwbQ2xvZCBDbGFzaCBzZWxmLXNpZ25lZCB0ZXN0MCAXDTI2MTAyMDIyMjAwNloYDzIxMjYwOTI2MjIyMDA2WjAmMSQwIgYDVQQDDBtDbG9kIENsYXNoIHNlbGYtc2lnbmVkIHRlc3QwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARxqUG9F+JWSj0mrQeKJRxVcPQW0rbeL+/4fQ78pZWGXKHIu/Pwf1v4eTvb2qU9x7YvjGdH74edlHFxvKCNo7X8o4GBMH8wHQYDVR0OBBYEFDKZsLtlthEDrzIel7GfHXqW7f7xMB8GA1UdIwQYMBaAFDKZsLtlthEDrzIel7GfHXqW7f7xMBoGA1UdEQQTMBGCCWxvY2FsaG9zdIcEfwAAATAMBgNVHRMBAf8EAjAAMBMGA1UdJQQMMAoGCCsGAQUFBwMBMAoGCCqGSM49BAMCA0cAMEQCIBHFb2m2MPq9hOIFfi4/KItIko/5qhCZIKsBRuLMCIW0AiAZ4w0A9j9y62KQzJcpjIXdC4d7dJ4BKxpxFjmjbdaRDg==";
+    const SELF_SIGNED_KEY: &str = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgnQdKzqUPPJYcnwB1v4+tJz6E5Rp4TGAq8VogbHg1SfqhRANCAARxqUG9F+JWSj0mrQeKJRxVcPQW0rbeL+/4fQ78pZWGXKHIu/Pwf1v4eTvb2qU9x7YvjGdH74edlHFxvKCNo7X8";
+
+    /// Сервер TLS с самоподписанным сертификатом: принимает одно соединение,
+    /// дочитывает запрос и отвечает `head`. Адрес — `127.0.0.1:порт`.
+    pub(crate) fn self_signed_once(head: &'static str) -> String {
+        use base64::Engine as _;
+        use std::io::{Read as _, Write as _};
+
+        let decode = |b64: &str| {
+            base64::engine::general_purpose::STANDARD
+                .decode(b64)
+                .expect("тестовые данные")
+        };
+        let config =
+            rustls::ServerConfig::builder_with_provider(std::sync::Arc::new(rustls::crypto::ring::default_provider()))
+                .with_safe_default_protocol_versions()
+                .expect("версии TLS")
+                .with_no_client_auth()
+                .with_single_cert(
+                    vec![rustls::pki_types::CertificateDer::from(decode(SELF_SIGNED_CERT))],
+                    rustls::pki_types::PrivatePkcs8KeyDer::from(decode(SELF_SIGNED_KEY)).into(),
+                )
+                .expect("сертификат сервера");
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("порт для теста");
+        let addr = listener.local_addr().expect("адрес слушателя").to_string();
+        std::thread::spawn(move || {
+            let Ok((socket, _)) = listener.accept() else {
+                return;
+            };
+            let Ok(connection) = rustls::ServerConnection::new(std::sync::Arc::new(config)) else {
+                return;
+            };
+            let mut tls = rustls::StreamOwned::new(connection, socket);
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+            while !request.windows(4).any(|w| w == b"\r\n\r\n") {
+                match tls.read(&mut buffer) {
+                    Ok(0) | Err(_) => return,
+                    Ok(read) => request.extend_from_slice(&buffer[..read]),
+                }
+            }
+            let _ = tls.write_all(head.as_bytes());
+            tls.conn.send_close_notify();
+            let _ = tls.flush();
+        });
+        addr
+    }
+
+    #[tokio::test]
+    async fn a_certificate_the_system_does_not_know_is_asked_again_with_the_bundled_roots() {
+        let addr = self_signed_once("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+        let client = NetworkManager::new()
+            .create_request(ProxyType::None, Some(10), Some("test".into()))
+            .await
+            .expect("клиент");
+        let err = client
+            .get(format!("https://{addr}/sub"))
+            .send()
+            .await
+            .map_err(anyhow::Error::new)
+            .expect_err("самоподписанный сертификат не принят");
+        assert!(
+            matches!(
+                err.chain().find_map(super::tls_failure),
+                Some(rustls::Error::InvalidCertificate(
+                    rustls::CertificateError::UnknownIssuer | rustls::CertificateError::Other(_)
+                ))
+            ),
+            "{err:?}"
+        );
+        assert!(NetworkManager::should_retry_with_static_webpki_roots(&err, false));
     }
 
     /// Ошибка одноразового запроса, как у защищённого канала, с таймаутом в секунду.
