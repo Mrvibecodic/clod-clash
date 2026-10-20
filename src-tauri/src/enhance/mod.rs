@@ -951,6 +951,29 @@ fn put_list(config: &mut Mapping, key: &str, list: Option<Vec<std::string::Strin
     }
 }
 
+/// clod:lan-share — раздача прокси соседям по сети и открытый для них
+/// DNS-резолвер — разные решения: второе только по слову человека и только при
+/// открытой раздаче, подписке его не отдаём ни при каких условиях.
+fn share_with_the_lan(
+    mut config: Mapping,
+    user_declined: bool,
+    subscription_wants: bool,
+) -> (Mapping, Option<&'static str>) {
+    let user_wants = config.get("allow-lan").and_then(Value::as_bool).unwrap_or(false);
+    let request = read_lan_request(&config, subscription_wants);
+    let sharing = decide_lan_sharing(user_wants, user_declined, &request);
+    if !user_wants && matches!(sharing, LanSharing::On { .. }) {
+        logging!(
+            info,
+            Type::Config,
+            "подписка открыла раздачу в локальную сеть под своим списком адресов"
+        );
+    }
+    let unreadable = the_unreadable_lan_list(&sharing, user_wants);
+    clamp_dns_listen(&mut config, user_wants && matches!(sharing, LanSharing::On { .. }));
+    (apply_lan_sharing(config, sharing), unreadable)
+}
+
 fn apply_lan_sharing(mut config: Mapping, decision: LanSharing) -> Mapping {
     match decision {
         LanSharing::Off | LanSharing::Unreadable(_) => {
@@ -1860,17 +1883,16 @@ fn listens_on_loopback_only(host: &str) -> bool {
     }
 }
 
-/// clod:dns-listen — держать `dns.listen` в петле, пока раздача выключена.
+/// clod:dns-listen — держать `dns.listen` в петле, пока раздачу не открыл человек.
 ///
 /// Ключ поднимает отдельный DNS-сервер и, в отличие от прочих входов, НЕ
 /// подчиняется `allow-lan`: `:53` из подписки или из старого файла страницы DNS
 /// делает машину открытым резолвером для соседей по сети, причём под службой —
 /// от системной учётной записи. Раздача включается одним осознанным тумблером,
-/// поэтому при выключенном `allow-lan` адрес прижимается к `127.0.0.1`, а
-/// значение, которое не разбирается, удаляется целиком: сокет лучше не открыть
-/// вовсе, чем открыть непонятно куда.
-fn clamp_dns_listen(config: &mut Mapping) {
-    let shares_with_the_lan = config.get("allow-lan").and_then(Value::as_bool).unwrap_or(false);
+/// поэтому, пока она не открыта по слову человека (`shares_with_the_lan`), адрес
+/// прижимается к `127.0.0.1`, а значение, которое не разбирается, удаляется
+/// целиком: сокет лучше не открыть вовсе, чем открыть непонятно куда.
+fn clamp_dns_listen(config: &mut Mapping, shares_with_the_lan: bool) {
     let Some(dns) = config.get_mut("dns").and_then(Value::as_mapping_mut) else {
         return;
     };
@@ -2150,26 +2172,11 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     discarded_keys.extend(tun_discards);
     let (config, dns_page_discards) = enforce_dns_page(config, dns_page.as_ref());
     discarded_keys.extend(dns_page_discards);
-    let mut config = ensure_dns_for_tun(config, enable_tun);
-    // clod:dns-listen — один раз, после цепочек merge и script и после страницы
-    // DNS: любая из них может вернуть `dns.listen` наружу. `allow-lan` здесь уже
-    // наш, восстановленный из снимка control-plane.
-    clamp_dns_listen(&mut config);
-    // clod:lan-share — строго ПОСЛЕ прижатия `dns.listen`: раздача прокси
-    // соседям по сети и открытый для них DNS-резолвер — разные решения, и
-    // второе подписке не отдаём ни при каких условиях.
-    let user_wants_sharing = config.get("allow-lan").and_then(Value::as_bool).unwrap_or(false);
-    let lan_request = read_lan_request(&config, subscription_wants_sharing);
-    let sharing = decide_lan_sharing(user_wants_sharing, lan_sharing_declined, &lan_request);
-    if !user_wants_sharing && matches!(sharing, LanSharing::On { .. }) {
-        logging!(
-            info,
-            Type::Config,
-            "подписка открыла раздачу в локальную сеть под своим списком адресов"
-        );
-    }
-    let unreadable_lan_list = the_unreadable_lan_list(&sharing, user_wants_sharing);
-    let config = apply_lan_sharing(config, sharing);
+    let config = ensure_dns_for_tun(config, enable_tun);
+    // После цепочек merge и script и после страницы DNS: любая из них может
+    // вернуть `dns.listen` наружу. `allow-lan` здесь уже наш, восстановленный из
+    // снимка control-plane.
+    let (config, unreadable_lan_list) = share_with_the_lan(config, lan_sharing_declined, subscription_wants_sharing);
     let config = ensure_store_selected(config);
 
     let (config, sentinel_report) = if profile_is_remote && !profile_shows_zero_hosts {
@@ -4666,7 +4673,7 @@ proxy-groups:
         // Открытые адреса прижимаются к петле, порт сохраняется.
         for open in [":53", "0.0.0.0:53", "::53", "[::]:1053", "*:5353"] {
             let mut config = mapping(&format!("{{dns: {{listen: \"{open}\"}}}}"));
-            super::clamp_dns_listen(&mut config);
+            super::clamp_dns_listen(&mut config, false);
             let listen = config["dns"]["listen"].as_str().map(str::to_owned);
             assert!(
                 listen.as_deref().is_some_and(|text| text.starts_with("127.0.0.1:")),
@@ -4677,19 +4684,19 @@ proxy-groups:
         // Петля и так в порядке — не трогаем.
         for kept in ["127.0.0.1:1053", "[::1]:53", "localhost:6868"] {
             let mut config = mapping(&format!("{{dns: {{listen: \"{kept}\"}}}}"));
-            super::clamp_dns_listen(&mut config);
+            super::clamp_dns_listen(&mut config, false);
             assert_eq!(config["dns"]["listen"].as_str(), Some(kept));
         }
 
-        // При включённой раздаче решает пользователь.
-        let mut sharing = mapping("{allow-lan: true, dns: {listen: \":53\"}}");
-        super::clamp_dns_listen(&mut sharing);
+        // При открытой человеком раздаче решает он.
+        let mut sharing = mapping("{dns: {listen: \":53\"}}");
+        super::clamp_dns_listen(&mut sharing, true);
         assert_eq!(sharing["dns"]["listen"].as_str(), Some(":53"));
 
         // Неразбираемое значение снимается целиком: лучше не слушать вовсе.
         for bad in ["\"ноль\"", "\"127.0.0.1\"", "\"127.0.0.1:70000\"", "53"] {
             let mut config = mapping(&format!("{{dns: {{listen: {bad}}}}}"));
-            super::clamp_dns_listen(&mut config);
+            super::clamp_dns_listen(&mut config, false);
             assert!(
                 config["dns"]
                     .as_mapping()
@@ -4700,13 +4707,43 @@ proxy-groups:
 
         // Пустое значение — это «не слушать», оно и так безопасно.
         let mut empty = mapping("{dns: {listen: \"\"}}");
-        super::clamp_dns_listen(&mut empty);
+        super::clamp_dns_listen(&mut empty, false);
         assert_eq!(empty["dns"]["listen"].as_str(), Some(""));
 
         // Блока DNS нет — делать нечего.
         let mut none = mapping("{mode: rule}");
-        super::clamp_dns_listen(&mut none);
+        super::clamp_dns_listen(&mut none, false);
         assert!(!none.contains_key("dns"));
+    }
+
+    #[test]
+    fn the_dns_server_faces_the_lan_only_when_the_user_opened_sharing() {
+        let listen = |text: &str, subscription_wants| {
+            let (config, _) = super::share_with_the_lan(mapping(text), false, subscription_wants);
+            config["dns"]["listen"].as_str().map(str::to_owned)
+        };
+        // Человек включил, а список не читается — раздача не открыта.
+        assert_eq!(
+            listen(
+                r#"{allow-lan: true, lan-allowed-ips: "192.168.1.0/24", dns: {listen: ":53"}}"#,
+                false
+            )
+            .as_deref(),
+            Some("127.0.0.1:53")
+        );
+        // Раздачу открыла подписка под своим списком — резолвер ей не отдаём.
+        assert_eq!(
+            listen(
+                r#"{allow-lan: false, lan-allowed-ips: ["192.168.1.0/24"], dns: {listen: ":53"}}"#,
+                true
+            )
+            .as_deref(),
+            Some("127.0.0.1:53")
+        );
+        assert_eq!(
+            listen(r#"{allow-lan: true, dns: {listen: ":53"}}"#, false).as_deref(),
+            Some(":53")
+        );
     }
 
     #[test]
