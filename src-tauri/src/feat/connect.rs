@@ -21,6 +21,27 @@ fn provider_targets(mode: &str) -> Option<(bool, bool)> {
     }
 }
 
+/// Способ подключения, который провайдер запер (`clod-lock-mode` вместе с
+/// `clod-connect-mode`): `None` — замка на способ нет.
+fn locked_targets(item: &PrfItem) -> Option<(bool, bool)> {
+    if !item.lock_mode.unwrap_or(false) {
+        return None;
+    }
+    item.connect_mode.as_deref().and_then(provider_targets)
+}
+
+/// `(системный прокси, TUN)` — что разрешено включать: цель вне замка
+/// провайдера из приложения не включается, её можно только выключить.
+pub(crate) fn allowed_targets(item: Option<&PrfItem>) -> (bool, bool) {
+    item.and_then(locked_targets).unwrap_or((true, true))
+}
+
+/// То же для текущей подписки.
+pub async fn current_allowed_targets() -> (bool, bool) {
+    let profiles = Config::profiles().await.latest_arc();
+    allowed_targets(profiles.current.as_ref().and_then(|uid| profiles.get_item(uid).ok()))
+}
+
 /// Способ подключения: выбор пользователя → пожелание панели → умолчание
 /// приложения. При `clod-lock-mode` побеждает панель — иначе заголовок
 /// «только TUN» не сработал бы ни у кого, кто однажды трогал тумблеры.
@@ -28,17 +49,16 @@ fn provider_targets(mode: &str) -> Option<(bool, bool)> {
 /// Зеркало `useConnectTargets` на фронте, включая последнее правило: способ
 /// не может быть пустым, системный прокси возвращается сам.
 pub(crate) fn connect_targets(verge: &IVerge, item: &PrfItem) -> (bool, bool) {
-    let locked = item.lock_mode.unwrap_or(false);
+    let locked = locked_targets(item);
     let provider = item.connect_mode.as_deref().and_then(provider_targets);
-    let from_provider = |pick: fn((bool, bool)) -> bool| {
-        if locked { provider.map(pick) } else { None }
-    };
 
-    let sys = from_provider(|p| p.0)
+    let sys = locked
+        .map(|p| p.0)
         .or(verge.connect_system_proxy)
         .or_else(|| provider.map(|p| p.0))
         .unwrap_or(IVerge::DEFAULT_CONNECT_SYSTEM_PROXY);
-    let tun = from_provider(|p| p.1)
+    let tun = locked
+        .map(|p| p.1)
         .or(verge.connect_tun_mode)
         .or_else(|| provider.map(|p| p.1))
         .unwrap_or(IVerge::DEFAULT_CONNECT_TUN_MODE);
@@ -68,7 +88,7 @@ pub async fn launch_connect_state() -> (bool, bool) {
 
 #[cfg(test)]
 mod tests {
-    use super::{connect_targets, provider_targets};
+    use super::{allowed_targets, connect_targets, provider_targets};
     use crate::config::{IVerge, PrfItem};
 
     fn verge(sys: Option<bool>, tun: Option<bool>) -> IVerge {
@@ -133,6 +153,16 @@ mod tests {
             connect_targets(&verge(Some(false), Some(false)), &profile(None, false)),
             (true, false)
         );
+    }
+
+    #[test]
+    fn only_a_locked_method_takes_a_target_away_from_the_tray_and_the_hotkey() {
+        assert_eq!(allowed_targets(Some(&profile(Some("tun"), true))), (false, true));
+        assert_eq!(allowed_targets(Some(&profile(Some("proxy"), true))), (true, false));
+        assert_eq!(allowed_targets(Some(&profile(Some("both"), true))), (true, true));
+        assert_eq!(allowed_targets(Some(&profile(Some("tun"), false))), (true, true));
+        assert_eq!(allowed_targets(Some(&profile(None, true))), (true, true));
+        assert_eq!(allowed_targets(None), (true, true));
     }
 
     #[test]

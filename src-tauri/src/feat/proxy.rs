@@ -84,10 +84,11 @@ pub(crate) enum SystemProxyStep {
 const fn system_proxy_step(
     exiting: bool,
     current: bool,
+    allowed: bool,
     auto_close_connection: bool,
     tun_carries_traffic: bool,
 ) -> SystemProxyStep {
-    if exiting {
+    if exiting || (!current && !allowed) {
         return SystemProxyStep::LeaveEverythingAlone;
     }
     if current && auto_close_connection && !tun_carries_traffic {
@@ -111,6 +112,7 @@ pub async fn toggle_system_proxy() -> Toggled {
     // Направление — по тому, что стоит в системе, как у кнопки в окне: прокси
     // мог снять кто-то другой, и тогда нажатие должно его включить.
     let current = crate::core::sysopt::Sysopt::global().our_proxy_is_on().await;
+    let (allowed, _) = super::current_allowed_targets().await;
     let (auto_close_connection, tun_carries_traffic) = {
         let snapshot = Config::verge().await.latest_arc();
         (
@@ -119,7 +121,13 @@ pub async fn toggle_system_proxy() -> Toggled {
         )
     };
 
-    match system_proxy_step(exit_is_under_way(), current, auto_close_connection, tun_carries_traffic) {
+    match system_proxy_step(
+        exit_is_under_way(),
+        current,
+        allowed,
+        auto_close_connection,
+        tun_carries_traffic,
+    ) {
         SystemProxyStep::LeaveEverythingAlone => return Toggled::Untouched,
         SystemProxyStep::DropConnectionsThenSwitch => {
             if let Err(err) = handle::Handle::mihomo().close_all_connections().await {
@@ -163,11 +171,12 @@ pub async fn toggle_system_proxy() -> Toggled {
 
 /// Что записать по нажатию «TUN» в трее или клавишей; `Err` — ничего, с
 /// причиной отказа, которую человеку ещё не сказали. Включается, как в окне,
-/// только при готовой службе: отказ в правах, неудача установки, уже идущая
-/// или отложенная подготовка TUN не включают.
+/// только при готовой службе и вне замка провайдера: отказ в правах, неудача
+/// установки, уже идущая или отложенная подготовка TUN не включают.
 async fn tun_switch_to(
     exiting: bool,
     active: bool,
+    allowed: bool,
     prepare: impl AsyncFnOnce() -> SetupAnswer,
 ) -> Result<bool, Option<&'static str>> {
     if exiting {
@@ -175,6 +184,9 @@ async fn tun_switch_to(
     }
     if active {
         return Ok(false);
+    }
+    if !allowed {
+        return Err(None);
     }
     match prepare().await {
         SetupAnswer::Ready => Ok(true),
@@ -186,8 +198,9 @@ async fn tun_switch_to(
 pub async fn toggle_tun_mode() -> Toggled {
     let desired = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
     let active = crate::feat::tun::is_active_with(desired);
+    let (_, allowed) = super::current_allowed_targets().await;
 
-    let enable = match tun_switch_to(exit_is_under_way(), active, async || {
+    let enable = match tun_switch_to(exit_is_under_way(), active, allowed, async || {
         crate::feat::tun::ensure_ready(true).await.answer()
     })
     .await
@@ -290,8 +303,17 @@ mod tests {
         active: bool,
         answer: SetupAnswer,
     ) -> (Result<bool, Option<&'static str>>, bool) {
+        tun_switch_allowed(exiting, active, true, answer).await
+    }
+
+    async fn tun_switch_allowed(
+        exiting: bool,
+        active: bool,
+        allowed: bool,
+        answer: SetupAnswer,
+    ) -> (Result<bool, Option<&'static str>>, bool) {
         let asked = std::sync::atomic::AtomicBool::new(false);
-        let target = tun_switch_to(exiting, active, async || {
+        let target = tun_switch_to(exiting, active, allowed, async || {
             asked.store(true, std::sync::atomic::Ordering::Relaxed);
             answer
         })
@@ -331,13 +353,45 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn a_tun_the_provider_locked_out_is_never_switched_on_but_can_be_switched_off() {
+        assert_eq!(
+            tun_switch_allowed(false, false, false, SetupAnswer::Ready).await,
+            (Err(None), false),
+            "замок «только прокси»: TUN не включается и права не спрашиваются"
+        );
+        assert_eq!(
+            tun_switch_allowed(false, true, false, SetupAnswer::Ready).await,
+            (Ok(false), false),
+            "включённый вне замка TUN выключить можно"
+        );
+    }
+
+    #[test]
+    fn a_system_proxy_the_provider_locked_out_is_never_switched_on_but_can_be_switched_off() {
+        for auto_close_connection in [false, true] {
+            for tun_carries_traffic in [false, true] {
+                assert_eq!(
+                    system_proxy_step(false, false, false, auto_close_connection, tun_carries_traffic),
+                    SystemProxyStep::LeaveEverythingAlone,
+                    "замок «только TUN»: системный прокси не включается"
+                );
+                assert_ne!(
+                    system_proxy_step(false, true, false, auto_close_connection, tun_carries_traffic),
+                    SystemProxyStep::LeaveEverythingAlone,
+                    "включённый вне замка системный прокси выключить можно"
+                );
+            }
+        }
+    }
+
     #[test]
     fn while_the_app_is_leaving_the_system_proxy_switch_never_drops_connections() {
         for current in [false, true] {
             for auto_close_connection in [false, true] {
                 for tun_carries_traffic in [false, true] {
                     assert_eq!(
-                        system_proxy_step(true, current, auto_close_connection, tun_carries_traffic),
+                        system_proxy_step(true, current, true, auto_close_connection, tun_carries_traffic),
                         SystemProxyStep::LeaveEverythingAlone,
                         "{current}/{auto_close_connection}/{tun_carries_traffic}: \
                          соединения не рвутся ради настройки, которая не применится"
@@ -370,7 +424,7 @@ mod tests {
             );
             covered[slot] = true;
             assert_eq!(
-                system_proxy_step(false, current, auto_close_connection, tun_carries_traffic),
+                system_proxy_step(false, current, true, auto_close_connection, tun_carries_traffic),
                 expected,
                 "{current}/{auto_close_connection}/{tun_carries_traffic}"
             );

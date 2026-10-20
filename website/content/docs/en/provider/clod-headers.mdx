@@ -136,7 +136,8 @@ window doesn't depend on this header.
 `tunnel`/`vpn`, `system`/`system-proxy`/`sysproxy`, `all`). If the user has chosen the connection
 method themselves, their choice takes priority. If the mode is locked (`clod-lock-mode` or
 `global-mode: false`), the header decides: the switches are replaced with the line "… — the connection
-method is set by your provider".
+method is set by your provider", and a method the header leaves out can't be turned on from the tray
+or with a hotkey either — the tray menu has no item for it.
 
 **`clod-simple-mode`** — `true` — simple view, `false` — advanced. The user's choice always takes
 priority. Synonyms: `pxa-simple-mode` (Prizrak-Box), `flclashx-newboard` (FlClashX).

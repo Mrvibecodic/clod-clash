@@ -790,13 +790,13 @@ async fn create_tray_menu_model(
 
     let show_outbound_modes_inline = verge_settings.tray_inline_outbound_modes.unwrap_or(false);
 
-    let mode_locked = {
+    let (mode_locked, (system_proxy_allowed, tun_allowed)) = {
         let profiles = Config::profiles().await.latest_arc();
-        profiles
-            .get_current()
-            .and_then(|uid| profiles.get_item(uid).ok())
-            .and_then(|item| item.lock_mode)
-            .unwrap_or(false)
+        let current = profiles.get_current().and_then(|uid| profiles.get_item(uid).ok());
+        (
+            current.and_then(|item| item.lock_mode).unwrap_or(false),
+            feat::allowed_targets(current),
+        )
     };
 
     let version = env!("CARGO_PKG_VERSION");
@@ -871,12 +871,20 @@ async fn create_tray_menu_model(
     #[cfg(target_os = "macos")]
     let quit_accelerator = quit_accelerator.or(Some("Cmd+Q"));
 
+    menu_items.push(MenuNode::Separator);
+    if system_proxy_allowed {
+        menu_items.push(
+            MenuNode::check(MenuIds::SYSTEM_PROXY, texts.system_proxy.as_ref(), system_proxy_enabled)
+                .with_accelerator(hotkeys.get("toggle_system_proxy").copied()),
+        );
+    }
+    if tun_allowed {
+        menu_items.push(
+            MenuNode::check(MenuIds::TUN_MODE, texts.tun_mode.as_ref(), tun_mode_enabled)
+                .with_accelerator(hotkeys.get("toggle_tun_mode").copied()),
+        );
+    }
     menu_items.extend([
-        MenuNode::Separator,
-        MenuNode::check(MenuIds::SYSTEM_PROXY, texts.system_proxy.as_ref(), system_proxy_enabled)
-            .with_accelerator(hotkeys.get("toggle_system_proxy").copied()),
-        MenuNode::check(MenuIds::TUN_MODE, texts.tun_mode.as_ref(), tun_mode_enabled)
-            .with_accelerator(hotkeys.get("toggle_tun_mode").copied()),
         MenuNode::Separator,
         MenuNode::check(
             MenuIds::LIGHTWEIGHT_MODE,
