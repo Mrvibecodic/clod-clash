@@ -403,13 +403,13 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
         </Box>
         <CodeChip
           title={
-            value.pac
+            proxy_auto_config
               ? t('settings.modals.sysproxy.fields.pacUrl')
               : t('settings.modals.sysproxy.fields.serverAddr')
           }
           sx={{ ml: 'auto', maxWidth: '100%', fontSize: 12.5 }}
         >
-          {value.pac ? PAC_URL : systemProxyAddress}
+          {proxy_auto_config ? PAC_URL : systemProxyAddress}
         </CodeChip>
       </Box>
 
