@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   check_version:
-    name: Check tag and package.json version
+    name: Check tag against every version field
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -30,13 +30,25 @@ jobs:
       - name: Compare versions
         run: |
           TAG_REF="${GITHUB_REF_NAME:-${GITHUB_REF##*/}}"
-          PKG_VERSION=$(jq -r .version package.json)
-          EXPECTED_TAG="clod-v$PKG_VERSION"
-          echo "tag: $TAG_REF, package.json: $PKG_VERSION"
-          if [[ "$TAG_REF" != "$EXPECTED_TAG" ]]; then
-            echo "::error::Tag $TAG_REF does not match package.json ($EXPECTED_TAG)"
-            exit 1
-          fi
+          declare -A VERSIONS
+          VERSIONS[package.json]=$(jq -r .version package.json)
+          VERSIONS[src-tauri/tauri.conf.json]=$(jq -r .version src-tauri/tauri.conf.json)
+          VERSIONS[src-tauri/Cargo.toml]=$(awk '
+            /^\[/ { in_package = ($0 == "[package]"); next }
+            in_package && /^version *=/ { gsub(/^version *= *"|".*$/, ""); print; exit }
+          ' src-tauri/Cargo.toml)
+          VERSIONS[Cargo.lock]=$(awk '
+            $0 == "name = \"clash-verge\"" { getline; gsub(/^version *= *"|".*$/, ""); print; exit }
+          ' Cargo.lock)
+          failed=0
+          for file in package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml Cargo.lock; do
+            echo "tag: $TAG_REF, $file: ${VERSIONS[$file]}"
+            if [[ "$TAG_REF" != "clod-v${VERSIONS[$file]}" ]]; then
+              echo "::error::Tag $TAG_REF does not match the version in $file (${VERSIONS[$file]:-not found})"
+              failed=1
+            fi
+          done
+          exit "$failed"
 
   prepare_release:
     name: Prepare draft release
