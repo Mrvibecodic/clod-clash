@@ -100,4 +100,14 @@ describe('общие хуки и функции окна', () => {
     assert.match(text, /serviceUninstallNotices\(await uninstallService\(\)\)/)
     assert.doesNotMatch(text, /stopCore|restartCore/)
   })
+
+  it('перед удалением службы окно не выключает TUN — это делает бэкенд после удачного удаления', () => {
+    const text = source('../components/shared/proxy-control-switches.tsx')
+    const handler =
+      /const onUninstallService = useLockFn\(async \(\) => \{([\s\S]*?)\n  \}\)/.exec(
+        text,
+      )
+    assert.ok(handler, 'обработчик удаления службы не найден')
+    assert.doesNotMatch(handler[1], /handleTunToggle|switchTun|enable_tun_mode/)
+  })
 })

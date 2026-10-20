@@ -106,6 +106,8 @@ service:
     SELinux фон хезмәтен җибәрмәде. Башкарыгыз: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: Кушымта вакытлыча юлдан (App Translocation) эшли һәм ядрәне таба алмый. Аны Applications папкасына күчерегез дә яңадан ачыгыз.
   noChannel: "the service is not answering: its channel is gone"
+  uninstallDeclined: "Uninstalling the service was cancelled: no administrator rights. The service and the way to connect stay as they were."
+  uninstallFailed: "The service could not be uninstalled — the details are in the app log."
 tray:
   dashboard: Идарә панеле
   ruleMode: Кагыйдәләр режимы

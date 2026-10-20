@@ -11,6 +11,7 @@ const outcome = (
 ): ServiceUninstallOutcome => ({
   stop_error: null,
   uninstall_error: null,
+  tun_error: null,
   restarted: false,
   restart_error: null,
   ...patch,
@@ -37,6 +38,21 @@ describe('удаление фоновой службы', () => {
       ),
       [
         { error: 'служба занята' },
+        { done: 'settings.feedback.notifications.clash.restartSuccess' },
+      ],
+    )
+  })
+
+  it('TUN, не выключившийся после удаления, объясняется сразу за удалением', () => {
+    assert.deepEqual(
+      serviceUninstallNotices(
+        outcome({ tun_error: 'конфиг не принят', restarted: true }),
+      ),
+      [
+        {
+          done: 'settings.feedback.notifications.clashService.uninstallSuccess',
+        },
+        { error: 'конфиг не принят' },
         { done: 'settings.feedback.notifications.clash.restartSuccess' },
       ],
     )

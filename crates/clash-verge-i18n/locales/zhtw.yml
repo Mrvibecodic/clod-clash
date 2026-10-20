@@ -106,6 +106,8 @@ service:
     SELinux 阻擋了背景服務啟動。請執行：sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: 應用從暫存路徑（App Translocation）執行，無法定位核心。請將它移到「應用程式」資料夾後重新開啟。
   noChannel: "the service is not answering: its channel is gone"
+  uninstallDeclined: "Uninstalling the service was cancelled: no administrator rights. The service and the way to connect stay as they were."
+  uninstallFailed: "The service could not be uninstalled — the details are in the app log."
 tray:
   dashboard: 儀表板
   ruleMode: 規則模式

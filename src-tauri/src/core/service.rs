@@ -90,6 +90,18 @@ impl std::fmt::Display for ElevationPending {
 
 impl std::error::Error for ElevationPending {}
 
+/// Человек не дал прав администратора на удаление службы.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UninstallDeclined;
+
+impl std::fmt::Display for UninstallDeclined {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&clash_verge_i18n::t!("service.uninstallDeclined"))
+    }
+}
+
+impl std::error::Error for UninstallDeclined {}
+
 static ELEVATION_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
 static BUNDLE_REJECTION: LazyLock<Mutex<Option<crate::core::runtime_bundle::UnusableBundle>>> =
     LazyLock::new(|| Mutex::new(None));
@@ -303,6 +315,10 @@ fn uninstall_service() -> Result<()> {
             .status()?,
     };
 
+    // Запрос прав, на который ответили «Нет», runas отдаёт кодом -1.
+    if level == PrivilegeLevel::NotPrivileged && status.code() == Some(-1) {
+        return Err(UninstallDeclined.into());
+    }
     if !status.success() {
         bail!(
             "failed to uninstall service with status {}",
@@ -427,14 +443,19 @@ fn selinux_hint() -> String {
 }
 
 #[cfg(target_os = "linux")]
+const PKEXEC_NOT_AUTHORIZED: i32 = 126;
+
+#[cfg(target_os = "linux")]
 const fn pkexec_itself_failed(code: Option<i32>) -> bool {
-    matches!(code, Some(126 | 127))
+    matches!(code, Some(PKEXEC_NOT_AUTHORIZED | 127))
 }
 
 #[cfg(target_os = "linux")]
 fn pkexec_failure_hint(code: Option<i32>) -> String {
     match code {
-        Some(126) => "administrator rights were not granted: the polkit prompt was cancelled or declined".to_owned(),
+        Some(PKEXEC_NOT_AUTHORIZED) => {
+            "administrator rights were not granted: the polkit prompt was cancelled or declined".to_owned()
+        }
         Some(127) => {
             "pkexec could not run the service installer: polkit is missing an agent for this session".to_owned()
         }
@@ -468,6 +489,9 @@ fn uninstall_service() -> Result<()> {
             .arg("--disable-internal-agent")
             .arg(&uninstall_path)
             .status()?;
+        if status.code() == Some(PKEXEC_NOT_AUTHORIZED) {
+            return Err(UninstallDeclined.into());
+        }
         if pkexec_itself_failed(status.code()) {
             bail!("{}", pkexec_failure_hint(status.code()));
         }
@@ -566,16 +590,20 @@ fn uninstall_service() -> Result<()> {
     let shell = escape_osascript_double_quoted_string(&shell);
     let command = format!(r#"do shell script "{shell}" with administrator privileges with prompt "{prompt}""#);
 
-    let status = StdCommand::new("osascript").args(vec!["-e", &command]).status()?;
+    let output = StdCommand::new("osascript").args(vec!["-e", &command]).output()?;
 
-    if !status.success() {
-        bail!(
-            "failed to uninstall service with status {}",
-            status.code().unwrap_or(-1)
-        );
+    if output.status.success() {
+        return Ok(());
     }
-
-    Ok(())
+    // «Отменить» в окне пароля osascript сообщает ошибкой -128.
+    if String::from_utf8_lossy(&output.stderr).contains("(-128)") {
+        return Err(UninstallDeclined.into());
+    }
+    bail!(
+        "failed to uninstall service with status {}: {}",
+        output.status.code().unwrap_or(-1),
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
 }
 
 #[cfg(target_os = "macos")]
@@ -1500,6 +1528,7 @@ impl ServiceManager {
     }
 
     async fn apply_service_status(&self, status: ServiceStatus) -> Result<()> {
+        let before = self.status.lock().clone();
         self.set_status(status.clone());
         match status {
             ServiceStatus::Ready => logging!(info, Type::Service, "Служба готова, запуск напрямую"),
@@ -1535,7 +1564,10 @@ impl ServiceManager {
                     Type::Service,
                     "Требуется удаление службы, запуск процесса удаления"
                 );
-                run_service_command(uninstall_service, "uninstall service").await?;
+                if let Err(error) = run_service_command(uninstall_service, "uninstall service").await {
+                    self.set_status(before);
+                    return Err(error);
+                }
                 self.set_status(ServiceStatus::Unavailable("Service Uninstalled".into()));
                 UNINSTALLED_THIS_SESSION.store(true, Ordering::Release);
             }
@@ -1799,6 +1831,36 @@ mod failure_tests {
 
         assert_eq!(describe_failure(1223, b"", b"real stderr"), "real stderr");
         assert_eq!(describe_failure(1223, b"real stdout", b"   "), "real stdout");
+    }
+
+    /// Отказ удаления службы возвращает её прежний статус: иначе ближайший
+    /// перезапуск счёл бы живую службу удалённой и поднял ядро своим процессом.
+    #[test]
+    fn a_refused_uninstall_gives_the_status_back() {
+        let source = crate::utils::source_scan::without_test_modules(include_str!("service.rs"));
+        let apply = crate::utils::source_scan::fn_body(source, "async fn apply_service_status").unwrap_or_default();
+        let arm = apply
+            .split("ServiceStatus::UninstallRequired =>")
+            .nth(1)
+            .unwrap_or_default();
+        let given_back = arm.find("self.set_status(before)").unwrap_or(usize::MAX);
+        assert!(
+            given_back < arm.find("Service Uninstalled").unwrap_or_default(),
+            "{arm}"
+        );
+        assert!(
+            apply.find("let before = ").unwrap_or(usize::MAX)
+                < apply.find("self.set_status(status").unwrap_or_default()
+        );
+    }
+
+    #[test]
+    fn a_declined_uninstall_speaks_the_language_of_the_window() {
+        let declined = super::UninstallDeclined.to_string();
+        assert!(
+            !declined.trim().is_empty() && !declined.contains("service."),
+            "{declined}"
+        );
     }
 }
 

@@ -106,6 +106,8 @@ service:
     SELinux اجرای سرویس پس‌زمینه را مسدود کرد. اجرا کنید: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: برنامه از یک مسیر موقت (App Translocation) اجرا می‌شود و هسته را پیدا نمی‌کند. آن را به پوشه Applications منتقل کنید و دوباره باز کنید.
   noChannel: "the service is not answering: its channel is gone"
+  uninstallDeclined: "Uninstalling the service was cancelled: no administrator rights. The service and the way to connect stay as they were."
+  uninstallFailed: "The service could not be uninstalled — the details are in the app log."
 tray:
   dashboard: داشبورد
   ruleMode: حالت قانون

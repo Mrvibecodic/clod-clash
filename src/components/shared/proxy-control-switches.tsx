@@ -224,11 +224,8 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
 
   const onUninstallService = useLockFn(async () => {
     try {
-      if (verge?.enable_tun_mode) {
-        await handleTunToggle(false)
-      }
       await uninstallServiceAndRestartCore()
-      await mutateSystemState()
+      await Promise.all([mutateSystemState(), mutateTunState()])
     } catch (err) {
       showNotice.error(err)
     }

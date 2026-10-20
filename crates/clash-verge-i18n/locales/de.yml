@@ -106,6 +106,8 @@ service:
     SELinux hat den Hintergrunddienst blockiert. Ausführen: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: Die App läuft aus einem temporären Pfad (App Translocation) und findet den Core nicht. Verschieben Sie sie in den Ordner „Programme“ und öffnen Sie sie erneut.
   noChannel: "the service is not answering: its channel is gone"
+  uninstallDeclined: "Uninstalling the service was cancelled: no administrator rights. The service and the way to connect stay as they were."
+  uninstallFailed: "The service could not be uninstalled — the details are in the app log."
 tray:
   dashboard: Übersicht
   ruleMode: Regel-Modus

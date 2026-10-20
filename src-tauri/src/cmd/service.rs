@@ -1,13 +1,36 @@
 use super::{CmdResult, StringifyErr as _};
-use crate::core::service::{self, SERVICE_MANAGER, ServiceStatus};
+use crate::config::{Config, IVerge};
+use crate::core::service::{self, SERVICE_MANAGER, ServiceStatus, UninstallDeclined};
 use crate::core::{CoreManager, manager::RunningMode};
 use clash_verge_logging::{Type, logging};
 
-async fn execute_service_operation_sync(status: ServiceStatus, op_type: &str) -> CmdResult {
-    SERVICE_MANAGER
-        .handle_service_status(status)
-        .await
-        .map_err(|e| format!("{op_type} Service failed: {e}").into())
+/// Отказ удаления — словами окна; техническая причина остаётся в журнале.
+fn uninstall_refusal(error: &anyhow::Error) -> String {
+    logging!(warn, Type::Service, "служба не удалена: {error:#}");
+    if error.downcast_ref::<UninstallDeclined>().is_some() {
+        UninstallDeclined.to_string()
+    } else {
+        clash_verge_i18n::t!("service.uninstallFailed").into_owned()
+    }
+}
+
+/// TUN без службы не поднять: после удаления он выключается той же записью,
+/// что и тумблером, вместе со способом подключения.
+async fn turn_tun_off_without_the_service() -> anyhow::Result<()> {
+    if !Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false) {
+        return Ok(());
+    }
+    crate::feat::patch_verge(
+        &IVerge {
+            enable_tun_mode: Some(false),
+            connect_tun_mode: Some(false),
+            ..IVerge::default()
+        },
+        false,
+    )
+    .await?;
+    crate::core::handle::Handle::refresh_verge();
+    Ok(())
 }
 
 /// Как прошло удаление службы — окно говорит о каждом шаге словами.
@@ -16,6 +39,7 @@ pub struct ServiceUninstall {
     /// Ядро под службой не остановилось — службу не трогали.
     stop_error: Option<String>,
     uninstall_error: Option<String>,
+    tun_error: Option<String>,
     /// Ядро, остановленное ради удаления, поднималось своим процессом.
     restarted: bool,
     restart_error: Option<String>,
@@ -33,7 +57,13 @@ pub async fn uninstall_service() -> CmdResult<ServiceUninstall> {
     Ok(run_uninstall(
         ran_under_service,
         async || manager.stop_core().await,
-        async || execute_service_operation_sync(ServiceStatus::UninstallRequired, "Uninstall").await,
+        async || {
+            SERVICE_MANAGER
+                .handle_service_status(ServiceStatus::UninstallRequired)
+                .await
+                .map_err(|error| uninstall_refusal(&error).into())
+        },
+        turn_tun_off_without_the_service,
         // Перезапуском, а не стартом: пока спрашивали права, доставка конфига
         // могла поднять ядро снова под службой, и удалённая служба унесла его с
         // собой — старт счёл бы его работающим.
@@ -47,11 +77,13 @@ pub async fn uninstall_service() -> CmdResult<ServiceUninstall> {
 }
 
 /// Шаги удаления службы: остановка ядра (только под службой), удаление,
-/// подъём ядра своим процессом (только под службой).
+/// выключение TUN (только если служба удалена), подъём ядра своим процессом
+/// (только под службой).
 async fn run_uninstall(
     under_service: bool,
     stop: impl AsyncFnOnce() -> anyhow::Result<()>,
     uninstall: impl AsyncFnOnce() -> CmdResult,
+    turn_tun_off: impl AsyncFnOnce() -> anyhow::Result<()>,
     restart: impl AsyncFnOnce() -> anyhow::Result<()>,
 ) -> ServiceUninstall {
     let mut outcome = ServiceUninstall::default();
@@ -68,6 +100,12 @@ async fn run_uninstall(
         return outcome;
     }
     outcome.uninstall_error = uninstall().await.err().map(|e| e.to_string());
+    if outcome.uninstall_error.is_none()
+        && let Err(e) = turn_tun_off().await
+    {
+        logging!(warn, Type::Service, "служба удалена, а TUN не выключился: {e:#}");
+        outcome.tun_error = Some(super::public_error_text(&e).to_string());
+    }
     // Ядро остановили мы — поднимаем обратно, удалилась служба или нет.
     if under_service {
         outcome.restarted = true;
@@ -201,6 +239,13 @@ mod tests {
                 }
             },
             async || {
+                if step("tun off") {
+                    Ok(())
+                } else {
+                    Err(anyhow::anyhow!("tun off refused"))
+                }
+            },
+            async || {
                 if step("restart") {
                     Ok(())
                 } else {
@@ -225,7 +270,11 @@ mod tests {
     #[tokio::test]
     async fn the_stopped_core_comes_back_even_if_the_service_stayed() {
         let (outcome, called) = uninstall_with(true, &["uninstall"]).await;
-        assert_eq!(called, ["stop", "uninstall", "restart"]);
+        assert_eq!(
+            called,
+            ["stop", "uninstall", "restart"],
+            "TUN без удаления не трогается"
+        );
         assert_eq!(outcome.stop_error, None);
         assert_eq!(outcome.uninstall_error.as_deref(), Some("uninstall refused"));
         assert!(outcome.restarted);
@@ -233,9 +282,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_tunnel_goes_off_only_after_the_service_is_gone() {
+        let (outcome, called) = uninstall_with(true, &[]).await;
+        assert_eq!(called, ["stop", "uninstall", "tun off", "restart"]);
+        assert_eq!(outcome.tun_error, None);
+
+        let (outcome, called) = uninstall_with(true, &["tun off"]).await;
+        assert_eq!(called, ["stop", "uninstall", "tun off", "restart"]);
+        assert_eq!(outcome.uninstall_error, None);
+        assert_eq!(outcome.tun_error.as_deref(), Some("tun off refused"));
+    }
+
+    #[tokio::test]
     async fn a_core_that_did_not_come_back_is_reported() {
         let (outcome, called) = uninstall_with(true, &["restart"]).await;
-        assert_eq!(called, ["stop", "uninstall", "restart"]);
+        assert_eq!(called, ["stop", "uninstall", "tun off", "restart"]);
         assert_eq!(outcome.uninstall_error, None);
         assert!(outcome.restarted);
         assert_eq!(outcome.restart_error.as_deref(), Some("restart refused"));
@@ -243,9 +304,12 @@ mod tests {
 
     #[tokio::test]
     async fn a_core_of_its_own_process_is_not_touched() {
-        for fails in [&[][..], &["uninstall"][..]] {
+        for (fails, steps) in [
+            (&[][..], &["uninstall", "tun off"][..]),
+            (&["uninstall"][..], &["uninstall"][..]),
+        ] {
             let (outcome, called) = uninstall_with(false, fails).await;
-            assert_eq!(called, ["uninstall"], "{fails:?}");
+            assert_eq!(called, steps, "{fails:?}");
             assert!(!outcome.restarted, "{fails:?}");
             assert_eq!(outcome.stop_error, None);
             assert_eq!(outcome.restart_error, None);

@@ -9,6 +9,7 @@ export interface ServiceUninstallOutcome {
   /** Ядро под службой не остановилось — службу не трогали. */
   stop_error: string | null
   uninstall_error: string | null
+  tun_error: string | null
   /** Ядро, остановленное ради удаления, поднималось своим процессом. */
   restarted: boolean
   restart_error: string | null
@@ -38,6 +39,9 @@ export const serviceUninstallNotices = (
       ? { done: UNINSTALL_STAGE.uninstalled }
       : { error: outcome.uninstall_error },
   ]
+  if (outcome.tun_error !== null) {
+    notices.push({ error: outcome.tun_error })
+  }
   if (outcome.restarted) {
     notices.push(
       outcome.restart_error === null
