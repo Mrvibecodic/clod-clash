@@ -52,7 +52,9 @@ serde_yaml_ng = { workspace = true }
 smartstring = { workspace = true, features = ["serde"] }
 bitflags = { workspace = true }
 warp = { version = "0.4.3", features = ["server"] }
-open = "5.3.6"
+# Ссылки провайдера открываются через ShellExecuteExW, а не `cmd /c start`:
+# без этой фичи кавычка в адресе стала бы командой.
+open = { version = "5.3.6", features = ["shellexecute-on-windows"] }
 dunce = "1.0.5"
 nanoid = "0.5"
 chrono = "0.4.45"
