@@ -589,6 +589,15 @@ const fn after_the_launch(launch: std::result::Result<(), u32>) -> AfterTheLaunc
     }
 }
 
+/// Установщик, который так и не запустили, больше никому не нужен: каталог
+/// у каждого запуска свой, и оставленные копировались бы во временной папке.
+#[cfg(any(target_os = "windows", test))]
+fn forget_the_unlaunched_installer(file: &std::path::Path) {
+    if let Some(dir) = file.parent() {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
 /// Ключи NSIS по режиму установки из `plugins.updater.windows.installMode`
 /// (как у плагина: `/P` — пассивно, `/S` — тихо, `/R` — запустить после).
 #[cfg(any(target_os = "windows", test))]
@@ -684,7 +693,10 @@ mod windows_installer {
         let dir = std::env::temp_dir().join(format!("{app}-{}-updater-{}", update.version, std::process::id()));
         std::fs::create_dir_all(&dir)?;
         let file = dir.join(format!("{app}-{}-installer.exe", update.version));
-        std::fs::write(&file, bytes)?;
+        if let Err(error) = std::fs::write(&file, bytes) {
+            super::forget_the_unlaunched_installer(&file);
+            return Err(error.into());
+        }
         let current: Vec<String> = crate::utils::server::without_links(std::env::args_os().skip(1))
             .into_iter()
             .map(|arg| arg.to_string_lossy().into_owned())
@@ -766,6 +778,7 @@ mod windows_installer {
                 if we_started_the_exit {
                     crate::feat::bring_back_after_a_refused_installer();
                 }
+                super::forget_the_unlaunched_installer(&launch.file);
                 Err(InstallerNotLaunched { declined }.into())
             }
         }
@@ -1503,5 +1516,29 @@ mod tests {
             install_failure_voice(false, &other),
             InstallFailureVoice::System(NotificationEvent::UpdateNotInstalled)
         ));
+    }
+
+    /// Установщик, который не запустился (отказ в правах, иной срыв) или не
+    /// записался, не остаётся во временной папке.
+    #[test]
+    fn an_installer_that_did_not_launch_leaves_nothing_behind() {
+        let dir = std::env::temp_dir().join(format!("clod-updater-test-{}", std::process::id()));
+        let file = dir.join("installer.exe");
+        assert!(std::fs::create_dir_all(&dir).is_ok() && std::fs::write(&file, b"MZ").is_ok());
+        super::forget_the_unlaunched_installer(&file);
+        assert!(!dir.exists(), "{dir:?}");
+
+        let source = crate::utils::source_scan::production_code(include_str!("updater.rs"));
+        let refused = source
+            .split("AfterTheLaunch::BringBack { declined } => {")
+            .nth(1)
+            .unwrap_or_default();
+        let refused = &refused[..refused.find("Err(InstallerNotLaunched").unwrap_or_default()];
+        assert!(
+            refused.contains("forget_the_unlaunched_installer(&launch.file)"),
+            "{refused}"
+        );
+        let prepare = crate::utils::source_scan::fn_body(source, "pub(super) fn prepare(").unwrap_or_default();
+        assert!(prepare.contains("forget_the_unlaunched_installer(&file)"), "{prepare}");
     }
 }
