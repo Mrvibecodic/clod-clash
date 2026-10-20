@@ -95,10 +95,12 @@ async fn rebuild_with(change: impl Fn(&mut IProfiles) -> Result<()> + Clone + Se
             .await
     };
     match staged.deliver_committing(Delivery::Reload, commit).await? {
-        Ok(delivered) => {
+        Ok(_) => {
             crate::config::profiles_save_file_safe().await?;
             handle::Handle::refresh_profiles();
-            super::settle_after_delivery(delivered);
+            handle::Handle::refresh_clash();
+            // Перезапущенное ядро возвращает выбор по реестру ещё до этой записи.
+            crate::config::profiles::activate_selected_nodes();
             Ok(())
         }
         Err(outcome) => bail!("{outcome}"),
@@ -218,6 +220,14 @@ mod tests {
 
     fn chosen(registry: &IProfiles, group: &str) -> Option<String> {
         chosen_in(item(registry, "A"), group)
+    }
+
+    #[test]
+    fn the_new_choice_reaches_the_core_whatever_happened_to_it() {
+        let body = crate::utils::source_scan::fn_body(include_str!("proxy_chain.rs"), "async fn rebuild_with(")
+            .expect("rebuild_with() is in proxy_chain.rs");
+        assert!(body.contains("activate_selected_nodes()"), "{body}");
+        assert!(!body.contains("settle_after_delivery"), "{body}");
     }
 
     #[test]
