@@ -4,8 +4,21 @@ set -euo pipefail
 app_name="Clod Clash.app"
 dest="/Applications/$app_name"
 
+lang=""
+if [ "$(uname -s)" = "Darwin" ]; then
+  lang="$(defaults read -g AppleLanguages 2>/dev/null | awk 'NR == 2 { gsub(/[ ",]/, ""); print; exit }' || true)"
+fi
+lang="${lang:-${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}}"
+case "${lang%%[-_.]*}" in
+  ru | uk | be | kk | uz | ky | tg) ru=1 ;;
+  *) ru=0 ;;
+esac
+say() {
+  if [ "$ru" = 1 ]; then echo "$1"; else echo "$2"; fi
+}
+
 if [ "$(uname -s)" != "Darwin" ]; then
-  echo "Этот скрипт только для macOS." >&2
+  say "Этот скрипт только для macOS." "This script is for macOS only." >&2
   exit 1
 fi
 
@@ -16,7 +29,8 @@ else
 fi
 
 if pgrep -xq clod-clash; then
-  echo "Clod Clash запущен. Закройте приложение и повторите установку." >&2
+  say "Clod Clash запущен. Закройте приложение и повторите установку." \
+    "Clod Clash is running. Quit the app and run the installer again." >&2
   exit 1
 fi
 
@@ -29,7 +43,7 @@ cleanup() {
 trap cleanup EXIT
 
 url="https://github.com/Mrvibecodic/clod-clash/releases/latest/download/Clod.Clash_${arch}.dmg"
-echo "Скачиваю $url"
+say "Скачиваю $url" "Downloading $url"
 curl -fL --retry 3 --progress-bar -o "$tmp/app.dmg" "$url"
 
 mkdir "$mnt"
@@ -40,10 +54,10 @@ if [ ! -w /Applications ]; then
   sudo="sudo"
 fi
 
-echo "Ставлю в $dest"
+say "Ставлю в $dest" "Installing to $dest"
 ditto "$mnt/$app_name" "$tmp/$app_name"
 $sudo rm -rf "$dest"
 $sudo mv "$tmp/$app_name" "$dest"
 
-echo "Готово."
+say "Готово." "Done."
 open "$dest"
