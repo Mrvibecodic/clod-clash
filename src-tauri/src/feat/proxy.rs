@@ -1,6 +1,7 @@
 use crate::{
     config::{Config, IVerge},
     core::handle,
+    feat::tun::SetupAnswer,
 };
 use clash_verge_logging::{Type, logging};
 use futures::StreamExt as _;
@@ -149,34 +150,29 @@ pub async fn toggle_system_proxy() -> bool {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TunStep {
-    LeaveEverythingAlone,
-    PrepareServiceThenSwitchOn,
-    SwitchOff,
-}
-
-const fn tun_step(exiting: bool, active: bool) -> TunStep {
+/// Что записать по нажатию «TUN» в трее или клавишей; `None` — ничего.
+/// Включается, как в окне, только при готовой службе: отказ в правах, неудача
+/// установки, уже идущая или отложенная подготовка TUN не включают.
+async fn tun_switch_to(exiting: bool, active: bool, prepare: impl AsyncFnOnce() -> SetupAnswer) -> Option<bool> {
     if exiting {
-        return TunStep::LeaveEverythingAlone;
+        return None;
     }
     if active {
-        TunStep::SwitchOff
-    } else {
-        TunStep::PrepareServiceThenSwitchOn
+        return Some(false);
     }
+    (prepare().await == SetupAnswer::Ready).then_some(true)
 }
 
 pub async fn toggle_tun_mode() -> bool {
     let desired = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
+    let active = crate::feat::tun::is_active_with(desired);
 
-    let enable = match tun_step(exit_is_under_way(), crate::feat::tun::is_active_with(desired)) {
-        TunStep::LeaveEverythingAlone => return desired,
-        TunStep::PrepareServiceThenSwitchOn => {
-            crate::feat::tun::ensure_ready(true).await;
-            true
-        }
-        TunStep::SwitchOff => false,
+    let Some(enable) = tun_switch_to(exit_is_under_way(), active, async || {
+        crate::feat::tun::ensure_ready(true).await.answer()
+    })
+    .await
+    else {
+        return active;
     };
 
     match super::patch_verge(
@@ -249,27 +245,48 @@ pub async fn copy_clash_env() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{SystemProxyStep, TunStep, goes_through, system_proxy_step, tun_step};
+    use super::{SetupAnswer, SystemProxyStep, goes_through, system_proxy_step, tun_switch_to};
 
     fn chain(hops: &[&str]) -> Vec<std::string::String> {
         hops.iter().map(|hop| (*hop).to_owned()).collect()
     }
 
-    #[test]
-    fn while_the_app_is_leaving_the_tun_switch_never_reaches_the_rights_prompt() {
+    async fn tun_switch(exiting: bool, active: bool, answer: SetupAnswer) -> (Option<bool>, bool) {
+        let asked = std::sync::atomic::AtomicBool::new(false);
+        let target = tun_switch_to(exiting, active, async || {
+            asked.store(true, std::sync::atomic::Ordering::Relaxed);
+            answer
+        })
+        .await;
+        (target, asked.load(std::sync::atomic::Ordering::Relaxed))
+    }
+
+    #[tokio::test]
+    async fn while_the_app_is_leaving_the_tun_switch_never_reaches_the_rights_prompt() {
         for active in [false, true] {
             assert_eq!(
-                tun_step(true, active),
-                TunStep::LeaveEverythingAlone,
+                tun_switch(true, active, SetupAnswer::Ready).await,
+                (None, false),
                 "active={active}: во время выхода подготовка службы не запускается"
             );
         }
     }
 
-    #[test]
-    fn with_no_exit_under_way_the_tun_switch_flips_and_prepares_only_when_turning_on() {
-        assert_eq!(tun_step(false, false), TunStep::PrepareServiceThenSwitchOn);
-        assert_eq!(tun_step(false, true), TunStep::SwitchOff);
+    #[tokio::test]
+    async fn the_tray_switches_tun_on_only_when_the_service_is_ready() {
+        assert_eq!(tun_switch(false, false, SetupAnswer::Ready).await, (Some(true), true));
+        assert_eq!(tun_switch(false, true, SetupAnswer::Ready).await, (Some(false), false));
+    }
+
+    #[tokio::test]
+    async fn a_refused_service_setup_leaves_tun_off_as_in_the_window() {
+        for answer in [
+            SetupAnswer::NotReady,
+            SetupAnswer::Refused("tun::setup_busy"),
+            SetupAnswer::Refused("tun::setup_pending"),
+        ] {
+            assert_eq!(tun_switch(false, false, answer).await, (None, true), "{answer:?}");
+        }
     }
 
     #[test]
