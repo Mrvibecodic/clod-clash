@@ -340,9 +340,8 @@ fn history_of(entry: &serde_json::Value) -> Vec<(i64, u64)> {
         .unwrap_or_default()
 }
 
-/// История задержек узлов из `wanted`: из `/proxies` (узлы самой подписки) и
-/// провайдеров подписки (узлы провайдеров — в `/proxies` их нет) — у того же
-/// узла, чей адрес у `wanted`: одноимённый узел другого провайдера не в счёт.
+/// История задержек узлов из `wanted`: из `/proxies` и провайдеров подписки — у
+/// того же узла, чей адрес у `wanted`: одноимённый узел другого провайдера не в счёт.
 fn histories(listed: &CoreListing, wanted: &HashMap<String, Address>) -> HashMap<String, Vec<(i64, u64)>> {
     let mut out = HashMap::new();
     for (name, provider, entry) in listed.entries() {
@@ -1253,7 +1252,6 @@ mod tests {
 
     #[test]
     fn provider_nodes_are_read_from_the_providers_listing() {
-        // В `/proxies` узлов провайдера нет — только в `/providers/proxies`.
         let proxies =
             serde_json::json!({"proxies": {"Свой": {"history": [{"time": "2026-10-04T10:00:00Z", "delay": 5}]}}});
         let providers = vec![

@@ -279,16 +279,29 @@ fn is_a_node(entry: &serde_json::Value) -> bool {
 
 /// Узлы ядра без заглушек провайдера (`sentinels` — общий разбор сборки).
 fn nodes_of(listed: &CoreListing, sentinels: &Sentinels) -> Listing {
+    fn fingerprint_of(entry: &serde_json::Value) -> &str {
+        entry
+            .get("fingerprint")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+    }
+    let is_sentinel = |name: &str, provider: Option<&str>| {
+        sentinels.contains(&(provider.unwrap_or_default().to_owned(), name.to_owned()))
+    };
+    // `/proxies` перечисляет и узлы провайдеров, без имени провайдера: заглушка
+    // провайдера там — запись с её именем и её отпечатком.
+    let placeholders: BTreeSet<(&str, &str)> = listed
+        .entries()
+        .filter(|(name, provider, _)| provider.is_some() && is_sentinel(name, *provider))
+        .map(|(name, _, entry)| (name, fingerprint_of(entry)))
+        .collect();
     let mut seen = BTreeSet::new();
     let mut listing = Listing::default();
     for (name, provider, entry) in listed.entries() {
-        if sentinels.contains(&(provider.unwrap_or_default().to_owned(), name.to_owned())) {
+        let fingerprint = fingerprint_of(entry);
+        if is_sentinel(name, provider) || (provider.is_none() && placeholders.contains(&(name, fingerprint))) {
             continue;
         }
-        let fingerprint = entry
-            .get("fingerprint")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or_default();
         if fingerprint.is_empty() {
             listing.without_fingerprint += usize::from(is_a_node(entry));
             continue;
@@ -1266,16 +1279,6 @@ mod tests {
 
     #[test]
     fn the_providers_placeholders_are_never_checked() {
-        let proxies = json!({ "proxies": {
-            "Срок истёк": { "type": "VLESS", "fingerprint": "f0" },
-            "a": { "type": "VLESS", "fingerprint": "f1" },
-        }});
-        let providers = json!({
-            "sub": { "proxies": [
-                { "name": "Лимит устройств", "fingerprint": "f2" },
-                { "name": "c", "fingerprint": "f3" },
-            ] },
-        });
         let sentinels: Sentinels = [
             (String::new(), "Срок истёк".to_owned()),
             ("sub".to_owned(), "Лимит устройств".to_owned()),
@@ -1284,10 +1287,31 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let listing = nodes_of(&listed(proxies, providers, 0), &sentinels);
-        let names: Vec<&str> = listing.nodes.iter().map(|node| node.name.as_str()).collect();
-        assert_eq!(names, ["a", "c"]);
-        assert_eq!(listing.without_fingerprint, 0);
+        let providers = json!({
+            "other": { "proxies": [{ "name": "c", "fingerprint": "f9" }] },
+            "sub": { "proxies": [
+                { "name": "Лимит устройств", "fingerprint": "f2" },
+                { "name": "c", "fingerprint": "f3" },
+            ] },
+        });
+        // Ядро перечисляет в `/proxies` и узлы провайдеров, а из одноимённых —
+        // какой-то один.
+        for shown_c in ["f3", "f9"] {
+            let proxies = json!({ "proxies": {
+                "Срок истёк": { "type": "VLESS", "fingerprint": "f0" },
+                "a": { "type": "VLESS", "fingerprint": "f1" },
+                "Лимит устройств": { "type": "VLESS", "fingerprint": "f2" },
+                "c": { "type": "VLESS", "fingerprint": shown_c },
+            }});
+            let listing = nodes_of(&listed(proxies, providers.clone(), 0), &sentinels);
+            let checked: Vec<(&str, &str)> = listing
+                .nodes
+                .iter()
+                .map(|node| (node.name.as_str(), node.fingerprint.as_str()))
+                .collect();
+            assert_eq!(checked, [("a", "f1"), ("c", "f3")], "{shown_c}");
+            assert_eq!(listing.without_fingerprint, 0);
+        }
     }
 
     #[test]
