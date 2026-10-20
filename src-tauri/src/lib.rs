@@ -140,6 +140,14 @@ mod app_init {
         Ok(())
     }
 
+    /// С диска окно показывает только картинки из каталога значков: копии
+    /// значков групп и выбранные значки трея.
+    pub fn setup_asset_scope(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+        app.asset_protocol_scope()
+            .allow_directory(utils::dirs::app_icons_dir()?, true)?;
+        Ok(())
+    }
+
     pub fn generate_handlers() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
         tauri::generate_handler![
             cmd::is_port_in_use,
@@ -299,6 +307,15 @@ pub fn run() {
 
                 if let Err(e) = app_init::setup_window_state(app) {
                     logging!(error, Type::Setup, "Failed to setup window state: {}", e);
+                }
+
+                if let Err(e) = app_init::setup_asset_scope(app) {
+                    logging!(
+                        error,
+                        Type::Setup,
+                        "Failed to allow the icons directory to the window: {}",
+                        e
+                    );
                 }
             })) {
                 log_setup_panic("pre-init", panic);
