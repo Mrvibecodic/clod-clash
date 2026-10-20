@@ -1,3 +1,5 @@
+import { nameWithoutFlag } from './country.ts'
+
 /**
  * Подпись узла из подписки — если она про тот же протокол, что у ядра. Иначе
  * (узел ядро завело не из этой записи) подписи нет: лучше никакой, чем чужая.
@@ -74,6 +76,10 @@ export const featureChips = (
 
 export const nodeName = (name: string, direct: string) =>
   name === 'DIRECT' ? direct : name
+
+/** Имя сервера в списке Главной: без флага-эмодзи, флаг рисуется картинкой. */
+export const serverName = (name: string, direct: string) =>
+  nameWithoutFlag(nodeName(name, direct))
 
 export const typeText = (
   node: { type?: string; label?: IProxyLabel; all?: unknown },

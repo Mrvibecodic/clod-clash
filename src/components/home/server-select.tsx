@@ -63,7 +63,7 @@ import {
   SELECTABLE_GROUP_TYPES,
   visibleGroups,
 } from '@/utils/proxy-groups'
-import { hidesType, nodeName, typeText } from '@/utils/proxy-label'
+import { hidesType, serverName, typeText } from '@/utils/proxy-label'
 import { serverBehind } from '@/utils/server-behind'
 import { noServersSeverity } from '@/utils/subscription-status'
 
@@ -619,8 +619,6 @@ const testNodesOf = (
     .filter((node): node is IProxyItem => !!node)
 const nodesSignature = (nodes: IProxyItem[]) =>
   nodes.map((node) => node.name).join('\n')
-const serverName = (name: string, direct: string) =>
-  nameWithoutFlag(nodeName(name, direct))
 
 const CORE_MEASURED_TYPES = new Set(['urltest', 'fallback', 'loadbalance'])
 

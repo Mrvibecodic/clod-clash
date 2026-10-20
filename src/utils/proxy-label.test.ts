@@ -9,6 +9,7 @@ import {
   labelFor,
   nodeName,
   own,
+  serverName,
   typeChips,
   typeText,
 } from './proxy-label.ts'
@@ -222,17 +223,28 @@ describe('nodeName', () => {
     }
   })
 
-  it('every place that shows a chosen node names DIRECT the same way', () => {
+  it('names a server in the Home list without its flag emoji', () => {
+    assert.equal(serverName('DIRECT', 'Напрямую'), 'Напрямую')
+    assert.equal(serverName('🇩🇪 Berlin', 'Напрямую'), 'Berlin')
+    assert.equal(serverName('REJECT', 'Напрямую'), 'REJECT')
+  })
+
+  it('no place that shows a chosen node prints its raw name', () => {
+    // Сырое имя узла в разметке: потомком, подсказкой, «сейчас» или без флага.
+    const raw =
+      /(?:[^=\w$]\{|(?:title|now)=\{|nameWithoutFlag\()\s*(?:node\.name|proxy\??\.name|proxy\??\.now|group\??\.now|leaf|step|last|behind\??\.server)\s*[)}]/
     for (const file of [
       '../components/home/server-select.tsx',
       '../components/proxy/proxy-item.tsx',
       '../components/proxy/proxy-item-mini.tsx',
       '../components/proxy/proxy-render.tsx',
       '../components/proxy/proxy-chain.tsx',
+      '../components/connection/connection-parts.tsx',
+      '../components/connection/connection-detail.tsx',
     ]) {
       const source = readFileSync(new URL(file, import.meta.url), 'utf8')
-      assert.match(source, /nodeName\(/, file)
-      assert.match(source, /'shared\.labels\.direct'/, file)
+      assert.match(source, /(?:nodeName|serverName)\(/, file)
+      assert.doesNotMatch(source, raw, file)
     }
   })
 })
