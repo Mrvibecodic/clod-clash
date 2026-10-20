@@ -175,6 +175,8 @@ pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated
             attempt
         );
         handle::Handle::notice_message("core::crashed", message.to_owned());
+        #[cfg(target_os = "macos")]
+        crate::utils::resolve::dns::the_tunnel_is_gone();
         AsyncHandler::spawn(|| async {
             if !Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
                 return;

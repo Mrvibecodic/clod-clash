@@ -318,6 +318,8 @@ impl CoreManager {
         }
 
         if let Err(error) = &result {
+            #[cfg(target_os = "macos")]
+            crate::utils::resolve::dns::the_tunnel_is_gone();
             Handle::notice_message("core::not_ready", error.to_string());
             return result;
         }
@@ -1414,5 +1416,24 @@ mod tests {
             !decide.contains("stop_core") && !decide.contains("start_and_confirm") && !decide.contains("try_handoff"),
             "решение о доставке само ядро не перезапускает: {decide}"
         );
+    }
+
+    /// macOS: подмена системного DNS живёт, пока жив туннель. Ядро сдалось
+    /// после падений или не поднялось — подмена снимается в обоих местах.
+    #[test]
+    fn the_dns_override_does_not_outlive_the_tunnel() {
+        let lifecycle = crate::utils::source_scan::without_test_modules(include_str!("lifecycle.rs"));
+        let start = fn_body(lifecycle, "async fn start_core_inner").unwrap_or_default();
+        let failed = start.split("if let Err(error) = &result {").nth(1).unwrap_or_default();
+        let failed = &failed[..failed.find("return result;").unwrap_or_default()];
+        assert!(failed.contains("dns::the_tunnel_is_gone()"), "{failed}");
+
+        let state = crate::utils::source_scan::without_test_modules(include_str!("state.rs"));
+        let gave_up = state
+            .split("if attempt > MAX_CRASH_RESTARTS {")
+            .nth(1)
+            .unwrap_or_default();
+        let gave_up = &gave_up[..gave_up.find("return;").unwrap_or_default()];
+        assert!(gave_up.contains("dns::the_tunnel_is_gone()"), "{gave_up}");
     }
 }

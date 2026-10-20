@@ -102,7 +102,8 @@ still remains, export the logs: the sleep entry shows whether this is that situa
 - **Linux: an error about pkexec** — install polkit or run once
   `sudo /usr/bin/clash-verge-service-install`.
 - **macOS: DNS wasn't restored after a crash** — the app restores the system DNS
-  by itself on the next launch; just launch it again.
+  by itself on the next launch; just launch it again. If only the core went down and did not
+  come back, the system DNS is returned right away, and the override comes back with the core.
 
 ## Switched server, but a download keeps using the old one
 

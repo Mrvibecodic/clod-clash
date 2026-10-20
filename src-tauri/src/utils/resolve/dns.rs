@@ -118,6 +118,16 @@ pub fn apply_remembered_desire() {
     });
 }
 
+/// Туннеля больше нет: ядро сдалось или не поднялось. Подмена без него
+/// уводит все имена машины мимо туннеля — снимается; ставит её снова, как и
+/// при старте, следующий удачный подъём ядра.
+pub fn the_tunnel_is_gone() {
+    let ticket = take_the_newest_ticket();
+    crate::process::AsyncHandler::spawn(move || async move {
+        sync_override(ticket, false, false).await;
+    });
+}
+
 fn state_path() -> Option<std::path::PathBuf> {
     crate::utils::dirs::app_home_dir().ok().map(|dir| dir.join(STATE_FILE))
 }
