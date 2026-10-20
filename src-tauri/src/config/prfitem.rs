@@ -262,7 +262,6 @@ pub struct PrfOption {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub danger_accept_invalid_certs: Option<bool>,
 
-    #[serde(default = "default_allow_auto_update")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_auto_update: Option<bool>,
 
@@ -1915,11 +1914,6 @@ impl PrfItem {
     }
 }
 
-#[allow(clippy::unnecessary_wraps)]
-const fn default_allow_auto_update() -> Option<bool> {
-    Some(true)
-}
-
 fn allow_auto_update_enabled(option: Option<&PrfOption>) -> bool {
     option.and_then(|o| o.allow_auto_update).unwrap_or(true)
 }
@@ -3269,6 +3263,18 @@ mod tests {
             ..PrfOption::default()
         };
         assert!(!allow_auto_update_enabled(Some(&disabled)));
+    }
+
+    #[test]
+    fn an_update_through_the_proxy_keeps_auto_update_switched_off() {
+        let request: PrfOption =
+            serde_json::from_str(r#"{"with_proxy": false, "self_proxy": true}"#).expect("the request must parse");
+        let stored = PrfOption {
+            allow_auto_update: Some(false),
+            ..PrfOption::default()
+        };
+        let merged = PrfOption::merge(Some(&stored), Some(&request));
+        assert_eq!(merged.and_then(|option| option.allow_auto_update), Some(false));
     }
 
     #[test]

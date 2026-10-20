@@ -389,12 +389,13 @@ impl IProfiles {
         each.extra = item.extra;
         each.updated = item.updated;
         each.home = item.home.to_owned();
-        // Интервал и признак защищённого канала в свежем ответе — эхо значений,
-        // отправленных в запрос до загрузки; интервал панели приезжает в
-        // `panel_interval`. Эхо затёрло бы выбор, который человек сделал, пока
-        // шла загрузка.
+        // Интервал, автообновление и признак защищённого канала в свежем ответе —
+        // эхо значений, отправленных в запрос до загрузки; интервал панели
+        // приезжает в `panel_interval`. Эхо затёрло бы выбор, который человек
+        // сделал, пока шла загрузка.
         if let Some(option) = item.option.as_mut() {
             option.update_interval = None;
+            option.allow_auto_update = None;
             option.secure = None;
         }
         each.option = PrfOption::merge(each.option.as_ref(), item.option.as_ref());
@@ -2070,6 +2071,30 @@ mod tests {
         profiles.merge_updated_item(&"sub".into(), &mut update).unwrap();
         let merged = profiles.get_item("sub").unwrap().option.clone().unwrap_or_default();
         assert_eq!(merged.secure, Some(false), "эхо канала не включает его обратно");
+
+        // Автообновление выключили, пока шла загрузка.
+        let mut switched_off = item("sub", "remote", "sub.yaml");
+        switched_off.option = Some(PrfOption {
+            allow_auto_update: Some(false),
+            ..PrfOption::default()
+        });
+        let mut profiles_off = profiles_with(vec![switched_off], "sub");
+        let mut update = item("sub", "remote", "sub.yaml");
+        update.option = Some(PrfOption {
+            allow_auto_update: Some(true),
+            ..PrfOption::default()
+        });
+        profiles_off.merge_updated_item(&"sub".into(), &mut update).unwrap();
+        assert_eq!(
+            profiles_off
+                .get_item("sub")
+                .unwrap()
+                .option
+                .as_ref()
+                .and_then(|option| option.allow_auto_update),
+            Some(false),
+            "эхо автообновления не включает его обратно"
+        );
         assert_eq!(merged.chan_pin.as_deref(), Some("pin"), "ключ прослойки сохраняется");
 
         let mut with_body = item("sub", "remote", "sub.yaml");
