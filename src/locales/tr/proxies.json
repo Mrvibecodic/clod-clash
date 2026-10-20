@@ -15,7 +15,7 @@
       "removeNode": "Remove the node from the chain"
     },
     "provider": {
-      "title": "Vekil Sağlayıcısı",
+      "title": "Server sets",
       "actions": {
         "updateAll": "Tümünü Güncelle",
         "update": "Güncelle"

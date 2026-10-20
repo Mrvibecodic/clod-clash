@@ -1,8 +1,8 @@
 {
   "page": {
     "provider": {
-      "trigger": "規則集合",
-      "dialogTitle": "規則集合",
+      "trigger": "Rule sets",
+      "dialogTitle": "Rule sets",
       "actions": {
         "updateAll": "全部更新",
         "update": "更新"
@@ -16,8 +16,8 @@
         "updateSuccess": "已成功更新 {{name}}",
         "updateFailed": "更新 {{name}} 失敗：{{message}}",
         "genericError": "更新失敗：{{message}}",
-        "none": "沒有可更新的規則集合",
-        "allUpdated": "所有規則集合均已更新"
+        "none": "No rule sets to update",
+        "allUpdated": "All rule sets updated"
       }
     }
   },

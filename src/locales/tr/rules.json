@@ -1,8 +1,8 @@
 {
   "page": {
     "provider": {
-      "trigger": "Kural Sağlayıcısı",
-      "dialogTitle": "Kural Sağlayıcısı",
+      "trigger": "Rule sets",
+      "dialogTitle": "Rule sets",
       "actions": {
         "updateAll": "Tümünü Güncelle",
         "update": "Güncelle"

@@ -1,7 +1,7 @@
 {
   "page": {
     "actions": {
-      "updateAll": "Барлык профильләрне яңарту",
+      "updateAll": "Update all subscriptions",
       "addSubscription": "Add subscription"
     },
     "batch": {
@@ -29,7 +29,7 @@
         "loadFailed": "Could not read the subscription list"
       },
       "notifications": {
-        "profileSwitched": "Профиль алмаштырылды",
+        "profileSwitched": "Subscription switched",
         "switchBusy": "A subscription switch is already in progress",
         "batchDeleted": "Selected subscriptions deleted",
         "urlMigrated": "The provider moved this subscription to a new address",
@@ -117,7 +117,7 @@
     "profileForm": {
       "title": {
         "create": "Add subscription",
-        "edit": "Профильне үзгәртү",
+        "edit": "Edit subscription",
         "createLocal": "Your own config file",
         "added": "Subscription added"
       },
@@ -126,8 +126,8 @@
         "subscriptionUrl": "Подписка URL-ы",
         "httpTimeout": "HTTP Request Timeout",
         "updateInterval": "Яңарту интервалы",
-        "useSystemProxy": "Системалы проксины кулланып яңарту",
-        "useClashProxy": "Clash прокси кулланып яңарту",
+        "useSystemProxy": "Update through the system proxy",
+        "useClashProxy": "Update through the core proxy",
         "acceptInvalidCerts": "Дөрес булмаган сертификатларны кабул итү (Куркыныч)",
         "allowAutoUpdate": "Allow Auto Update",
         "displayName": "Name (optional)",
@@ -141,7 +141,7 @@
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "{{minutes}} минутка бер тапкырдан ешрак түгел — югыйсә панель артык сорауларны ала.",
+        "intervalFloor": "No more often than once every {{minutes}} minutes — otherwise the provider gets needless requests.",
         "secureSupport": "(make sure your provider supports this option)",
         "secureChannel": "Turned on after a check: stays off unless the provider answers"
       },
@@ -174,7 +174,7 @@
       "errors": {
         "urlRequired": "Paste the subscription link",
         "fileRequired": "Choose a file",
-        "intervalTooShort": "Яңарту аралыгы {{minutes}} минуттан кыскарак була алмый — югыйсә панель артык сорауларны ала.",
+        "intervalTooShort": "The update interval cannot be shorter than {{minutes}} minutes — otherwise the provider gets needless requests.",
         "profileMissing": "The subscription is gone — close this window and open it again"
       },
       "actions": {
@@ -206,7 +206,7 @@
         "name": "Төркем исеме",
         "icon": "Прокси төркеме иконкасы",
         "proxies": "Прокси куллану",
-        "provider": "Провайдер куллану",
+        "provider": "Use server sets",
         "healthCheckUrl": "Сәламәтлекне тикшерү URL-ы",
         "expectedStatus": "Көтелгән статус коды",
         "interval": "Интервал",
@@ -216,9 +216,9 @@
         "filter": "Фильтр",
         "excludeFilter": "Фильтр аша чыгару",
         "excludeType": "Чыгару төре",
-        "includeAll": "Барлык прокси һәм провайдерларны кертү",
+        "includeAll": "Include all proxies and server sets",
         "includeAllProxies": "Барлык проксины кертү",
-        "includeAllProviders": "Барлык провайдерларны кертү"
+        "includeAllProviders": "Include all server sets"
       },
       "toggles": {
         "lazy": "Сак режим (lazy)",

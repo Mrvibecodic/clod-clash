@@ -1,7 +1,7 @@
 {
   "page": {
     "actions": {
-      "updateAll": "تحديث جميع الملفات الشخصية",
+      "updateAll": "Update all subscriptions",
       "addSubscription": "Add subscription"
     },
     "batch": {
@@ -29,7 +29,7 @@
         "loadFailed": "Could not read the subscription list"
       },
       "notifications": {
-        "profileSwitched": "تم التبديل إلى الملف الشخصي",
+        "profileSwitched": "Subscription switched",
         "switchBusy": "A subscription switch is already in progress",
         "batchDeleted": "Selected subscriptions deleted",
         "urlMigrated": "The provider moved this subscription to a new address",
@@ -117,7 +117,7 @@
     "profileForm": {
       "title": {
         "create": "Add subscription",
-        "edit": "تعديل الملف الشخصي",
+        "edit": "Edit subscription",
         "createLocal": "Your own config file",
         "added": "Subscription added"
       },
@@ -126,8 +126,8 @@
         "subscriptionUrl": "رابط الاشتراك",
         "httpTimeout": "HTTP Request Timeout",
         "updateInterval": "فاصل التحديث",
-        "useSystemProxy": "استخدام وكيل النظام",
-        "useClashProxy": "استخدام وكيل Clash",
+        "useSystemProxy": "Update through the system proxy",
+        "useClashProxy": "Update through the core proxy",
         "acceptInvalidCerts": "قبول الشهادات غير الصالحة (خطر)",
         "allowAutoUpdate": "Allow Auto Update",
         "displayName": "Name (optional)",
@@ -137,11 +137,11 @@
         "newGroupName": "Group name",
         "advanced": "Advanced",
         "secureChannel": "اتصال آمن",
-        "secureKey": "مفتاح الوسيط"
+        "secureKey": "Secure connection key"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "مرة واحدة كل {{minutes}} دقيقة على الأكثر — وإلا تتلقى اللوحة طلبات لا لزوم لها.",
+        "intervalFloor": "No more often than once every {{minutes}} minutes — otherwise the provider gets needless requests.",
         "secureSupport": "(make sure your provider supports this option)",
         "secureChannel": "Turned on after a check: stays off unless the provider answers"
       },
@@ -174,7 +174,7 @@
       "errors": {
         "urlRequired": "Paste the subscription link",
         "fileRequired": "Choose a file",
-        "intervalTooShort": "لا يمكن أن تقل فترة التحديث عن {{minutes}} دقيقة — وإلا تتلقى اللوحة طلبات لا لزوم لها.",
+        "intervalTooShort": "The update interval cannot be shorter than {{minutes}} minutes — otherwise the provider gets needless requests.",
         "profileMissing": "The subscription is gone — close this window and open it again"
       },
       "actions": {
@@ -206,7 +206,7 @@
         "name": "اسم المجموعة",
         "icon": "أيقونة مجموعة الوكلاء",
         "proxies": "استخدام الوكلاء",
-        "provider": "استخدام المزود",
+        "provider": "Use server sets",
         "healthCheckUrl": "رابط فحص الصحة",
         "expectedStatus": "الحالة المتوقعة",
         "interval": "الفاصل الزمني",
@@ -216,9 +216,9 @@
         "filter": "تصفية",
         "excludeFilter": "استبعاد المرشح",
         "excludeType": "استبعاد النوع",
-        "includeAll": "تضمين جميع الوكلاء والمزودين",
+        "includeAll": "Include all proxies and server sets",
         "includeAllProxies": "تضمين جميع الوكلاء",
-        "includeAllProviders": "تضمين جميع المزودين"
+        "includeAllProviders": "Include all server sets"
       },
       "toggles": {
         "lazy": "كسول",

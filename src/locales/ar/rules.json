@@ -1,8 +1,8 @@
 {
   "page": {
     "provider": {
-      "trigger": "مزود القواعد",
-      "dialogTitle": "مزود القواعد",
+      "trigger": "Rule sets",
+      "dialogTitle": "Rule sets",
       "actions": {
         "updateAll": "تحديث الكل",
         "update": "تحديث"

@@ -10,7 +10,7 @@
         "systemProxy": "پراکسی سیستم"
       },
       "tooltips": {
-        "silentStart": "برنامه را در حالت پس‌زمینه بدون نمایش پانل اجرا کنید",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "بلافاصله پس از اجرا، همان روش اتصالی که دکمه فعال می‌کند برقرار می‌شود. به‌طور پیش‌فرض خاموش است.",
         "dnsOverride": "فقط macOS: تا زمانی که تونل در حالت fake-ip بالا است (پیش‌فرض؛ با redir-host از اشتراک جایگزینی فعال نمی‌شود)، حل‌کننده سیستم به یک DNS عمومی تغییر می‌کند تا درخواست‌هایی که سیستم خارج از رابط می‌فرستد هم از تونل عبور کنند. با خاموش کردن آن، بخشی از این درخواست‌ها بیرون از تونل می‌رود."
       },
@@ -129,7 +129,7 @@
       "title": "تنظیمات Clash",
       "form": {
         "fields": {
-          "allowLan": "اجازه LAN",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "بازنویسی DNS",
           "ipv6": "IPv6",
           "unifiedDelay": "معادلDELAY",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "حالت قانون",
         "global": "حالت جهانی",
-        "openOrCloseDashboard": "باز/بستن داشبورد",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "فعال/غیرفعال کردن پراکسی سیستم",
         "toggleTunMode": "فعال/غیرفعال کردن حالت Tun",
         "entryLightweightMode": "Enter lightweight mode",
@@ -750,7 +750,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "با موفقیت با پروکسی کلش به‌روزرسانی شد",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "نسخهٔ {{version}} تغییرات ناسازگار دارد و به‌صورت خودکار نصب نشد. لطفاً به‌صورت دستی به‌روزرسانی کنید."
       }
     }

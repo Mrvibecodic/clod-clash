@@ -15,7 +15,7 @@
       "removeNode": "Remove the node from the chain"
     },
     "provider": {
-      "title": "تأمین‌کننده پروکسی",
+      "title": "Server sets",
       "actions": {
         "updateAll": "به‌روزرسانی همه",
         "update": "به‌روزرسانی"

@@ -1,8 +1,8 @@
 {
   "page": {
     "provider": {
-      "trigger": "ルールプロバイダー",
-      "dialogTitle": "ルールプロバイダー",
+      "trigger": "Rule sets",
+      "dialogTitle": "Rule sets",
       "actions": {
         "updateAll": "すべて更新",
         "update": "更新"

@@ -10,7 +10,7 @@
         "systemProxy": "وكيل النظام"
       },
       "tooltips": {
-        "silentStart": "بدء البرنامج في الخلفية دون عرض الواجهة",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "بعد بدء التشغيل مباشرة يفعّل التطبيق طريقة الاتصال نفسها التي يفعّلها الزر. معطّل افتراضياً.",
         "dnsOverride": "‏macOS فقط: أثناء عمل النفق في وضع fake-ip (الافتراضي؛ مع redir-host من الاشتراك لا يُفعَّل التحويل) يجري تحويل محلّل النظام إلى محلّل عام، حتى تمرّ عبر النفق أيضًا الطلبات التي يرسلها النظام خارج الواجهة. عند الإيقاف سيخرج جزء منها خارج النفق."
       },
@@ -129,7 +129,7 @@
       "title": "إعدادات Clash",
       "form": {
         "fields": {
-          "allowLan": "السماح بالشبكة المحلية",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "DNS Overwrite",
           "ipv6": "IPv6",
           "unifiedDelay": "تأخير موحد",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "وضع القواعد",
         "global": "الوضع العالمي",
-        "openOrCloseDashboard": "فتح/إغلاق لوحة التحكم",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "تفعيل/تعطيل وكيل النظام",
         "toggleTunMode": "تفعيل/تعطيل وضع TUN",
         "entryLightweightMode": "Enter lightweight mode",

@@ -1,12 +1,12 @@
 {
   "page": {
     "actions": {
-      "updateAll": "更新所有訂閱",
+      "updateAll": "Update all subscriptions",
       "addSubscription": "Add subscription"
     },
     "batch": {
       "actions": {
-        "delete": "刪除選取訂閱",
+        "delete": "Delete selected subscriptions",
         "selectAll": "全選",
         "deselectAll": "取消選取",
         "done": "完成"
@@ -29,9 +29,9 @@
         "loadFailed": "Could not read the subscription list"
       },
       "notifications": {
-        "profileSwitched": "訂閱已切換",
-        "switchBusy": "正在切換配置，請稍後重試",
-        "batchDeleted": "選取的訂閱已成功刪除",
+        "profileSwitched": "Subscription switched",
+        "switchBusy": "A subscription switch is already in progress",
+        "batchDeleted": "Selected subscriptions deleted",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
         "editorBrokenYaml": "The file could not be parsed as YAML — opened in the YAML view so nothing is overwritten. Fix the syntax and switch back to Form.",
@@ -117,7 +117,7 @@
     "profileForm": {
       "title": {
         "create": "Add subscription",
-        "edit": "編輯設定檔",
+        "edit": "Edit subscription",
         "createLocal": "Your own config file",
         "added": "Subscription added"
       },
@@ -126,8 +126,8 @@
         "subscriptionUrl": "訂閱網址",
         "httpTimeout": "HTTP Request Timeout",
         "updateInterval": "更新間隔",
-        "useSystemProxy": "使用系統代理更新",
-        "useClashProxy": "使用內核代理更新",
+        "useSystemProxy": "Update through the system proxy",
+        "useClashProxy": "Update through the core proxy",
         "acceptInvalidCerts": "允許無效憑證（危險）",
         "allowAutoUpdate": "允許自動更新",
         "displayName": "Name (optional)",
@@ -137,11 +137,11 @@
         "newGroupName": "Group name",
         "advanced": "Advanced",
         "secureChannel": "安全連線",
-        "secureKey": "中介層金鑰"
+        "secureKey": "Secure connection key"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "最快每 {{minutes}} 分鐘一次 — 更頻繁只會為面板帶來多餘請求。",
+        "intervalFloor": "No more often than once every {{minutes}} minutes — otherwise the provider gets needless requests.",
         "secureSupport": "(make sure your provider supports this option)",
         "secureChannel": "Turned on after a check: stays off unless the provider answers"
       },
@@ -174,7 +174,7 @@
       "errors": {
         "urlRequired": "Paste the subscription link",
         "fileRequired": "Choose a file",
-        "intervalTooShort": "更新間隔不能短於 {{minutes}} 分鐘 — 更頻繁只會為面板帶來多餘請求。",
+        "intervalTooShort": "The update interval cannot be shorter than {{minutes}} minutes — otherwise the provider gets needless requests.",
         "profileMissing": "The subscription is gone — close this window and open it again"
       },
       "actions": {
@@ -206,7 +206,7 @@
         "name": "代理組名稱",
         "icon": "代理組圖示",
         "proxies": "使用代理",
-        "provider": "使用代理集合",
+        "provider": "Use server sets",
         "healthCheckUrl": "健康檢查網址",
         "expectedStatus": "預期狀態碼",
         "interval": "檢查間隔",
@@ -216,9 +216,9 @@
         "filter": "篩選節點",
         "excludeFilter": "排除節點",
         "excludeType": "排除節點類型",
-        "includeAll": "包含所有輸出代理、代理集合",
+        "includeAll": "Include all proxies and server sets",
         "includeAllProxies": "包含所有輸出代理",
-        "includeAllProviders": "包含所有代理集合"
+        "includeAllProviders": "Include all server sets"
       },
       "toggles": {
         "lazy": "延遲載入",

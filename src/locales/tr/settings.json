@@ -10,7 +10,7 @@
         "systemProxy": "Sistem Vekil'i"
       },
       "tooltips": {
-        "silentStart": "Programı paneli görüntülemeden arka plan modunda başlatır",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "Uygulama açılır açılmaz düğmenin yaptığı bağlantı yöntemini devreye alır. Varsayılan olarak kapalıdır.",
         "dnsOverride": "Yalnızca macOS: tünel fake-ip modunda açıkken (varsayılan; abonelikten redir-host gelirse değiştirme başlatılmaz) sistem çözümleyicisi genel bir DNS'e alınır, böylece sistemin arayüzü atlayarak gönderdiği sorgular da tünelden geçer. Kapatırsanız bunların bir kısmı tünelin dışına çıkar."
       },
@@ -129,7 +129,7 @@
       "title": "Clash Ayarı",
       "form": {
         "fields": {
-          "allowLan": "LAN'a İzin Ver",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "DNS Üzerine Yazma",
           "ipv6": "IPv6",
           "unifiedDelay": "Birleşik Gecikme",
@@ -254,8 +254,8 @@
           "versionCopied": "Version copied to clipboard"
         },
         "messages": {
-          "noProfileSelected": "Seçili profil yok",
-          "profileFileError": "Profil dosyası okunamadı"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "Yedekleme Ayarı",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "Kural Modu",
         "global": "Küresel Mod",
-        "openOrCloseDashboard": "Kontrol Panelini Aç/Kapat",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "Sistem Vekil'ini Etkinleştir/Devre Dışı Bırak",
         "toggleTunMode": "Tun Modunu Etkinleştir/Devre Dışı Bırak",
         "entryLightweightMode": "Hafif Moda Gir",
@@ -750,7 +750,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "Clash vekil ile güncelleme başarılı",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "{{version}} sürümü uyumsuz değişiklikler içeriyor ve otomatik olarak kurulmadı. Lütfen elle güncelleyin."
       }
     }

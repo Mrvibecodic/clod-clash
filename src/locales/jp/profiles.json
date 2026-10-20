@@ -1,12 +1,12 @@
 {
   "page": {
     "actions": {
-      "updateAll": "すべてのプロファイルを更新",
+      "updateAll": "Update all subscriptions",
       "addSubscription": "Add subscription"
     },
     "batch": {
       "actions": {
-        "delete": "選択したプロファイルを削除",
+        "delete": "Delete selected subscriptions",
         "selectAll": "すべて選択",
         "deselectAll": "すべての選択を解除",
         "done": "完了"
@@ -29,9 +29,9 @@
         "loadFailed": "Could not read the subscription list"
       },
       "notifications": {
-        "profileSwitched": "プロファイルが切り替えられました。",
+        "profileSwitched": "Subscription switched",
         "switchBusy": "A subscription switch is already in progress",
-        "batchDeleted": "選択したプロファイルが正常に削除されました",
+        "batchDeleted": "Selected subscriptions deleted",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
         "editorBrokenYaml": "The file could not be parsed as YAML — opened in the YAML view so nothing is overwritten. Fix the syntax and switch back to Form.",
@@ -117,7 +117,7 @@
     "profileForm": {
       "title": {
         "create": "Add subscription",
-        "edit": "プロファイルを編集",
+        "edit": "Edit subscription",
         "createLocal": "Your own config file",
         "added": "Subscription added"
       },
@@ -126,8 +126,8 @@
         "subscriptionUrl": "サブスクリプションURL",
         "httpTimeout": "HTTP Request Timeout",
         "updateInterval": "更新間隔",
-        "useSystemProxy": "システムプロキシを使用して更新",
-        "useClashProxy": "クラッシュプロキシを使用して更新",
+        "useSystemProxy": "Update through the system proxy",
+        "useClashProxy": "Update through the core proxy",
         "acceptInvalidCerts": "Allows Invalid Certificates (Danger)",
         "allowAutoUpdate": "Allow Auto Update",
         "displayName": "Name (optional)",
@@ -137,11 +137,11 @@
         "newGroupName": "Group name",
         "advanced": "Advanced",
         "secureChannel": "保護された接続",
-        "secureKey": "中継サーバーの鍵"
+        "secureKey": "Secure connection key"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "{{minutes}} 分に 1 回までです — それ以上頻繁だとパネルに無駄な要求が届きます。",
+        "intervalFloor": "No more often than once every {{minutes}} minutes — otherwise the provider gets needless requests.",
         "secureSupport": "(make sure your provider supports this option)",
         "secureChannel": "Turned on after a check: stays off unless the provider answers"
       },
@@ -174,7 +174,7 @@
       "errors": {
         "urlRequired": "Paste the subscription link",
         "fileRequired": "Choose a file",
-        "intervalTooShort": "更新間隔は {{minutes}} 分より短くできません — それ以上頻繁だとパネルに無駄な要求が届きます。",
+        "intervalTooShort": "The update interval cannot be shorter than {{minutes}} minutes — otherwise the provider gets needless requests.",
         "profileMissing": "The subscription is gone — close this window and open it again"
       },
       "actions": {
@@ -206,7 +206,7 @@
         "name": "プロキシグループ名",
         "icon": "プロキシグループアイコン",
         "proxies": "プロキシを導入",
-        "provider": "プロキシプロバイダーを導入",
+        "provider": "Use server sets",
         "healthCheckUrl": "ヘルスチェックURL",
         "expectedStatus": "期待するステータスコード",
         "interval": "チェック間隔",
@@ -216,9 +216,9 @@
         "filter": "ノードをフィルタリング",
         "excludeFilter": "除外ノード",
         "excludeType": "除外ノードタイプ",
-        "includeAll": "すべての出力プロキシ、プロキシプロバイダーを導入",
+        "includeAll": "Include all proxies and server sets",
         "includeAllProxies": "すべての出力プロキシを導入",
-        "includeAllProviders": "すべてのプロキシプロバイダーを導入"
+        "includeAllProviders": "Include all server sets"
       },
       "toggles": {
         "lazy": "遅延モード",

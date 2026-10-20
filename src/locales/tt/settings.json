@@ -10,7 +10,7 @@
         "systemProxy": "Системалы прокси"
       },
       "tooltips": {
-        "silentStart": "Программаны фоновый режимда, тәрәзәсез эшләтеп җибәрү",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "Җибәргәннән соң кушымта төймә кебек үк тоташу ысулын күтәрә. Килешү буенча сүндерелгән.",
         "dnsOverride": "Тик macOS: тоннель fake-ip режимында эшләгәндә (гадәттәгечә; язылудан redir-host килсә, алыштыру кабызылмый) система резолверы гомуми DNS'ка күчерелә — югыйсә система интерфейстан читләтеп җибәргән сораулар тоннельдән үтмәс. Сүндерсәгез, аларның бер өлеше тоннельдән читтән китәр."
       },
@@ -129,7 +129,7 @@
       "title": "Clash көйләүләре",
       "form": {
         "fields": {
-          "allowLan": "Локаль челтәргә рөхсәт",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "DNS Overwrite",
           "ipv6": "IPv6",
           "unifiedDelay": "Бердәм задержка",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "Кагыйдәләр режимы",
         "global": "Глобаль режим",
-        "openOrCloseDashboard": "Панельне ачу/ябу",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "Системалы проксины кабызу/сүндерү",
         "toggleTunMode": "Tun режимын кабызу/сүндерү",
         "entryLightweightMode": "Enter lightweight mode",

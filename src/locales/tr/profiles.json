@@ -1,12 +1,12 @@
 {
   "page": {
     "actions": {
-      "updateAll": "Tüm Profilleri Güncelle",
+      "updateAll": "Update all subscriptions",
       "addSubscription": "Add subscription"
     },
     "batch": {
       "actions": {
-        "delete": "Seçili Profilleri Sil",
+        "delete": "Delete selected subscriptions",
         "selectAll": "Tümünü Seç",
         "deselectAll": "Tüm Seçimi Kaldır",
         "done": "Tamam"
@@ -29,9 +29,9 @@
         "loadFailed": "Could not read the subscription list"
       },
       "notifications": {
-        "profileSwitched": "Profil Değiştirildi",
-        "switchBusy": "Profil değiştirme işlemi zaten devam ediyor",
-        "batchDeleted": "Seçili profiller başarıyla silindi",
+        "profileSwitched": "Subscription switched",
+        "switchBusy": "A subscription switch is already in progress",
+        "batchDeleted": "Selected subscriptions deleted",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
         "editorBrokenYaml": "The file could not be parsed as YAML — opened in the YAML view so nothing is overwritten. Fix the syntax and switch back to Form.",
@@ -117,7 +117,7 @@
     "profileForm": {
       "title": {
         "create": "Add subscription",
-        "edit": "Profili Düzenle",
+        "edit": "Edit subscription",
         "createLocal": "Your own config file",
         "added": "Subscription added"
       },
@@ -126,8 +126,8 @@
         "subscriptionUrl": "Abonelik URL'si",
         "httpTimeout": "HTTP Request Timeout",
         "updateInterval": "Güncelleme Aralığı",
-        "useSystemProxy": "Sistem Vekil'ini Kullan",
-        "useClashProxy": "Clash Vekil'ini Kullan",
+        "useSystemProxy": "Update through the system proxy",
+        "useClashProxy": "Update through the core proxy",
         "acceptInvalidCerts": "Geçersiz Sertifikalara İzin Ver (Tehlikeli)",
         "allowAutoUpdate": "Allow Auto Update",
         "displayName": "Name (optional)",
@@ -137,11 +137,11 @@
         "newGroupName": "Group name",
         "advanced": "Advanced",
         "secureChannel": "Güvenli bağlantı",
-        "secureKey": "Ara katman anahtarı"
+        "secureKey": "Secure connection key"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "En fazla {{minutes}} dakikada bir — daha sık olursa panele gereksiz istek gider.",
+        "intervalFloor": "No more often than once every {{minutes}} minutes — otherwise the provider gets needless requests.",
         "secureSupport": "(make sure your provider supports this option)",
         "secureChannel": "Turned on after a check: stays off unless the provider answers"
       },
@@ -174,7 +174,7 @@
       "errors": {
         "urlRequired": "Paste the subscription link",
         "fileRequired": "Choose a file",
-        "intervalTooShort": "Güncelleme aralığı {{minutes}} dakikadan kısa olamaz — daha sık olursa panele gereksiz istek gider.",
+        "intervalTooShort": "The update interval cannot be shorter than {{minutes}} minutes — otherwise the provider gets needless requests.",
         "profileMissing": "The subscription is gone — close this window and open it again"
       },
       "actions": {
@@ -206,7 +206,7 @@
         "name": "Grup Adı",
         "icon": "Vekil Grup Simgesi",
         "proxies": "Vekil'leri Kullan",
-        "provider": "Sağlayıcı Kullan",
+        "provider": "Use server sets",
         "healthCheckUrl": "Sağlık Kontrolü URL'si",
         "expectedStatus": "Beklenen Durum",
         "interval": "Aralık",
@@ -216,9 +216,9 @@
         "filter": "Filtre",
         "excludeFilter": "Hariç Tutma Filtresi",
         "excludeType": "Hariç Tutma Tipi",
-        "includeAll": "Tüm Vekil'leri ve Sağlayıcıları Dahil Et",
+        "includeAll": "Include all proxies and server sets",
         "includeAllProxies": "Tüm Vekil'leri Dahil Et",
-        "includeAllProviders": "Tüm Sağlayıcıları Dahil Et"
+        "includeAllProviders": "Include all server sets"
       },
       "toggles": {
         "lazy": "Tembel",

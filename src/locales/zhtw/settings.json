@@ -10,7 +10,7 @@
         "systemProxy": "系統代理"
       },
       "tooltips": {
-        "silentStart": "程序啟動時以後台模式執行，不顯示程序面板",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "應用啟動後立即以與按鈕相同的方式建立連線。預設關閉：未經請求不會寫入系統設定。",
         "dnsOverride": "僅 macOS：隧道在 fake-ip 模式（預設；訂閱為 redir-host 時不會啟動切換）下開啟時會將系統解析器切換為公共 DNS，否則系統繞過介面送出的查詢不會走隧道。關閉後，其中一部分查詢將不經過隧道。"
       },
@@ -129,7 +129,7 @@
       "title": "Clash 設定",
       "form": {
         "fields": {
-          "allowLan": "區域網路連線",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "DNS 覆寫",
           "ipv6": "IPv6",
           "unifiedDelay": "統一延遲",
@@ -254,8 +254,8 @@
           "versionCopied": "Verge版本已複製到剪貼簿"
         },
         "messages": {
-          "noProfileSelected": "未選擇設定檔",
-          "profileFileError": "無法讀取設定檔"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "備份設定",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "規則模式",
         "global": "全域模式",
-        "openOrCloseDashboard": "開啟/關閉儀表板",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "開啟/關閉系統代理",
         "toggleTunMode": "開啟/關閉 虛擬網路介面卡模式",
         "entryLightweightMode": "進入輕量模式",
@@ -750,7 +750,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "使用 Clash 代理更新成功",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "版本 {{version}} 包含破壞性變更，未自動安裝，請手動更新。"
       }
     }

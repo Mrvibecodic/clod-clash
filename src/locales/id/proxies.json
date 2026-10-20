@@ -15,7 +15,7 @@
       "removeNode": "Remove the node from the chain"
     },
     "provider": {
-      "title": "Penyedia Proksi",
+      "title": "Server sets",
       "actions": {
         "updateAll": "Perbarui Semua",
         "update": "Perbarui"

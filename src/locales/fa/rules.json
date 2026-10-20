@@ -1,8 +1,8 @@
 {
   "page": {
     "provider": {
-      "trigger": "تأمین‌کننده قانون",
-      "dialogTitle": "تأمین‌کننده قانون",
+      "trigger": "Rule sets",
+      "dialogTitle": "Rule sets",
       "actions": {
         "updateAll": "به‌روزرسانی همه",
         "update": "به‌روزرسانی"

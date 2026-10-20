@@ -15,7 +15,7 @@
       "removeNode": "Remove the node from the chain"
     },
     "provider": {
-      "title": "プロキシプロバイダー",
+      "title": "Server sets",
       "actions": {
         "updateAll": "すべて更新",
         "update": "更新"

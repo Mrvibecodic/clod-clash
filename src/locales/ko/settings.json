@@ -10,7 +10,7 @@
         "systemProxy": "시스템 프록시"
       },
       "tooltips": {
-        "silentStart": "패널을 표시하지 않고 백그라운드에서 시작합니다",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "앱을 실행하면 버튼과 동일한 연결 방식을 바로 켭니다. 기본값은 꺼짐입니다.",
         "dnsOverride": "macOS 전용: fake-ip 모드(기본값. 구독이 redir-host이면 전환을 시작하지 않음)로 터널이 켜져 있는 동안 시스템 리졸버를 공용 DNS로 바꿔, 시스템이 인터페이스를 우회해 보내는 질의도 터널을 지나게 합니다. 끄면 그중 일부는 터널을 거치지 않습니다."
       },
@@ -129,7 +129,7 @@
       "title": "Clash 설정",
       "form": {
         "fields": {
-          "allowLan": "LAN 허용",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "DNS 덮어쓰기",
           "ipv6": "IPv6",
           "unifiedDelay": "지연 통합",
@@ -254,8 +254,8 @@
           "versionCopied": "버전이 클립보드에 복사되었습니다"
         },
         "messages": {
-          "noProfileSelected": "선택된 프로필이 없습니다",
-          "profileFileError": "프로필 파일을 읽지 못했습니다"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "백업 설정",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "규칙 모드",
         "global": "전역 모드",
-        "openOrCloseDashboard": "대시보드 열기/닫기",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "시스템 프록시 켜기/끄기",
         "toggleTunMode": "TUN 모드 켜기/끄기",
         "entryLightweightMode": "경량 모드 진입",
@@ -750,7 +750,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "Clash 프록시로 업데이트 성공",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "{{version}} 버전에는 호환되지 않는 변경 사항이 있어 자동으로 설치되지 않았습니다. 수동으로 업데이트하세요."
       }
     }

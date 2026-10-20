@@ -1,8 +1,8 @@
 {
   "page": {
     "provider": {
-      "trigger": "Proveedor de reglas",
-      "dialogTitle": "Proveedor de reglas",
+      "trigger": "Rule sets",
+      "dialogTitle": "Rule sets",
       "actions": {
         "updateAll": "Actualizar todo",
         "update": "Actualizar"

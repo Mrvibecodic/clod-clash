@@ -10,7 +10,7 @@
         "systemProxy": "Proxy del sistema"
       },
       "tooltips": {
-        "silentStart": "El programa se ejecutará en segundo plano al iniciarse y no mostrará el panel.",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "Nada más iniciarse, la aplicación activa el mismo método de conexión que el botón. Desactivado de forma predeterminada.",
         "dnsOverride": "Solo macOS: con el túnel activo en modo fake-ip (predeterminado; con redir-host de la suscripción la sustitución no se activa) el resolvedor del sistema pasa a uno público, para que las consultas que el sistema envía fuera de la interfaz también vayan por el túnel. Al desactivarlo, parte de ellas saldrá fuera del túnel."
       },
@@ -129,7 +129,7 @@
       "title": "Ajustes de Clash",
       "form": {
         "fields": {
-          "allowLan": "Conexión a la red local",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "Sobrescritura de DNS",
           "ipv6": "IPv6",
           "unifiedDelay": "Latencia unificada",
@@ -254,8 +254,8 @@
           "versionCopied": "Version copied to clipboard"
         },
         "messages": {
-          "noProfileSelected": "Ningún perfil seleccionado",
-          "profileFileError": "No se pudo leer el archivo del perfil"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "Configuración de copia de seguridad",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "Modo de reglas",
         "global": "Modo global",
-        "openOrCloseDashboard": "Abrir/cerrar panel",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "Activar/desactivar el proxy del sistema",
         "toggleTunMode": "Activar/desactivar el modo TUN",
         "entryLightweightMode": "Entrar en modo ligero",
@@ -750,7 +750,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "Actualización con el proxy de Clash exitosa",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "La versión {{version}} contiene cambios incompatibles y no se instaló automáticamente. Actualice manualmente."
       }
     }

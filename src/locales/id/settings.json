@@ -10,7 +10,7 @@
         "systemProxy": "Proksi Sistem"
       },
       "tooltips": {
-        "silentStart": "Mulai program dalam mode latar belakang tanpa menampilkan panel",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "Segera setelah dijalankan, aplikasi mengaktifkan metode koneksi yang sama seperti tombol. Nonaktif secara bawaan.",
         "dnsOverride": "Khusus macOS: selama terowongan aktif dalam mode fake-ip (bawaan; dengan redir-host dari langganan pengalihan tidak diaktifkan), resolver sistem dialihkan ke DNS publik agar kueri yang dikirim sistem di luar antarmuka tetap melewati terowongan. Jika dimatikan, sebagian kueri akan keluar dari terowongan."
       },
@@ -129,7 +129,7 @@
       "title": "Pengaturan Clash",
       "form": {
         "fields": {
-          "allowLan": "Izinkan LAN",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "DNS Overwrite",
           "ipv6": "IPv6",
           "unifiedDelay": "Keterlambatan Terpadu",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "Mode Aturan",
         "global": "Mode Global",
-        "openOrCloseDashboard": "Buka/Tutup Dasbor",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "Aktifkan/Nonaktifkan Proksi Sistem",
         "toggleTunMode": "Aktifkan/Nonaktifkan Mode Tun",
         "entryLightweightMode": "Enter lightweight mode",

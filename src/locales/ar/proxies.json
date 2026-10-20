@@ -15,7 +15,7 @@
       "removeNode": "Remove the node from the chain"
     },
     "provider": {
-      "title": "مزود الوكيل",
+      "title": "Server sets",
       "actions": {
         "updateAll": "تحديث الكل",
         "update": "تحديث"

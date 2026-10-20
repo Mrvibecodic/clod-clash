@@ -51,7 +51,7 @@
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the provider’s response has no servers at all. This is on the provider’s side.",
         "deviceLimit": "تم بلوغ الحد الأقصى لعدد الأجهزة لهذا الاشتراك. تواصل مع دعم مزوّد الخدمة.",
-        "deviceNotIdentified": "لم يتعرف اللوحة على هذا الجهاز ولم تُصدر أي خوادم."
+        "deviceNotIdentified": "The provider did not recognise this device and served no servers."
       },
       "panelSays": "أُزيلت العُقد النائبة من الاشتراك: {{text}}",
       "partiallyDropped": "Hidden servers that cannot connect: {{total}} ({{names}})",
@@ -137,7 +137,7 @@
       "uploaded": "Uploaded"
     },
     "modeStatus": {
-      "lockedHint": "الوضع يحدّده مزوّد الاشتراك. يُرفع هذا القيد تلقائيًا إذا توقّفت اللوحة عن الاستجابة عدة أيام، أو فورًا عند حذف الاشتراك.",
+      "lockedHint": "The mode is set by your subscription provider. The restriction lifts on its own once the provider stops answering for several days, or right away if you remove the subscription.",
       "lockedHintPermanent": "الوضع يحدّده مزوّد الاشتراك. يُرفع هذا القيد عند حذف الاشتراك."
     },
     "banners": {

@@ -1,12 +1,12 @@
 {
   "page": {
     "actions": {
-      "updateAll": "모든 프로필 업데이트",
+      "updateAll": "Update all subscriptions",
       "addSubscription": "Add subscription"
     },
     "batch": {
       "actions": {
-        "delete": "선택한 프로필 삭제",
+        "delete": "Delete selected subscriptions",
         "selectAll": "모두 선택",
         "deselectAll": "모두 선택 해제",
         "done": "완료"
@@ -29,9 +29,9 @@
         "loadFailed": "Could not read the subscription list"
       },
       "notifications": {
-        "profileSwitched": "프로필 전환됨",
-        "switchBusy": "프로필 전환이 이미 진행 중입니다",
-        "batchDeleted": "선택한 프로필이 삭제되었습니다",
+        "profileSwitched": "Subscription switched",
+        "switchBusy": "A subscription switch is already in progress",
+        "batchDeleted": "Selected subscriptions deleted",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
         "editorBrokenYaml": "The file could not be parsed as YAML — opened in the YAML view so nothing is overwritten. Fix the syntax and switch back to Form.",
@@ -117,7 +117,7 @@
     "profileForm": {
       "title": {
         "create": "Add subscription",
-        "edit": "프로필 편집",
+        "edit": "Edit subscription",
         "createLocal": "Your own config file",
         "added": "Subscription added"
       },
@@ -126,8 +126,8 @@
         "subscriptionUrl": "구독 URL",
         "httpTimeout": "HTTP 요청 시간 초과",
         "updateInterval": "업데이트 간격",
-        "useSystemProxy": "시스템 프록시 사용",
-        "useClashProxy": "Clash 프록시 사용",
+        "useSystemProxy": "Update through the system proxy",
+        "useClashProxy": "Update through the core proxy",
         "acceptInvalidCerts": "잘못된 인증서 허용(위험)",
         "allowAutoUpdate": "자동 업데이트 허용",
         "displayName": "Name (optional)",
@@ -137,11 +137,11 @@
         "newGroupName": "Group name",
         "advanced": "Advanced",
         "secureChannel": "보안 연결",
-        "secureKey": "미들웨어 키"
+        "secureKey": "Secure connection key"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "{{minutes}}분에 한 번보다 자주 요청하지 않습니다 — 그보다 잦으면 패널에 불필요한 요청이 갑니다.",
+        "intervalFloor": "No more often than once every {{minutes}} minutes — otherwise the provider gets needless requests.",
         "secureSupport": "(make sure your provider supports this option)",
         "secureChannel": "Turned on after a check: stays off unless the provider answers"
       },
@@ -174,7 +174,7 @@
       "errors": {
         "urlRequired": "Paste the subscription link",
         "fileRequired": "Choose a file",
-        "intervalTooShort": "업데이트 간격은 {{minutes}}분보다 짧게 설정할 수 없습니다 — 그보다 잦으면 패널에 불필요한 요청이 갑니다.",
+        "intervalTooShort": "The update interval cannot be shorter than {{minutes}} minutes — otherwise the provider gets needless requests.",
         "profileMissing": "The subscription is gone — close this window and open it again"
       },
       "actions": {
@@ -206,7 +206,7 @@
         "name": "그룹 이름",
         "icon": "프록시 그룹 아이콘",
         "proxies": "프록시 사용",
-        "provider": "제공자 사용",
+        "provider": "Use server sets",
         "healthCheckUrl": "상태 확인 URL",
         "expectedStatus": "예상 상태",
         "interval": "간격",
@@ -216,9 +216,9 @@
         "filter": "필터",
         "excludeFilter": "제외 필터",
         "excludeType": "제외 유형",
-        "includeAll": "모든 프록시 및 제공자 포함",
+        "includeAll": "Include all proxies and server sets",
         "includeAllProxies": "모든 프록시 포함",
-        "includeAllProviders": "모든 제공자 포함"
+        "includeAllProviders": "Include all server sets"
       },
       "toggles": {
         "lazy": "지연 로딩",

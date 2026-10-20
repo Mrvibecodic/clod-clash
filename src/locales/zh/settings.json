@@ -10,7 +10,7 @@
         "systemProxy": "系统代理"
       },
       "tooltips": {
-        "silentStart": "程序启动时以后台模式运行，不显示程序面板",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "应用启动后立即以与按钮相同的方式建立连接。默认关闭：未经请求不会写入系统设置。",
         "dnsOverride": "仅 macOS：隧道在 fake-ip 模式（默认；订阅为 redir-host 时不会启动切换）下开启时会把系统解析器切换为公共 DNS，否则系统绕过接口发出的查询不会走隧道。关闭后，其中一部分查询将不经过隧道。"
       },
@@ -129,7 +129,7 @@
       "title": "Clash 设置",
       "form": {
         "fields": {
-          "allowLan": "局域网连接",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "DNS 覆写",
           "ipv6": "IPv6",
           "unifiedDelay": "统一延迟",
@@ -233,7 +233,7 @@
         },
         "hints": {
           "subNotifications": "在流量或订阅时长即将耗尽时提醒。关闭后无论服务商如何设置都不再提醒。",
-          "deviceIdentity": "每次请求订阅时发送经过哈希的设备标识（x-hwid），服务商据此统计设备数量限制。原始机器标识不会离开本机。关闭后，面板可能拒绝下发订阅。",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "窗口会根据内容自动调整高度，避免内容被滚动条挡住。手动调整窗口大小后该功能会关闭，并保留你设定的大小。"
         }
       },
@@ -254,8 +254,8 @@
           "versionCopied": "Clod 版本已复制到剪贴板"
         },
         "messages": {
-          "noProfileSelected": "未选择配置",
-          "profileFileError": "无法读取配置文件"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "备份设置",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "规则模式",
         "global": "全局模式",
-        "openOrCloseDashboard": "打开/关闭面板",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "打开/关闭系统代理",
         "toggleTunMode": "打开/关闭 TUN 模式",
         "entryLightweightMode": "进入轻量模式",
@@ -750,7 +750,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "使用 Clash 代理更新成功",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "版本 {{version}} 包含破坏性变更，未自动安装，请手动更新。"
       }
     }

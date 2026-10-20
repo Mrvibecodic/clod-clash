@@ -1,7 +1,7 @@
 {
   "page": {
     "actions": {
-      "updateAll": "Perbarui Semua Profil",
+      "updateAll": "Update all subscriptions",
       "addSubscription": "Add subscription"
     },
     "batch": {
@@ -29,7 +29,7 @@
         "loadFailed": "Could not read the subscription list"
       },
       "notifications": {
-        "profileSwitched": "Profil Beralih",
+        "profileSwitched": "Subscription switched",
         "switchBusy": "A subscription switch is already in progress",
         "batchDeleted": "Selected subscriptions deleted",
         "urlMigrated": "The provider moved this subscription to a new address",
@@ -117,7 +117,7 @@
     "profileForm": {
       "title": {
         "create": "Add subscription",
-        "edit": "Ubah Profil",
+        "edit": "Edit subscription",
         "createLocal": "Your own config file",
         "added": "Subscription added"
       },
@@ -126,8 +126,8 @@
         "subscriptionUrl": "URL Langganan",
         "httpTimeout": "HTTP Request Timeout",
         "updateInterval": "Interval Pembaruan",
-        "useSystemProxy": "Gunakan Proksi Sistem",
-        "useClashProxy": "Gunakan Proksi Clash",
+        "useSystemProxy": "Update through the system proxy",
+        "useClashProxy": "Update through the core proxy",
         "acceptInvalidCerts": "Terima Sertifikat Tidak Valid (Bahaya)",
         "allowAutoUpdate": "Allow Auto Update",
         "displayName": "Name (optional)",
@@ -137,11 +137,11 @@
         "newGroupName": "Group name",
         "advanced": "Advanced",
         "secureChannel": "Koneksi aman",
-        "secureKey": "Kunci middleware"
+        "secureKey": "Secure connection key"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "Tidak lebih sering dari sekali setiap {{minutes}} menit — jika tidak, panel menerima permintaan yang tidak perlu.",
+        "intervalFloor": "No more often than once every {{minutes}} minutes — otherwise the provider gets needless requests.",
         "secureSupport": "(make sure your provider supports this option)",
         "secureChannel": "Turned on after a check: stays off unless the provider answers"
       },
@@ -174,7 +174,7 @@
       "errors": {
         "urlRequired": "Paste the subscription link",
         "fileRequired": "Choose a file",
-        "intervalTooShort": "Interval pembaruan tidak boleh kurang dari {{minutes}} menit — jika tidak, panel menerima permintaan yang tidak perlu.",
+        "intervalTooShort": "The update interval cannot be shorter than {{minutes}} minutes — otherwise the provider gets needless requests.",
         "profileMissing": "The subscription is gone — close this window and open it again"
       },
       "actions": {
@@ -206,7 +206,7 @@
         "name": "Nama Grup",
         "icon": "Ikon Grup Proksi",
         "proxies": "Gunakan Proksi",
-        "provider": "Gunakan Penyedia",
+        "provider": "Use server sets",
         "healthCheckUrl": "URL Pemeriksaan Kesehatan",
         "expectedStatus": "Status yang Diharapkan",
         "interval": "Interval",
@@ -216,9 +216,9 @@
         "filter": "Filter",
         "excludeFilter": "Kecualikan Filter",
         "excludeType": "Kecualikan Jenis",
-        "includeAll": "Sertakan Semua Proksi dan Penyedia",
+        "includeAll": "Include all proxies and server sets",
         "includeAllProxies": "Sertakan Semua Proksi",
-        "includeAllProviders": "Sertakan Semua Penyedia"
+        "includeAllProviders": "Include all server sets"
       },
       "toggles": {
         "lazy": "Malas",

@@ -51,7 +51,7 @@
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the provider’s response has no servers at all. This is on the provider’s side.",
         "deviceLimit": "Langganan ini sudah mencapai batas perangkat. Hubungi dukungan penyedia Anda.",
-        "deviceNotIdentified": "Panel tidak mengenali perangkat ini dan tidak memberikan server."
+        "deviceNotIdentified": "The provider did not recognise this device and served no servers."
       },
       "panelSays": "Node placeholder dihapus dari langganan: {{text}}",
       "partiallyDropped": "Hidden servers that cannot connect: {{total}} ({{names}})",
@@ -137,7 +137,7 @@
       "uploaded": "Uploaded"
     },
     "modeStatus": {
-      "lockedHint": "Mode ditentukan oleh penyedia langganan. Pembatasan hilang dengan sendirinya jika panel tidak merespons selama beberapa hari, atau langsung jika Anda menghapus langganan.",
+      "lockedHint": "The mode is set by your subscription provider. The restriction lifts on its own once the provider stops answering for several days, or right away if you remove the subscription.",
       "lockedHintPermanent": "Mode ditentukan oleh penyedia langganan. Pembatasan hilang jika Anda menghapus langganan."
     },
     "banners": {

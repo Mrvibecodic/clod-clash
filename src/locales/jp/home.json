@@ -51,7 +51,7 @@
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the provider’s response has no servers at all. This is on the provider’s side.",
         "deviceLimit": "このサブスクリプションはデバイス数の上限に達しています。プロバイダーのサポートに連絡してください。",
-        "deviceNotIdentified": "パネルがこのデバイスを認識できず、サーバーを配信しませんでした。"
+        "deviceNotIdentified": "The provider did not recognise this device and served no servers."
       },
       "panelSays": "サブスクリプションからプレースホルダーのノードを除外しました: {{text}}",
       "partiallyDropped": "接続できず非表示にしたサーバー: {{total}}（{{names}}）",
@@ -137,7 +137,7 @@
       "uploaded": "Uploaded"
     },
     "modeStatus": {
-      "lockedHint": "モードはサブスクリプション提供者が設定しています。パネルが数日応答しなくなると自動的に解除され、サブスクリプションを削除すればすぐに解除されます。",
+      "lockedHint": "The mode is set by your subscription provider. The restriction lifts on its own once the provider stops answering for several days, or right away if you remove the subscription.",
       "lockedHintPermanent": "モードはサブスクリプション提供者が設定しています。サブスクリプションを削除すると解除されます。"
     },
     "banners": {

@@ -10,7 +10,7 @@
         "systemProxy": "システムプロキシ"
       },
       "tooltips": {
-        "silentStart": "アプリケーションを起動すると、バックグラウンドモードで実行され、アプリケーションパネルは表示されません。",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "起動直後にボタンと同じ接続方法を有効にします。既定ではオフです。",
         "dnsOverride": "macOS のみ: fake-ip モード（既定。サブスクリプションが redir-host の場合は切り替えを開始しません）でトンネル使用中はシステムのリゾルバを公開 DNS に切り替え、インターフェースを迂回して送られる問い合わせもトンネルを通します。オフにすると一部はトンネルを通りません。"
       },
@@ -129,7 +129,7 @@
       "title": "Clash設定",
       "form": {
         "fields": {
-          "allowLan": "LAN接続を許可",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "DNS上書き",
           "ipv6": "IPv6",
           "unifiedDelay": "統一遅延",
@@ -254,8 +254,8 @@
           "versionCopied": "Version copied to clipboard"
         },
         "messages": {
-          "noProfileSelected": "プロファイルが選択されていません",
-          "profileFileError": "プロファイルファイルを読み取れませんでした"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "バックアップ設定",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "ルールモード",
         "global": "グローバルモード",
-        "openOrCloseDashboard": "ダッシュボードを開く/閉じる",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "システムプロキシを開く/閉じる",
         "toggleTunMode": "TUNモードを開く/閉じる",
         "entryLightweightMode": "軽量モードに入る",
@@ -750,7 +750,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "Clashプロキシを使用して更新に成功しました。",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "バージョン {{version}} には互換性のない変更が含まれるため、自動ではインストールされませんでした。手動で更新してください。"
       }
     }

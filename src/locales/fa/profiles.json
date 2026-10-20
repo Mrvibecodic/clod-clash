@@ -1,7 +1,7 @@
 {
   "page": {
     "actions": {
-      "updateAll": "به‌روزرسانی همه پروفایل‌ها",
+      "updateAll": "Update all subscriptions",
       "addSubscription": "Add subscription"
     },
     "batch": {
@@ -29,7 +29,7 @@
         "loadFailed": "Could not read the subscription list"
       },
       "notifications": {
-        "profileSwitched": "پروفایل تغییر یافت",
+        "profileSwitched": "Subscription switched",
         "switchBusy": "A subscription switch is already in progress",
         "batchDeleted": "Selected subscriptions deleted",
         "urlMigrated": "The provider moved this subscription to a new address",
@@ -117,7 +117,7 @@
     "profileForm": {
       "title": {
         "create": "Add subscription",
-        "edit": "ویرایش پروفایل",
+        "edit": "Edit subscription",
         "createLocal": "Your own config file",
         "added": "Subscription added"
       },
@@ -126,8 +126,8 @@
         "subscriptionUrl": "آدرس اشتراک",
         "httpTimeout": "HTTP Request Timeout",
         "updateInterval": "فاصله زمانی به‌روزرسانی",
-        "useSystemProxy": "استفاده از پراکسی سیستم",
-        "useClashProxy": "استفاده از پراکسی Clash",
+        "useSystemProxy": "Update through the system proxy",
+        "useClashProxy": "Update through the core proxy",
         "acceptInvalidCerts": "پذیرش گواهی‌نامه‌های نامعتبر (خطرناک)",
         "allowAutoUpdate": "Allow Auto Update",
         "displayName": "Name (optional)",
@@ -137,11 +137,11 @@
         "newGroupName": "Group name",
         "advanced": "Advanced",
         "secureChannel": "اتصال امن",
-        "secureKey": "کلید میان‌افزار"
+        "secureKey": "Secure connection key"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "حداکثر هر {{minutes}} دقیقه یک بار — در غیر این صورت پنل درخواست‌های اضافی می‌گیرد.",
+        "intervalFloor": "No more often than once every {{minutes}} minutes — otherwise the provider gets needless requests.",
         "secureSupport": "(make sure your provider supports this option)",
         "secureChannel": "Turned on after a check: stays off unless the provider answers"
       },
@@ -174,7 +174,7 @@
       "errors": {
         "urlRequired": "Paste the subscription link",
         "fileRequired": "Choose a file",
-        "intervalTooShort": "بازهٔ به‌روزرسانی نمی‌تواند کمتر از {{minutes}} دقیقه باشد — در غیر این صورت پنل درخواست‌های اضافی می‌گیرد.",
+        "intervalTooShort": "The update interval cannot be shorter than {{minutes}} minutes — otherwise the provider gets needless requests.",
         "profileMissing": "The subscription is gone — close this window and open it again"
       },
       "actions": {
@@ -206,7 +206,7 @@
         "name": "نام گروه",
         "icon": "آیکون گروه پراکسی",
         "proxies": "استفاده از پروکسی‌ها",
-        "provider": "استفاده از ارائه‌دهنده",
+        "provider": "Use server sets",
         "healthCheckUrl": "آدرس بررسی سلامت",
         "expectedStatus": "وضعیت مورد انتظار",
         "interval": "فاصله زمانی",
@@ -216,9 +216,9 @@
         "filter": "فیلتر",
         "excludeFilter": "فیلتر استثناء",
         "excludeType": "نوع استثناء",
-        "includeAll": "شامل همه پروکسی‌ها و ارائه‌دهنده‌ها",
+        "includeAll": "Include all proxies and server sets",
         "includeAllProxies": "شامل همه پروکسی‌ها",
-        "includeAllProviders": "شامل همه ارائه‌دهنده‌ها"
+        "includeAllProviders": "Include all server sets"
       },
       "toggles": {
         "lazy": "تنبل",

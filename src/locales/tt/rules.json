@@ -1,8 +1,8 @@
 {
   "page": {
     "provider": {
-      "trigger": "Кагыйдә провайдеры",
-      "dialogTitle": "Кагыйдә провайдеры",
+      "trigger": "Rule sets",
+      "dialogTitle": "Rule sets",
       "actions": {
         "updateAll": "Барысын да яңарту",
         "update": "Яңарту"

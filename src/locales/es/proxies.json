@@ -15,7 +15,7 @@
       "removeNode": "Remove the node from the chain"
     },
     "provider": {
-      "title": "Proveedor de proxies",
+      "title": "Server sets",
       "actions": {
         "updateAll": "Actualizar todo",
         "update": "Actualizar"

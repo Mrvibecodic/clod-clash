@@ -51,7 +51,7 @@
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the provider’s response has no servers at all. This is on the provider’s side.",
         "deviceLimit": "Das Gerätelimit dieses Abos ist erreicht. Wenden Sie sich an den Support Ihres Anbieters.",
-        "deviceNotIdentified": "Das Panel hat dieses Gerät nicht erkannt und keine Server ausgeliefert."
+        "deviceNotIdentified": "The provider did not recognise this device and served no servers."
       },
       "panelSays": "Platzhalter-Knoten aus dem Abonnement entfernt: {{text}}",
       "partiallyDropped": "Ausgeblendete Server ohne Verbindung: {{total}} ({{names}})",
@@ -137,7 +137,7 @@
       "uploaded": "Uploaded"
     },
     "modeStatus": {
-      "lockedHint": "Der Modus wird vom Abo-Anbieter vorgegeben. Die Sperre fällt von selbst weg, wenn das Panel mehrere Tage nicht mehr antwortet — oder sofort, wenn Sie das Abo entfernen.",
+      "lockedHint": "The mode is set by your subscription provider. The restriction lifts on its own once the provider stops answering for several days, or right away if you remove the subscription.",
       "lockedHintPermanent": "Der Modus wird vom Abo-Anbieter vorgegeben. Die Sperre fällt weg, wenn Sie das Abo entfernen."
     },
     "banners": {

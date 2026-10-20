@@ -10,7 +10,7 @@
         "systemProxy": "Systemproxy"
       },
       "tooltips": {
-        "silentStart": "Die Anwendung wird im Hintergrund gestartet, ohne dass das Programmfenster angezeigt wird.",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "Direkt nach dem Start aktiviert die App dieselbe Verbindungsart wie die Schaltfläche. Standardmäßig aus.",
         "dnsOverride": "Nur macOS: Bei aktivem Tunnel im Modus fake-ip (Standard; bei redir-host aus dem Abonnement wird nicht umgestellt) wird der System-Resolver auf einen öffentlichen umgestellt, damit Anfragen am Interface vorbei trotzdem durch den Tunnel gehen. Ausgeschaltet läuft ein Teil davon am Tunnel vorbei."
       },
@@ -129,7 +129,7 @@
       "title": "Clash-Einstellungen",
       "form": {
         "fields": {
-          "allowLan": "Netzwerkverbindung im lokalen Netzwerk zulassen",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "DNS-Überschreibung",
           "ipv6": "IPv6",
           "unifiedDelay": "Einheitliche Latenz",
@@ -254,8 +254,8 @@
           "versionCopied": "Version copied to clipboard"
         },
         "messages": {
-          "noProfileSelected": "Kein Profil ausgewählt",
-          "profileFileError": "Profildatei konnte nicht gelesen werden"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "Sicherungseinstellungen",
@@ -705,7 +705,7 @@
       "functions": {
         "rule": "Regel-Modus",
         "global": "Globaler Modus",
-        "openOrCloseDashboard": "Dashboard öffnen/schließen",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "Systemproxy ein/ausschalten",
         "toggleTunMode": "TUN-Modus ein/ausschalten",
         "entryLightweightMode": "Leichtgewichtigen Modus betreten",
@@ -750,7 +750,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "Aktualisierung mit Clash-Proxy erfolgreich",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "Version {{version}} enthält grundlegende Änderungen und wurde nicht automatisch installiert. Bitte manuell aktualisieren."
       }
     }

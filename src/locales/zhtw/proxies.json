@@ -15,7 +15,7 @@
       "removeNode": "Remove the node from the chain"
     },
     "provider": {
-      "title": "代理集合",
+      "title": "Server sets",
       "actions": {
         "updateAll": "全部更新",
         "update": "更新"

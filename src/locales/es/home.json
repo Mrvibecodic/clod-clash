@@ -51,7 +51,7 @@
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the provider’s response has no servers at all. This is on the provider’s side.",
         "deviceLimit": "La suscripción alcanzó su límite de dispositivos. Escribe al soporte de tu proveedor.",
-        "deviceNotIdentified": "El panel no reconoció este dispositivo y no entregó servidores."
+        "deviceNotIdentified": "The provider did not recognise this device and served no servers."
       },
       "panelSays": "Nodos de marcador de posición eliminados de la suscripción: {{text}}",
       "partiallyDropped": "Servidores ocultos que no conectan: {{total}} ({{names}})",
@@ -137,7 +137,7 @@
       "uploaded": "Uploaded"
     },
     "modeStatus": {
-      "lockedHint": "El modo lo fija tu proveedor de suscripción. La restricción se levanta sola si el panel deja de responder durante varios días, o de inmediato si eliminas la suscripción.",
+      "lockedHint": "The mode is set by your subscription provider. The restriction lifts on its own once the provider stops answering for several days, or right away if you remove the subscription.",
       "lockedHintPermanent": "El modo lo fija tu proveedor de suscripción. La restricción se levanta si eliminas la suscripción."
     },
     "banners": {

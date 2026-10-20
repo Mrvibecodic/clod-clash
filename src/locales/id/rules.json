@@ -1,8 +1,8 @@
 {
   "page": {
     "provider": {
-      "trigger": "Penyedia Aturan",
-      "dialogTitle": "Penyedia Aturan",
+      "trigger": "Rule sets",
+      "dialogTitle": "Rule sets",
       "actions": {
         "updateAll": "Perbarui Semua",
         "update": "Perbarui"
