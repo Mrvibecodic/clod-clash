@@ -46,6 +46,9 @@ export const getConnectionRule = (connection: IConnectionsItem) => {
   return rulePayload ? `${connection.rule}(${rulePayload})` : connection.rule
 }
 
+export const chainNames = (chains: readonly string[], directLabel: string) =>
+  [...chains].reverse().map((step) => nodeName(step, directLabel))
+
 /**
  * Ключ группы соединения: приложение, узел выхода (`chains[0]` — им же
  * считает сводка «Узлы») или правило.

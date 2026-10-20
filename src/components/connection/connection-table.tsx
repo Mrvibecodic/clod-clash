@@ -27,7 +27,6 @@ import {
 import { ChainText, HostText, RuleText, SpeedText } from './connection-parts'
 import { RelativeTime } from './connection-relative-time'
 import {
-  formatConnectionChains,
   getConnectionDestination,
   getConnectionHost,
   getConnectionHostParts,
@@ -38,6 +37,7 @@ import {
 import {
   type ConnectionGroup,
   buildConnectionGroups,
+  chainNames,
   connectionGroupKey,
   getConnectionProcess,
   getConnectionRule,
@@ -150,6 +150,7 @@ const sameTrafficConnection = (
 
 const createTableRowSnapshot = (
   row: IConnectionsItem,
+  direct: string,
   previous?: TableRowSnapshot,
 ) => {
   const previousRow = previous?.row
@@ -176,7 +177,7 @@ const createTableRowSnapshot = (
     chainsText:
       sameStatic && previous
         ? previous.chainsText
-        : formatConnectionChains(row.chains),
+        : chainNames(row.chains, direct).join(' / '),
     ruleText:
       sameStatic && previous ? previous.ruleText : getConnectionRule(row),
     typeLabel:
@@ -733,16 +734,29 @@ export const ConnectionTable = (props: Props) => {
   })
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const rowSnapshotCacheRef = useRef(new Map<string, TableRowSnapshot>())
-  const getRowSnapshot = useCallback((row: IConnectionsItem) => {
-    const cache = rowSnapshotCacheRef.current
-    const snapshot = createTableRowSnapshot(row, cache.get(row.id))
-    cache.set(row.id, snapshot)
-    if (cache.size > MAX_ROW_SNAPSHOT_CACHE_SIZE) {
-      const oldestKey = cache.keys().next().value
-      if (oldestKey && oldestKey !== row.id) cache.delete(oldestKey)
-    }
-    return snapshot
-  }, [])
+  const directLabel = t('shared.labels.direct')
+  const snapshotLabelRef = useRef(directLabel)
+  const getRowSnapshot = useCallback(
+    (row: IConnectionsItem) => {
+      const cache = rowSnapshotCacheRef.current
+      if (snapshotLabelRef.current !== directLabel) {
+        cache.clear()
+        snapshotLabelRef.current = directLabel
+      }
+      const snapshot = createTableRowSnapshot(
+        row,
+        directLabel,
+        cache.get(row.id),
+      )
+      cache.set(row.id, snapshot)
+      if (cache.size > MAX_ROW_SNAPSHOT_CACHE_SIZE) {
+        const oldestKey = cache.keys().next().value
+        if (oldestKey && oldestKey !== row.id) cache.delete(oldestKey)
+      }
+      return snapshot
+    },
+    [directLabel],
+  )
   const updateViewport = useCallback((element: HTMLDivElement) => {
     setViewport((current) => {
       const next = {

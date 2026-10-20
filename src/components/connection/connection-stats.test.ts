@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 
 import {
   buildConnectionGroups,
+  chainNames,
   connectionGroupKey,
   groupFallbackKey,
   shortProcessName,
@@ -150,6 +152,28 @@ describe('connectionGroupKey', () => {
     )
     assert.equal(connectionGroupKey('rule', direct, ''), 'Match')
     assert.equal(connectionGroupKey('none', direct, ''), '')
+  })
+})
+
+describe('chainNames', () => {
+  it('names the steps from the rule side with the words of the window', () => {
+    assert.deepEqual(chainNames(['DIRECT', 'Proxy'], 'Напрямую'), [
+      'Proxy',
+      'Напрямую',
+    ])
+  })
+
+  it('the hint and the sort of the chain use the same words as the row', () => {
+    const read = (file: string) =>
+      readFileSync(new URL(file, import.meta.url), 'utf8')
+    assert.match(
+      read('./connection-parts.tsx'),
+      /title=\{chainNames\(chains, directLabel\)\.join\(/,
+    )
+    assert.match(
+      read('./connection-table.tsx'),
+      /chainsText:[^,]*chainNames\(row\.chains, direct\)/,
+    )
   })
 })
 

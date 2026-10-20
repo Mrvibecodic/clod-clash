@@ -20,7 +20,7 @@ export interface ConnectionRowView {
   downloadSpeed: number
 }
 
-export const formatConnectionChains = (chains: string[]) => {
+const formatConnectionChains = (chains: string[]) => {
   let value = ''
   for (let i = chains.length - 1; i >= 0; i -= 1) {
     if (value) value += ' / '
