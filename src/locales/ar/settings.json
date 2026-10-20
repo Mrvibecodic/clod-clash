@@ -690,8 +690,8 @@
       "messages": {
         "supportedPlaceholders": "يدعم %host و%port و%secret",
         "placeholderInstruction": "استبدل المضيف والمنفذ والمفتاح بـ %host و%port و%secret",
-        "needsController": "لا تتصل اللوحة بالنواة إلا عند تفعيل وحدة التحكم الخارجية.",
-        "noController": "No external controller address — enable it in the core settings"
+        "needsController": "The web UI can connect to the core only while the external controller is enabled.",
+        "noController": "No external controller address — enable it in Clash Setting → External Controller"
       },
       "sections": {
         "panels": "Panels"

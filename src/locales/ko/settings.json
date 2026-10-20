@@ -690,8 +690,8 @@
       "messages": {
         "supportedPlaceholders": "지원되는 자리표시자: %host, %port, %secret",
         "placeholderInstruction": "host, port, secret을 %host, %port, %secret로 바꿔 입력하세요",
-        "needsController": "외부 컨트롤러가 켜져 있을 때만 패널이 코어에 연결됩니다.",
-        "noController": "No external controller address — enable it in the core settings"
+        "needsController": "The web UI can connect to the core only while the external controller is enabled.",
+        "noController": "No external controller address — enable it in Clash Setting → External Controller"
       },
       "sections": {
         "panels": "Panels"

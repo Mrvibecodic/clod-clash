@@ -690,8 +690,8 @@
       "messages": {
         "supportedPlaceholders": "%host, %port, %secretをサポートします。",
         "placeholderInstruction": "%host, %port, %secretを使用してホスト、ポート、アクセスキーを表します。",
-        "needsController": "外部コントローラーが有効なときだけ、パネルはコアに接続できます。",
-        "noController": "No external controller address — enable it in the core settings"
+        "needsController": "The web UI can connect to the core only while the external controller is enabled.",
+        "noController": "No external controller address — enable it in Clash Setting → External Controller"
       },
       "sections": {
         "panels": "Panels"

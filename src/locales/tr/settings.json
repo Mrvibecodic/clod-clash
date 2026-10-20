@@ -690,8 +690,8 @@
       "messages": {
         "supportedPlaceholders": "%host, %port, %secret destekler",
         "placeholderInstruction": "Ana bilgisayar, port, sırrı %host, %port, %secret ile değiştirin",
-        "needsController": "Panel çekirdeğe yalnızca harici denetleyici etkinken bağlanabilir.",
-        "noController": "No external controller address — enable it in the core settings"
+        "needsController": "The web UI can connect to the core only while the external controller is enabled.",
+        "noController": "No external controller address — enable it in Clash Setting → External Controller"
       },
       "sections": {
         "panels": "Panels"

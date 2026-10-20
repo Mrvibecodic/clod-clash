@@ -690,8 +690,8 @@
       "messages": {
         "supportedPlaceholders": "Unterstützt %host, %port, %secret",
         "placeholderInstruction": "Verwenden Sie %host, %port, %secret für Host, Port und Zugangsschlüssel",
-        "needsController": "Das Panel kann sich nur mit dem Kern verbinden, wenn der externe Controller aktiviert ist.",
-        "noController": "No external controller address — enable it in the core settings"
+        "needsController": "The web UI can connect to the core only while the external controller is enabled.",
+        "noController": "No external controller address — enable it in Clash Setting → External Controller"
       },
       "sections": {
         "panels": "Panels"

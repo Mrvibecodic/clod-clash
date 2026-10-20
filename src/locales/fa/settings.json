@@ -690,8 +690,8 @@
       "messages": {
         "supportedPlaceholders": "پشتیبانی از %host، %port و %secret",
         "placeholderInstruction": "جایگزین کردن میزبان، پورت و رمز با %host، %port، %secret",
-        "needsController": "پنل فقط وقتی کنترل‌کنندهٔ خارجی روشن باشد به هسته وصل می‌شود.",
-        "noController": "No external controller address — enable it in the core settings"
+        "needsController": "The web UI can connect to the core only while the external controller is enabled.",
+        "noController": "No external controller address — enable it in Clash Setting → External Controller"
       },
       "sections": {
         "panels": "Panels"

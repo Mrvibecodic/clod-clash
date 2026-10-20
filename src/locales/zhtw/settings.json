@@ -690,8 +690,8 @@
       "messages": {
         "supportedPlaceholders": "支援 %host, %port, %secret",
         "placeholderInstruction": "使用 %host, %port, %secret 表示 主機, 連接埠, 存取金鑰",
-        "needsController": "僅在啟用外部控制器時面板才能連線到核心。",
-        "noController": "No external controller address — enable it in the core settings"
+        "needsController": "The web UI can connect to the core only while the external controller is enabled.",
+        "noController": "No external controller address — enable it in Clash Setting → External Controller"
       },
       "sections": {
         "panels": "Panels"
