@@ -20,6 +20,7 @@ export const serverRowNames = (
 export interface DrawerRow {
   selected: boolean
   group: boolean
+  builtin: boolean
   typeShown: boolean
   leaf?: string
   behind?: Behind
@@ -40,8 +41,10 @@ export const drawerRowCaption = (row: DrawerRow, words: DrawerWords) =>
       ? row.group && row.leaf
         ? `${words.inUse} · ${serverName(row.leaf, words.direct)}`
         : words.inUse
-      : row.group && row.typeShown
-        ? row.leaf
-          ? `${row.typeLabel} · ${serverName(row.leaf, words.direct)}`
-          : row.typeLabel
-        : row.nodeType
+      : row.builtin
+        ? ''
+        : row.group && row.typeShown
+          ? row.leaf
+            ? `${row.typeLabel} · ${serverName(row.leaf, words.direct)}`
+            : row.typeLabel
+          : row.nodeType

@@ -12,6 +12,7 @@ const words = {
 const row = {
   selected: false,
   group: true,
+  builtin: false,
   typeShown: true,
   typeLabel: 'группа',
   nodeType: 'VLESS',
@@ -61,6 +62,15 @@ describe('drawerRowCaption', () => {
     assert.equal(
       drawerRowCaption({ ...row, leaf: 'DIRECT' }, words),
       'группа · Напрямую',
+    )
+  })
+
+  it('gives the built-in direct connection no type of the core', () => {
+    const direct = { ...row, builtin: true, typeLabel: 'direct', nodeType: '' }
+    assert.equal(drawerRowCaption(direct, words), '')
+    assert.equal(
+      drawerRowCaption({ ...direct, selected: true }, words),
+      'Используется',
     )
   })
 

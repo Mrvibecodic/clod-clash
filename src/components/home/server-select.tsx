@@ -58,6 +58,7 @@ import {
   groupType,
   hasRealNodes,
   isCorePlaceholder,
+  isCorePolicy,
   NON_NODE_TYPES,
   type ProxyNode,
   SELECTABLE_GROUP_TYPES,
@@ -296,6 +297,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                 {
                   selected,
                   group: isGroup,
+                  builtin: isCorePolicy(node.name),
                   typeShown: !hidesType(record, current?.hide_badges),
                   leaf,
                   behind,
