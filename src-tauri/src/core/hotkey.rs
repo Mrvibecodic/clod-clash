@@ -224,7 +224,13 @@ impl Hotkey {
                             "Hotkey profile reactivation failed validation: {}",
                             message.as_str()
                         );
-                        handle::Handle::notice_message("reactivate_profiles::error", message);
+                        let reason = crate::cmd::public_error_text(&message);
+                        crate::core::notification::tell_the_outcome(
+                            "reactivate_profiles::error",
+                            message,
+                            NotificationEvent::ProfilesNotReactivated { reason: &reason },
+                        )
+                        .await;
                     }
                     Err(err) => {
                         logging!(
@@ -233,7 +239,13 @@ impl Hotkey {
                             "Failed to reactivate subscriptions via hotkey: {}",
                             err
                         );
-                        handle::Handle::notice_message("reactivate_profiles::error", err.to_string());
+                        let reason = crate::cmd::public_error_text(&err);
+                        crate::core::notification::tell_the_outcome(
+                            "reactivate_profiles::error",
+                            err.to_string(),
+                            NotificationEvent::ProfilesNotReactivated { reason: &reason },
+                        )
+                        .await;
                     }
                 });
             }

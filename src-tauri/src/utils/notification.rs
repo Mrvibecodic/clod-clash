@@ -13,6 +13,13 @@ pub enum NotificationEvent<'a> {
     TunModeToggled(bool),
     LightweightModeEntered,
     ProfilesReactivated,
+    ProfilesNotReactivated {
+        reason: &'a str,
+    },
+    CoreRestarted,
+    CoreNotRestarted {
+        reason: &'a str,
+    },
     AppQuit,
     QuitCancelled,
     /// Системный прокси не снялся при выходе и остаётся в системе.
@@ -96,6 +103,21 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         NotificationEvent::ProfilesReactivated => {
             let title = clash_verge_i18n::t!("notifications.profilesReactivated.title");
             let body = clash_verge_i18n::t!("notifications.profilesReactivated.body");
+            notify(title, body);
+        }
+        NotificationEvent::ProfilesNotReactivated { reason } => {
+            let title = clash_verge_i18n::t!("notifications.profilesReactivated.title");
+            let body = clash_verge_i18n::t!("notifications.profilesReactivated.failed", reason = reason);
+            notify(title, body);
+        }
+        NotificationEvent::CoreRestarted => {
+            let title = clash_verge_i18n::t!("tray.tooltip.core");
+            let body = clash_verge_i18n::t!("notifications.coreRestart.done");
+            notify(title, body);
+        }
+        NotificationEvent::CoreNotRestarted { reason } => {
+            let title = clash_verge_i18n::t!("tray.tooltip.core");
+            let body = clash_verge_i18n::t!("notifications.coreRestart.failed", reason = reason);
             notify(title, body);
         }
         NotificationEvent::AppQuit => {

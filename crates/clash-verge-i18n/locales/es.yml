@@ -20,6 +20,7 @@ notifications:
   profilesReactivated:
     title: Suscripción
     body: Suscripción reactivada.
+    failed: "The subscription was not reapplied: {reason}"
   appQuit:
     title: A punto de salir
     body: La aplicación está a punto de salir.
@@ -34,6 +35,9 @@ notifications:
     body: "The LAN sharing address lists do not let {host} in, so the system proxy points at 127.0.0.1. It goes back to {host} once the lists let it in."
   coreUpdateRolledBack:
     body: The new core kept crashing after the update, so the previous one is back.
+  coreRestart:
+    done: "The core has been restarted."
+    failed: "The core did not restart: {reason}"
   appHidden:
     title: Aplicación oculta
     body: La aplicación se está ejecutando en segundo plano.

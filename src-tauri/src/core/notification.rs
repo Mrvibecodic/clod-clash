@@ -43,6 +43,28 @@ const fn can_reach_the_page(listening: bool, window_exists: bool) -> bool {
     listening && window_exists
 }
 
+/// Исход действия, начатого не из окна (трей, горячая клавиша), человек
+/// должен увидеть сразу: страница не слушает — значит, системным
+/// уведомлением, а не тостом, который ждал бы открытия окна.
+const fn the_outcome_goes_to_the_page(listening: bool, window_exists: bool) -> bool {
+    can_reach_the_page(listening, window_exists)
+}
+
+pub async fn tell_the_outcome(
+    status: &str,
+    message: std::string::String,
+    system: crate::utils::notification::NotificationEvent<'_>,
+) {
+    let window_exists = crate::core::handle::Handle::app_handle()
+        .get_webview_window("main")
+        .is_some();
+    if the_outcome_goes_to_the_page(FRONTEND_LISTENING.load(Ordering::Acquire), window_exists) {
+        crate::core::handle::Handle::notice_message(status, message);
+    } else {
+        crate::utils::notification::notify_event(system).await;
+    }
+}
+
 fn pending_notices() -> std::sync::MutexGuard<'static, VecDeque<PendingNotice>> {
     match PENDING_NOTICES.lock() {
         Ok(guard) => guard,
@@ -574,6 +596,28 @@ mod tests {
                 Delivery::Hold,
                 "{status} потерян молча"
             );
+        }
+    }
+
+    #[test]
+    fn the_outcome_of_a_tray_or_hotkey_action_is_seen_while_the_window_is_hidden() {
+        use super::the_outcome_goes_to_the_page;
+        assert!(the_outcome_goes_to_the_page(true, true));
+        assert!(!the_outcome_goes_to_the_page(false, true), "окно спрятано");
+        assert!(!the_outcome_goes_to_the_page(false, false), "окна нет");
+        for (source, signature, next) in [
+            (
+                include_str!("hotkey.rs"),
+                "HotkeyFunction::ReactivateProfiles =>",
+                "HotkeyFunction::",
+            ),
+            (include_str!("tray/mod.rs"), "MenuIds::RESTART_CLASH =>", "MenuIds::"),
+        ] {
+            let code = crate::utils::source_scan::without_test_modules(source);
+            let arm = code.split(signature).nth(1).unwrap_or_default();
+            let arm = &arm[..arm.find(next).unwrap_or(arm.len())];
+            assert!(arm.contains("tell_the_outcome("), "{arm}");
+            assert!(!arm.contains("notice_message("), "{arm}");
         }
     }
 

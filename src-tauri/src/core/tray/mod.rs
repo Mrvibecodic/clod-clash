@@ -1161,10 +1161,23 @@ fn handle_menu_click(id: std::string::String) {
                 }
             }
             MenuIds::RESTART_CLASH => match feat::restart_clash_core().await {
-                Ok(()) => handle::Handle::notice_message("set_config::ok", "ok"),
+                Ok(()) => {
+                    crate::core::notification::tell_the_outcome(
+                        "set_config::ok",
+                        "ok".to_owned(),
+                        crate::utils::notification::NotificationEvent::CoreRestarted,
+                    )
+                    .await;
+                }
                 Err(err) => {
                     logging!(error, Type::Core, "{err}");
-                    handle::Handle::notice_message("set_config::error", format!("{err}"));
+                    let reason = crate::cmd::public_error_text(&err);
+                    crate::core::notification::tell_the_outcome(
+                        "set_config::error",
+                        format!("{err}"),
+                        crate::utils::notification::NotificationEvent::CoreNotRestarted { reason: &reason },
+                    )
+                    .await;
                 }
             },
             MenuIds::RESTART_APP => feat::restart_app().await,
