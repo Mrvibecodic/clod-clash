@@ -51,8 +51,12 @@ describe('окна с несохранённым', () => {
     )
     assert.match(sysproxy, /patch\.system_proxy_bypass = bypass/)
     const tun = source('../components/setting/mods/tun-viewer.tsx')
-    assert.match(tun, /useChangeCount\(initial, withDraft\)/)
-    assert.match(tun, /tunSavePatch\(\s*initial,\s*withDraft,/)
+    assert.match(
+      tun,
+      /const tunToSave = tunSavePatch\(\s*initial,\s*withDraft,/,
+    )
+    assert.match(tun, /tunUnsavedCount\(\s*pinned,\s*tunToSave,/)
+    assert.match(tun, /patchClash\(\{ tun: tunToSave \}\)/)
   })
 
   it('признак несохранённого у наглядного вида — от диска, у текста — от чистого текста', () => {

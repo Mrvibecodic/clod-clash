@@ -67,7 +67,12 @@ export function tunPatch(
     patch.device = current.device.trim() === '' ? null : current.device
   }
   if (current.mtu !== initial.mtu) {
-    patch.mtu = current.mtu.trim() === '' ? null : Number(current.mtu)
+    patch.mtu =
+      current.mtu.trim() === ''
+        ? null
+        : mtuIsValid(current.mtu)
+          ? Number(current.mtu)
+          : current.mtu
   }
   if (current.routeExcludeAddress !== initial.routeExcludeAddress) {
     const items = splitRouteExcludeAddress(current.routeExcludeAddress)
@@ -107,6 +112,40 @@ export function tunSavePatch(
   return reset
     ? { ...TUN_RESET, ...tunPatch(reset, current, os) }
     : tunPatch(initial, current, os)
+}
+
+export interface TunOverrideFields {
+  stack: string
+  strictRoute: string
+  dnsHijack: string
+}
+
+/** Поля окна, которые хранятся в настройках приложения, а не в `tun`. */
+export const tunOverrides = (fields: TunOverrideFields) => ({
+  tun_stack: fields.stack,
+  tun_strict_route: fields.strictRoute,
+  tun_dns_hijack: dnsHijackSetting(fields.dnsHijack),
+})
+
+const sameValue = (left: unknown, right: unknown) =>
+  JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
+
+/** Сколько записей поменяет «Сохранить» — счёт от сохранённого на диске, а не
+ * от формы: форма не отличает снятое закрепление от закреплённого умолчания. */
+export function tunUnsavedCount(
+  pinned: TunBlock,
+  patch: Record<string, unknown>,
+  savedOverrides: Record<string, unknown>,
+  overrides: Record<string, unknown>,
+): number {
+  const differs = (
+    saved: Readonly<Record<string, unknown>> | null | undefined,
+    next: Record<string, unknown>,
+  ) =>
+    Object.entries(next).filter(
+      ([key, value]) => !sameValue(saved?.[key], value),
+    ).length
+  return differs(pinned, patch) + differs(savedOverrides, overrides)
 }
 
 export const STACKS = [

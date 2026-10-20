@@ -17,7 +17,6 @@ import {
   Switch,
 } from '@/components/base'
 import { MONO_INPUT } from '@/components/base/base-mono'
-import { useChangeCount } from '@/hooks/use-change-count'
 import { useClash } from '@/hooks/use-clash'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useTunState } from '@/hooks/use-tun-state'
@@ -35,7 +34,9 @@ import {
   splitRouteExcludeAddress,
   stackLabel,
   tunFieldsFrom,
+  tunOverrides,
   tunSavePatch,
+  tunUnsavedCount,
 } from '@/utils/tun-window'
 
 import { StackModeSwitch } from './stack-mode-switch'
@@ -65,6 +66,8 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const [initial, setInitial] = useState(FRESH)
   const [routeExcludeDraft, setRouteExcludeDraft] = useState('')
   const [resetPending, setResetPending] = useState(false)
+  // Что лежит в `tun` файла при открытии: от него считается несохранённое.
+  const [pinned, setPinned] = useState<ICoreLadder['tun']>(null)
 
   const effectiveStack = (
     tunRuntimeStack ??
@@ -111,7 +114,15 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       ',',
     ),
   }
-  const changes = useChangeCount(initial, withDraft)
+  const tunToSave = tunSavePatch(
+    initial,
+    withDraft,
+    resetPending ? FRESH : null,
+    OS,
+  )
+  const overrides = tunOverrides(values)
+  const savedOverrides = tunOverrides(initial)
+  const changes = tunUnsavedCount(pinned, tunToSave, savedOverrides, overrides)
 
   const routeExcludeAddressItems = splitRouteExcludeAddress(
     values.routeExcludeAddress,
@@ -138,6 +149,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
       setValues(opened)
       setInitial(opened)
+      setPinned(ladder?.tun ?? null)
       setRouteExcludeDraft('')
       setResetPending(false)
     },
@@ -159,28 +171,12 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         return
       }
 
-      if (
-        resetPending ||
-        values.stack !== initial.stack ||
-        values.strictRoute !== initial.strictRoute ||
-        values.dnsHijack !== initial.dnsHijack
-      ) {
-        const overrides = {
-          tun_stack: values.stack,
-          tun_strict_route: values.strictRoute,
-          tun_dns_hijack: dnsHijackSetting(values.dnsHijack),
-        }
+      if (JSON.stringify(overrides) !== JSON.stringify(savedOverrides)) {
         await patchVerge(overrides)
         mutateVerge({ ...verge, ...overrides })
       }
-      const tun = tunSavePatch(
-        initial,
-        withDraft,
-        resetPending ? FRESH : null,
-        OS,
-      )
-      if (Object.keys(tun).length > 0) {
-        await patchClash({ tun })
+      if (Object.keys(tunToSave).length > 0) {
+        await patchClash({ tun: tunToSave })
       }
       setOpen(false)
       showNotice.success('settings.modals.tun.messages.applied')

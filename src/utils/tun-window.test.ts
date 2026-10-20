@@ -6,8 +6,10 @@ import {
   dnsHijackSetting,
   mtuIsValid,
   tunFieldsFrom,
+  tunOverrides,
   tunPatch,
   tunSavePatch,
+  tunUnsavedCount,
 } from './tun-window.ts'
 
 // Так выглядит tun в clash.yaml свежей установки.
@@ -109,6 +111,55 @@ describe('окно TUN', () => {
     assert.deepEqual(
       tunSavePatch(initial, { ...initial, mtu: '1380' }, null, 'linux'),
       { mtu: 1380 },
+    )
+  })
+
+  it('после «Сбросить настройки» несохранённое считается от файла: снятое закрепление — правка', () => {
+    const defaults = { stack: 'auto', strictRoute: 'auto', dnsHijack: 'auto' }
+    const fresh = tunFieldsFrom(TUN_RESET, undefined, 'linux')
+    const pinned = { ...TEMPLATE, 'auto-redirect': false }
+    const initial = tunFieldsFrom(pinned, RUNTIME, 'linux')
+    const reset = tunSavePatch(initial, fresh, fresh, 'linux')
+    assert.equal(
+      tunUnsavedCount(
+        pinned,
+        reset,
+        tunOverrides(defaults),
+        tunOverrides(defaults),
+      ),
+      1,
+    )
+    assert.equal(
+      tunUnsavedCount(
+        TEMPLATE,
+        reset,
+        tunOverrides(defaults),
+        tunOverrides(defaults),
+      ),
+      0,
+    )
+  })
+
+  it('несохранённое: переопределения считаются от сохранённых, неверный MTU — правка', () => {
+    const defaults = { stack: 'auto', strictRoute: 'auto', dnsHijack: 'auto' }
+    const initial = tunFieldsFrom(TEMPLATE, RUNTIME, 'windows')
+    assert.equal(
+      tunUnsavedCount(
+        TEMPLATE,
+        tunPatch(initial, { ...initial, mtu: 'abc' }, 'windows'),
+        tunOverrides(defaults),
+        tunOverrides({ ...defaults, stack: 'gvisor' }),
+      ),
+      2,
+    )
+    assert.equal(
+      tunUnsavedCount(
+        TEMPLATE,
+        tunPatch(initial, { ...initial }, 'windows'),
+        tunOverrides(defaults),
+        tunOverrides({ ...defaults, dnsHijack: ' , ' }),
+      ),
+      0,
     )
   })
 })
