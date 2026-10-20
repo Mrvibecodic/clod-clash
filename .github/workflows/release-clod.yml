@@ -216,16 +216,9 @@ jobs:
           RELEASE_ID="${{ needs.prepare_release.outputs.release_id }}"
           echo "release tag: $RELEASE_TAG (id=$RELEASE_ID)"
 
-          assets=$(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets?per_page=100" --jq '.[].name')
-          echo "assets:"; echo "$assets"
-          for needle in latest.json setup.exe portable.zip .dmg .deb .rpm; do
-            if ! echo "$assets" | grep -qi -- "$needle"; then
-              echo "::error::Release $RELEASE_TAG has no asset matching '$needle'"
-              exit 1
-            fi
-          done
-
           VERSION="${RELEASE_TAG#clod-v}"
+          bash scripts/check-release-assets.sh "$RELEASE_ID" "$VERSION"
+
           PRERELEASE=false
           case "$VERSION" in *-*) PRERELEASE=true ;; esac
           NOTES=$(awk -v ver="## v$VERSION" '

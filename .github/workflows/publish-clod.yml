@@ -54,17 +54,7 @@ jobs:
             exit 1
           fi
 
-          # Не публиковать полупустую сборку: должен быть latest.json и
-          # артефакты всех трёх платформ.
-          assets=$(gh api "repos/${{ github.repository }}/releases/$id/assets?per_page=100" --jq '.[].name')
-          echo "assets:"; echo "$assets"
-          # линукс собирается как deb+rpm, AppImage у нас нет
-          for needle in latest.json setup.exe portable.zip .dmg .deb .rpm; do
-            if ! echo "$assets" | grep -qi -- "$needle"; then
-              echo "::error::Release $RELEASE_TAG has no asset matching '$needle' — сборка не закончилась?"
-              exit 1
-            fi
-          done
+          bash scripts/check-release-assets.sh "$id" "$VERSION"
 
           # Тело релиза — из сообщения аннотированного publish-тега (если есть)
           NOTES=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
