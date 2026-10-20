@@ -122,8 +122,9 @@ pub fn without_links(args: impl IntoIterator<Item = std::ffi::OsString>) -> Vec<
 /// Каждая ссылка кладётся своим файлом: две подряд не затирают друг друга, а
 /// забирающий получает её только вместе с правом унести — переименованием.
 async fn leave_the_link_for_the_running_copy(link: &str) -> Result<std::path::PathBuf> {
-    let path = crate::utils::dirs::preinit_app_home_dir()?
-        .join(format!("{PENDING_LINK_FILE}{}", crate::utils::help::get_uid("-")));
+    let dir = handover_dir()?;
+    tokio::fs::create_dir_all(&dir).await?;
+    let path = dir.join(format!("{PENDING_LINK_FILE}{}", crate::utils::help::get_uid("-")));
     crate::utils::help::write_atomic(&path, link.as_bytes()).await?;
     Ok(path)
 }
@@ -138,54 +139,52 @@ async fn claim_the_link_at(path: &std::path::Path) -> Option<String> {
     is_scheme_link(link.as_deref().unwrap_or_default().trim()).then(|| link.unwrap_or_default().trim().into())
 }
 
-/// Забрать ссылки, оставленные вторыми копиями, и стереть их след.
+/// Забрать ссылки, оставленные вторыми копиями, и стереть их след. В
+/// каталоге данных этой копии их оставляли прежние версии.
 pub async fn take_the_pending_links() -> Vec<String> {
-    let Ok(home) = crate::utils::dirs::preinit_app_home_dir() else {
-        return Vec::new();
-    };
-    let Ok(mut entries) = tokio::fs::read_dir(&home).await else {
-        return Vec::new();
-    };
+    let mut dirs: Vec<std::path::PathBuf> = [handover_dir(), crate::utils::dirs::preinit_app_home_dir()]
+        .into_iter()
+        .flatten()
+        .collect();
+    dirs.dedup();
     let mut pending = Vec::new();
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        if !entry.file_name().to_string_lossy().starts_with(PENDING_LINK_FILE) {
+    for dir in dirs {
+        let Ok(mut entries) = tokio::fs::read_dir(&dir).await else {
             continue;
-        }
-        if let Some(link) = claim_the_link_at(&entry.path()).await {
-            pending.push(link);
+        };
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            if !entry.file_name().to_string_lossy().starts_with(PENDING_LINK_FILE) {
+                continue;
+            }
+            if let Some(link) = claim_the_link_at(&entry.path()).await {
+                pending.push(link);
+            }
         }
     }
     pending
 }
 
-/// Портативная версия держит токен не рядом с exe, а в локальных данных
-/// пользователя: каталог рядом с exe бывает на томе без прав доступа
-/// (FAT/exFAT, часть сетевых папок), где файл ни закрыть от чужих, ни признать
-/// своим. Обе копии одной портативной установки находят файл по отпечатку её
-/// каталога.
-fn instance_token_path_for(
-    app_home: &std::path::Path,
-    portable: bool,
-    local_data: Option<&std::path::Path>,
-) -> std::path::PathBuf {
-    use sha2::Digest as _;
-    match local_data.filter(|_| portable) {
-        Some(local_data) => {
-            let print = sha2::Sha256::digest(app_home.as_os_str().as_encoded_bytes());
-            local_data
-                .join(crate::utils::dirs::APP_ID)
-                .join(format!("{INSTANCE_TOKEN_FILE}-{}", hex::encode(&print[..8])))
-        }
-        None => app_home.join(INSTANCE_TOKEN_FILE),
-    }
+/// Место встречи копий одного пользователя — установленной и портативных:
+/// порт у них один на машину, и токен со ссылками должна найти любая из них.
+/// Локальные данные пользователя, в отличие от каталога портативной копии,
+/// не бывают на томе без прав доступа (FAT/exFAT), где файл не закрыть от
+/// чужих.
+fn handover_dir_for(app_home: &std::path::Path, local_data: Option<&std::path::Path>) -> std::path::PathBuf {
+    local_data.map_or_else(
+        || app_home.to_path_buf(),
+        |local_data| local_data.join(crate::utils::dirs::APP_ID),
+    )
+}
+
+pub fn handover_dir() -> Result<std::path::PathBuf> {
+    Ok(handover_dir_for(
+        &crate::utils::dirs::preinit_app_home_dir()?,
+        ::dirs::data_local_dir().as_deref(),
+    ))
 }
 
 fn instance_token_path() -> Result<std::path::PathBuf> {
-    Ok(instance_token_path_for(
-        &crate::utils::dirs::preinit_app_home_dir()?,
-        *crate::utils::dirs::PORTABLE_FLAG.get().unwrap_or(&false),
-        ::dirs::data_local_dir().as_deref(),
-    ))
+    Ok(handover_dir()?.join(INSTANCE_TOKEN_FILE))
 }
 
 /// Новый токен на каждый запуск, в файл, закрытый от других пользователей.
@@ -516,28 +515,22 @@ mod tests {
     }
 
     #[test]
-    fn a_portable_copy_keeps_its_token_with_the_user_not_next_to_the_exe() {
-        use super::instance_token_path_for;
+    fn every_copy_of_one_user_meets_at_one_place() {
+        use super::handover_dir_for;
         use std::path::Path;
         let local = Path::new("/home/u/.local/share");
         let stick = Path::new("/media/stick/Clod Clash/.config/io.clodclash.app");
-        let installed = Path::new("/home/u/.local/share/io.clodclash.app");
+        let installed = Path::new("/home/u/.config/io.clodclash.app");
 
+        let met = handover_dir_for(installed, Some(local));
+        assert_eq!(handover_dir_for(stick, Some(local)), met);
         assert_eq!(
-            instance_token_path_for(installed, false, Some(local)),
-            installed.join("instance-token")
+            handover_dir_for(Path::new("/media/other/.config/io.clodclash.app"), Some(local)),
+            met
         );
-        assert_eq!(instance_token_path_for(stick, true, None), stick.join("instance-token"));
-
-        let token = instance_token_path_for(stick, true, Some(local));
-        assert!(!token.starts_with(stick), "{token:?}");
-        assert_eq!(token.parent(), Some(local.join(crate::utils::dirs::APP_ID).as_path()));
-        assert_eq!(token, instance_token_path_for(stick, true, Some(local)));
-        assert_ne!(
-            token,
-            instance_token_path_for(Path::new("/media/other/.config/io.clodclash.app"), true, Some(local))
-        );
-        assert_ne!(token, instance_token_path_for(installed, false, Some(local)));
+        assert!(!met.starts_with(stick), "{met:?}");
+        assert_eq!(met, local.join(crate::utils::dirs::APP_ID));
+        assert_eq!(handover_dir_for(stick, None), stick);
     }
 
     #[test]

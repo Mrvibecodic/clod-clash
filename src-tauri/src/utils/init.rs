@@ -633,7 +633,14 @@ pub async fn init_config() -> Result<()> {
                 );
             }
         }
-        for dir in [dirs::app_home_dir(), dirs::app_profiles_dir()].into_iter().flatten() {
+        for dir in [
+            dirs::app_home_dir(),
+            dirs::app_profiles_dir(),
+            crate::utils::server::handover_dir(),
+        ]
+        .into_iter()
+        .flatten()
+        {
             let removed = crate::utils::help::sweep_staging_leftovers(&dir).await;
             if removed > 0 {
                 logging!(
