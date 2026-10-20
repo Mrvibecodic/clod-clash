@@ -7,10 +7,10 @@ skip_crate_env_info = true
 # --- Backend ---
 
 [tasks.rust-format]
-description = "Run rustfmt on Rust code"
+description = "Check Rust formatting the same way CI does"
 install_crate = "rustfmt"
 command = "cargo"
-args = ["fmt", "--", "--emit=files"]
+args = ["fmt", "--all", "--", "--check"]
 
 [tasks.rust-clippy]
 description = "Run cargo clippy to lint the code"
@@ -93,7 +93,7 @@ end
 # --- Git Hooks ---
 
 [tasks.pre-commit]
-description = "Pre-commit checks: format only"
+description = "Pre-commit checks: Rust formatting check, frontend format"
 script_runner = "@duckscript"
 script = '''
 # rust related changes

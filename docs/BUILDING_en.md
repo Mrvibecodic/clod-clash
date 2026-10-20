@@ -50,7 +50,7 @@ cargo clippy-all                      # on Linux; on Windows and macOS — cargo
 cargo test --lib --features clippy
 cargo test --workspace --exclude clash-verge --exclude tauri-plugin-clash-verge-sysinfo
 cargo test --test subscription_headers --features clippy
-cargo fmt --check
+cargo fmt --all -- --check
 ```
 
 The `clippy` feature lets the Rust side build without a ready frontend (`dist`).

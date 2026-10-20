@@ -49,7 +49,7 @@ cargo clippy-all                      # на Linux; на Windows и macOS — ca
 cargo test --lib --features clippy
 cargo test --workspace --exclude clash-verge --exclude tauri-plugin-clash-verge-sysinfo
 cargo test --test subscription_headers --features clippy
-cargo fmt --check
+cargo fmt --all -- --check
 ```
 
 Фича `clippy` нужна, чтобы Rust-часть собиралась без готового фронтенда (`dist`).
