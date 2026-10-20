@@ -1119,11 +1119,15 @@ fn handle_menu_click(id: std::string::String) {
                 logging!(info, Type::Tray, "Клик по меню трея: открываю окно");
                 lightweight::wake_or_show().await;
             }
+            // Галочку у пункта меню система переворачивает сама, не дожидаясь
+            // ответа: при отказе её возвращает только пересборка меню.
             MenuIds::SYSTEM_PROXY => {
                 feat::toggle_system_proxy().await;
+                logging_error!(Type::Tray, Tray::global().update_menu().await);
             }
             MenuIds::TUN_MODE => {
                 feat::toggle_tun_mode().await;
+                logging_error!(Type::Tray, Tray::global().update_menu().await);
             }
             MenuIds::CLOSE_ALL_CONNECTIONS => {
                 if let Err(err) = handle::Handle::mihomo().close_all_connections().await {
