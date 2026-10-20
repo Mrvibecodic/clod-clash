@@ -158,6 +158,16 @@ const fn yes_no(value: bool) -> &'static str {
     if value { "да" } else { "нет" }
 }
 
+/// Поддержке нужно и то, что человек включил, и то, что работает на деле, —
+/// с причиной, если не работает.
+fn wish_and_fact(wish: bool, fact: bool, why_not: Option<&str>) -> std::string::String {
+    let mut line = format!("в настройках {}, на деле {}", yes_no(wish), yes_no(fact));
+    if let Some(why) = why_not.filter(|_| !fact) {
+        let _ = write!(line, " ({why})");
+    }
+    line
+}
+
 fn pinned_port_note(pinned: Option<u16>) -> std::string::String {
     match pinned {
         Some(port) => format!("закреплён в настройках: {port}"),
@@ -219,7 +229,16 @@ async fn settings_section(out: &mut std::string::String) {
         running_version.as_deref().unwrap_or("—")
     );
     let _ = writeln!(out, "- выбрано в настройках: {}", core_label(&chosen));
-    let _ = writeln!(out, "- TUN: {}", yes_no(data.enable_tun_mode.unwrap_or(false)));
+    let tun_desired = data.enable_tun_mode.unwrap_or(false);
+    let _ = writeln!(
+        out,
+        "- TUN: {}",
+        wish_and_fact(
+            tun_desired,
+            crate::feat::tun::is_active_with(tun_desired),
+            crate::feat::tun::last_failure()
+        )
+    );
     let (connect_sys, connect_tun) = {
         let profiles = Config::profiles().await.latest_arc();
         let current = profiles.current.as_ref().and_then(|uid| profiles.get_item(uid).ok());
@@ -251,9 +270,30 @@ async fn settings_section(out: &mut std::string::String) {
     let _ = writeln!(
         out,
         "- системный прокси: {} (адрес {}, PAC {})",
-        yes_no(data.enable_system_proxy.unwrap_or(false)),
+        wish_and_fact(
+            data.enable_system_proxy.unwrap_or(false),
+            crate::core::sysopt::Sysopt::global().our_proxy_is_on().await,
+            None
+        ),
         Config::our_proxy_host(&data).await,
         yes_no(data.proxy_auto_config.unwrap_or(false))
+    );
+    let lan_held = Config::runtime().await.data_arc().unreadable_lan_list;
+    let lan_asked = Config::clash()
+        .await
+        .latest_arc()
+        .0
+        .get("allow-lan")
+        .and_then(serde_yaml_ng::Value::as_bool)
+        .unwrap_or(false);
+    let _ = writeln!(
+        out,
+        "- раздача в LAN: {}",
+        wish_and_fact(
+            lan_asked || lan_held.is_some(),
+            Config::effective_allow_lan().await,
+            lan_held.map(|key| format!("придержана: {key}")).as_deref()
+        )
     );
     let _ = writeln!(
         out,
@@ -696,6 +736,21 @@ mod tests {
 
         let v6 = redact("connect [2001:db8::1]:443 refused");
         assert!(!v6.contains("2001:db8::1"), "{v6}");
+    }
+
+    #[test]
+    fn the_report_puts_what_works_next_to_what_was_asked() {
+        use super::wish_and_fact;
+        assert_eq!(
+            wish_and_fact(true, false, Some("tun::no_rights")),
+            "в настройках да, на деле нет (tun::no_rights)"
+        );
+        assert_eq!(
+            wish_and_fact(true, true, Some("tun::no_rights")),
+            "в настройках да, на деле да"
+        );
+        assert_eq!(wish_and_fact(false, true, None), "в настройках нет, на деле да");
+        assert_eq!(wish_and_fact(false, false, None), "в настройках нет, на деле нет");
     }
 
     #[test]

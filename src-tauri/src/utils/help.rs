@@ -597,16 +597,16 @@ mod tests {
                 "config/prfitem.rs",
                 production_code(include_str!("../config/prfitem.rs")),
             ),
-            (
-                "module/support_bundle.rs",
-                production_code(include_str!("../module/support_bundle.rs")),
-            ),
         ] {
             assert!(
                 !source.contains("effective_allow_lan("),
                 "{name}: свой «наш хост прокси»"
             );
         }
+        assert!(
+            production_code(include_str!("../module/support_bundle.rs")).contains("Config::our_proxy_host("),
+            "module/support_bundle.rs: свой «наш хост прокси»"
+        );
 
         assert!(!include_str!("../core/firewall.rs").contains("const CORE_FILE_NAMES"));
         assert!(!include_str!("../feat/environment.rs").contains("fn detached_core_client"));
