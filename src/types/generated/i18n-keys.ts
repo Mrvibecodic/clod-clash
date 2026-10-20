@@ -853,6 +853,7 @@ export const translationKeys = [
   'settings.modals.update.messages.noNotes',
   'settings.modals.update.messages.progress',
   'settings.modals.update.messages.cancelled',
+  'settings.modals.update.messages.portableByHand',
   'settings.modals.update.alerts.note',
   'settings.modals.update.alerts.tip',
   'settings.modals.update.alerts.important',

@@ -761,6 +761,10 @@ export async function cancelAppUpdate() {
   return invoke<void>('cancel_app_update')
 }
 
+export async function getPortableFlag() {
+  return invoke<boolean>('get_portable_flag')
+}
+
 // Итог обновления ядром самого себя — по версии ядра, ответившего после.
 export type SelfUpgrade =
   | { outcome: 'updated'; version: string }

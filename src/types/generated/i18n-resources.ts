@@ -1339,6 +1339,7 @@ export interface TranslationResources {
             cancelled: string
             noData: string
             noNotes: string
+            portableByHand: string
             progress: string
           }
           title: string

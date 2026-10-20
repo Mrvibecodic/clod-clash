@@ -46,6 +46,7 @@ notifications:
     notInstalled: The update could not be installed. We will try again at the next launch.
     cancelledNoRights: "The update was cancelled: no administrator rights. The app keeps running."
     launchFailed: The update installer could not be started. The app keeps running.
+    portableByHand: "The portable version is updated by hand: download the new portable build from the release page."
   logOpenFailed:
     title: Log
     body: "The log file could not be opened. Look for it in {path}."

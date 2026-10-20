@@ -168,6 +168,7 @@ mod app_init {
             cmd::check_app_update,
             cmd::install_app_update,
             cmd::cancel_app_update,
+            cmd::get_portable_flag,
             cmd::update_bundled_core,
             cmd::upgrade_core_itself,
             cmd::get_running_mode,

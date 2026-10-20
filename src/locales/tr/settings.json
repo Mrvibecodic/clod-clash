@@ -513,7 +513,8 @@
         "noData": "Güncelleme bilgisi alınamadı",
         "noNotes": "A new version is available",
         "progress": "{{downloaded}} of {{total}}",
-        "cancelled": "Update download cancelled"
+        "cancelled": "Update download cancelled",
+        "portableByHand": "The portable version is updated by hand: download the new portable build from the release page."
       },
       "alerts": {
         "note": "Note",

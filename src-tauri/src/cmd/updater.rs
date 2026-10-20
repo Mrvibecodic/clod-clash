@@ -63,6 +63,12 @@ pub async fn install_app_update(
     Ok(installed)
 }
 
+/// Портативную копию окно обновления не ставит, а отправляет на страницу релиза.
+#[tauri::command]
+pub fn get_portable_flag() -> bool {
+    updater::this_copy_is_portable()
+}
+
 #[tauri::command]
 pub fn cancel_app_update() {
     SilentUpdater::global().cancel_manual_install();

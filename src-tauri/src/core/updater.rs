@@ -589,6 +589,22 @@ const fn after_the_launch(launch: std::result::Result<(), u32>) -> AfterTheLaunc
     }
 }
 
+pub fn this_copy_is_portable() -> bool {
+    *dirs::PORTABLE_FLAG.get().unwrap_or(&false)
+}
+
+/// Установщик ставит программу в системную папку и запускает уже её, а
+/// портативная копия осталась бы прежней: её обновляют вручную.
+fn refuse_for_a_portable_copy(portable: bool) -> Result<()> {
+    if portable {
+        return Err(anyhow!(
+            "{}",
+            clash_verge_i18n::t!("notifications.updateReady.portableByHand")
+        ));
+    }
+    Ok(())
+}
+
 /// Установщик, который так и не запустили, больше никому не нужен: каталог
 /// у каждого запуска свой, и оставленные копировались бы во временной папке.
 #[cfg(any(target_os = "windows", test))]
@@ -979,6 +995,7 @@ impl SilentUpdater {
     /// Запустить установщик. Одновременно — только один: признак снимается
     /// там же, где установщик вернулся, а не там, где его перестали ждать.
     async fn install(update: Update, bytes: Vec<u8>) -> Result<()> {
+        refuse_for_a_portable_copy(this_copy_is_portable())?;
         let Some(running) = InstallerRunning::claim() else {
             return Err(anyhow!("another update is being installed right now"));
         };
@@ -1009,6 +1026,7 @@ impl SilentUpdater {
         update: Update,
         on_event: impl Fn(DownloadEvent) + Send + Sync,
     ) -> Result<bool> {
+        refuse_for_a_portable_copy(this_copy_is_portable())?;
         // Установщик уже работает (например, тот, что ставят на старте) —
         // отказ сразу, а не после загрузки.
         if INSTALLING.load(Ordering::Acquire) {
@@ -1087,8 +1105,7 @@ impl SilentUpdater {
     }
 
     async fn check_and_download(&self, app_handle: &tauri::AppHandle) -> Result<()> {
-        let is_portable = *dirs::PORTABLE_FLAG.get().unwrap_or(&false);
-        if is_portable {
+        if this_copy_is_portable() {
             logging!(debug, Type::System, "Silent update skipped: portable build");
             return Ok(());
         }
@@ -1540,5 +1557,28 @@ mod tests {
         );
         let prepare = crate::utils::source_scan::fn_body(source, "pub(super) fn prepare(").unwrap_or_default();
         assert!(prepare.contains("forget_the_unlaunched_installer(&file)"), "{prepare}");
+    }
+
+    #[test]
+    fn a_portable_copy_is_never_handed_to_the_installer() {
+        assert!(super::refuse_for_a_portable_copy(false).is_ok());
+        let refusal = super::refuse_for_a_portable_copy(true)
+            .err()
+            .map(|error| error.to_string());
+        assert!(refusal.is_some_and(|text| !text.trim().is_empty()));
+
+        let source = crate::utils::source_scan::production_code(include_str!("updater.rs"));
+        let manual = crate::utils::source_scan::fn_body(source, "pub async fn install_manually(").unwrap_or_default();
+        let refused = manual.find("refuse_for_a_portable_copy(").unwrap_or(usize::MAX);
+        assert!(
+            refused < manual.find("bytes_to_install").unwrap_or_default(),
+            "{manual}"
+        );
+        let install = crate::utils::source_scan::fn_body(source, "async fn install(update").unwrap_or_default();
+        let refused = install.find("refuse_for_a_portable_copy(").unwrap_or(usize::MAX);
+        assert!(
+            refused < install.find("InstallerRunning::claim()").unwrap_or_default(),
+            "{install}"
+        );
     }
 }

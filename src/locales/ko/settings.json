@@ -513,7 +513,8 @@
         "noData": "업데이트 정보를 가져오지 못했습니다",
         "noNotes": "A new version is available",
         "progress": "{{downloaded}} of {{total}}",
-        "cancelled": "Update download cancelled"
+        "cancelled": "Update download cancelled",
+        "portableByHand": "The portable version is updated by hand: download the new portable build from the release page."
       },
       "alerts": {
         "note": "Note",

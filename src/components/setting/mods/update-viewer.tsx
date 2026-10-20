@@ -14,7 +14,12 @@ import { useTranslation } from 'react-i18next'
 import type { Options as ReactMarkdownOptions } from 'react-markdown'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { cancelAppUpdate, installAppUpdate, openWebUrl } from '@/services/cmds'
+import {
+  cancelAppUpdate,
+  getPortableFlag,
+  installAppUpdate,
+  openWebUrl,
+} from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import { useSetUpdateState, useUpdateState } from '@/services/states'
@@ -192,6 +197,14 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
     refetchOnWindowFocus: false,
   })
 
+  const { data: portable } = useQuery({
+    queryKey: ['getPortableFlag'],
+    queryFn: getPortableFlag,
+    enabled: open,
+    revalidateIfStale: false,
+    refetchOnWindowFocus: false,
+  })
+
   const { downloaded, total } = useSyncExternalStore(
     subscribeInstallProgress,
     () => installProgress,
@@ -303,9 +316,11 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
                 total: parseTraffic(total),
               })
             : ''
-          : undefined
+          : portable && updateInfo
+            ? t('settings.modals.update.messages.portableByHand')
+            : undefined
       }
-      disableOk={!updateInfo}
+      disableOk={!updateInfo || portable === true}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
       onCancel={() => {
