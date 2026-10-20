@@ -230,7 +230,7 @@ fn init_silent_updater() {
 
 pub fn init_signal() {
     logging!(info, Type::Setup, "Initializing signal handlers...");
-    clash_verge_signal::register(feat::quit_by_signal);
+    AsyncHandler::spawn(|| clash_verge_signal::listen(feat::quit_by_signal));
 }
 
 pub async fn init_work_config() {

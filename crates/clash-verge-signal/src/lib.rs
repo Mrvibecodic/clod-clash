@@ -1,13 +1,7 @@
-use std::sync::OnceLock;
-
-use clash_verge_logging::{Type, logging};
-
 #[cfg(unix)]
 mod unix;
-#[cfg(windows)]
+#[cfg(all(windows, debug_assertions))]
 mod windows;
-
-pub(crate) static RUNTIME: OnceLock<Option<tokio::runtime::Runtime>> = OnceLock::new();
 
 /// Каким образом нас просят закрыться.
 ///
@@ -21,27 +15,20 @@ pub enum Shutdown {
     SessionEnding,
 }
 
-pub fn register<F, Fut>(f: F)
+/// Оконная сборка Windows без консоли сигналов не получает: выход из сеанса и
+/// выключение приходят через событие выхода приложения.
+#[cfg_attr(all(windows, not(debug_assertions)), allow(clippy::unused_async))]
+pub async fn listen<F, Fut>(f: F)
 where
     F: Fn(Shutdown) -> Fut + Send + Sync + 'static,
     Fut: Future + Send + 'static,
 {
-    RUNTIME.get_or_init(|| match tokio::runtime::Runtime::new() {
-        Ok(rt) => Some(rt),
-        Err(e) => {
-            logging!(
-                info,
-                Type::SystemSignal,
-                "register shutdown signal failed, create tokio runtime error: {}",
-                e
-            );
-            None
-        }
-    });
-
     #[cfg(unix)]
-    unix::register(f);
+    unix::listen(f).await;
 
-    #[cfg(windows)]
-    windows::register(f);
+    #[cfg(all(windows, debug_assertions))]
+    windows::listen(f).await;
+
+    #[cfg(all(windows, not(debug_assertions)))]
+    let _ = f;
 }
