@@ -974,6 +974,87 @@ fn share_with_the_lan(
     (apply_lan_sharing(config, sharing), unreadable)
 }
 
+/// `host:port` на петле: петля остаётся как есть, иначе тот же порт на
+/// `127.0.0.1`. `None` — адрес не разбирается.
+fn on_the_loopback(listen: &str) -> Option<std::string::String> {
+    let (host, port) = split_listen(listen)?;
+    Some(if listens_on_loopback_only(host) {
+        listen.to_owned()
+    } else {
+        format!("127.0.0.1:{port}")
+    })
+}
+
+/// Входы подписки, которые слушают сеть мимо `allow-lan`: `listeners` (без
+/// `listen` ядро ставит их на все интерфейсы) и встроенные серверы. Пока
+/// раздача закрыта, они слушают только петлю; встроенный сервер с адресом,
+/// который не разбирается, снимается целиком.
+fn keep_the_inbounds_on_the_loopback(config: &mut Mapping) {
+    let mut kept = Vec::new();
+    if let Some(listeners) = config.get_mut("listeners").and_then(Value::as_sequence_mut) {
+        for listener in listeners.iter_mut().filter_map(Value::as_mapping_mut) {
+            let on_the_loopback = listener.get("listen").and_then(Value::as_str).is_some_and(|host| {
+                listens_on_loopback_only(host.trim().trim_start_matches('[').trim_end_matches(']'))
+            });
+            if !on_the_loopback {
+                listener.insert(Value::from("listen"), Value::from("127.0.0.1"));
+                kept.push("listeners");
+            }
+        }
+    }
+    let tuic = config
+        .get("tuic-server")
+        .and_then(Value::as_mapping)
+        .map(|server| server.get("listen").and_then(Value::as_str).and_then(on_the_loopback));
+    match tuic {
+        Some(Some(listen)) => {
+            if let Some(server) = config.get_mut("tuic-server").and_then(Value::as_mapping_mut)
+                && server.get("listen").and_then(Value::as_str) != Some(listen.as_str())
+            {
+                server.insert(Value::from("listen"), Value::from(listen));
+                kept.push("tuic-server");
+            }
+        }
+        Some(None) => {
+            config.remove("tuic-server");
+            kept.push("tuic-server");
+        }
+        None => {}
+    }
+    for key in ["ss-config", "vmess-config"] {
+        let Some(link) = config
+            .get(key)
+            .and_then(Value::as_str)
+            .filter(|link| !link.trim().is_empty())
+        else {
+            continue;
+        };
+        let narrowed = link
+            .rsplit_once('@')
+            .and_then(|(server, listen)| Some(format!("{server}@{}", on_the_loopback(listen)?)));
+        match narrowed {
+            Some(narrowed) if narrowed == link => {}
+            Some(narrowed) => {
+                config.insert(Value::from(key), Value::from(narrowed));
+                kept.push(key);
+            }
+            None => {
+                config.remove(key);
+                kept.push(key);
+            }
+        }
+    }
+    kept.dedup();
+    if !kept.is_empty() {
+        logging!(
+            warn,
+            Type::Config,
+            "{} would face the whole network while sharing is off; keeping them on the loopback",
+            kept.join(", ")
+        );
+    }
+}
+
 fn apply_lan_sharing(mut config: Mapping, decision: LanSharing) -> Mapping {
     match decision {
         LanSharing::Off | LanSharing::Unreadable(_) => {
@@ -981,6 +1062,7 @@ fn apply_lan_sharing(mut config: Mapping, decision: LanSharing) -> Mapping {
             config.remove("lan-allowed-ips");
             config.remove("lan-disallowed-ips");
             config.remove("bind-address");
+            keep_the_inbounds_on_the_loopback(&mut config);
         }
         LanSharing::On { allowed, disallowed } => {
             config.insert(Value::from("allow-lan"), Value::from(true));
@@ -3188,6 +3270,67 @@ mod tests {
         assert!(!config.contains_key("lan-allowed-ips"), "список запирает своё же ядро");
         assert!(!config.contains_key("lan-disallowed-ips"));
         assert!(!config.contains_key("bind-address"));
+    }
+
+    #[test]
+    fn with_sharing_closed_the_subscriptions_inbounds_listen_on_the_loopback_only() {
+        let template = r#"{
+            listeners: [
+                {name: in, type: mixed, port: 7900},
+                {name: wide, type: socks, port: 7901, listen: "::"},
+                {name: own, type: http, port: 7902, listen: 127.0.0.1}
+            ],
+            ss-config: "ss://aes-128-gcm:cGFzcw==@:23456",
+            vmess-config: "vmess://1:9d0cb9d0-964f-4ef6-897d-6c6b3ccf9e68@0.0.0.0:12345",
+            tuic-server: {enable: true, listen: "[::]:10443"}
+        }"#;
+        let listens = |config: &serde_yaml_ng::Mapping| -> Vec<Option<std::string::String>> {
+            config["listeners"]
+                .as_sequence()
+                .into_iter()
+                .flatten()
+                .map(|listener| {
+                    listener
+                        .get("listen")
+                        .and_then(serde_yaml_ng::Value::as_str)
+                        .map(str::to_owned)
+                })
+                .collect()
+        };
+        for closed in [super::LanSharing::Off, super::LanSharing::Unreadable("lan-allowed-ips")] {
+            let config = super::apply_lan_sharing(mapping(template), closed);
+            assert_eq!(listens(&config), vec![Some("127.0.0.1".to_owned()); 3]);
+            assert_eq!(
+                config["ss-config"].as_str(),
+                Some("ss://aes-128-gcm:cGFzcw==@127.0.0.1:23456")
+            );
+            assert_eq!(
+                config["vmess-config"].as_str(),
+                Some("vmess://1:9d0cb9d0-964f-4ef6-897d-6c6b3ccf9e68@127.0.0.1:12345")
+            );
+            assert_eq!(config["tuic-server"]["listen"].as_str(), Some("127.0.0.1:10443"));
+        }
+
+        let shared = super::apply_lan_sharing(
+            mapping(template),
+            super::LanSharing::On {
+                allowed: Some(vec!["192.168.1.0/24".to_owned(), "127.0.0.0/8".to_owned()]),
+                disallowed: None,
+            },
+        );
+        assert_eq!(
+            listens(&shared),
+            vec![None, Some("::".to_owned()), Some("127.0.0.1".to_owned())]
+        );
+        assert_eq!(shared["ss-config"].as_str(), Some("ss://aes-128-gcm:cGFzcw==@:23456"));
+
+        // Адрес, который не разбирается, — встроенного сервера нет вовсе.
+        let unreadable = super::apply_lan_sharing(
+            mapping(r#"{ss-config: "ss://aes-128-gcm:cGFzcw==", tuic-server: {enable: true}}"#),
+            super::LanSharing::Off,
+        );
+        assert!(!unreadable.contains_key("ss-config"));
+        assert!(!unreadable.contains_key("tuic-server"));
     }
 
     #[test]
