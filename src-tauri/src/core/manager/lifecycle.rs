@@ -877,10 +877,10 @@ impl CoreManager {
 
     async fn prepare_startup(&self) {
         self.wait_for_service_if_needed().await;
-        self.aim_at(match SERVICE_MANAGER.current().await {
-            ServiceStatus::Ready => Backend::Service,
-            _ => Backend::Sidecar,
-        });
+        self.aim_at(backend_for(
+            matches!(SERVICE_MANAGER.current().await, ServiceStatus::Ready),
+            crate::feat::tun::the_service_serves_this_copy(),
+        ));
     }
 
     pub(super) fn after_core_process(&self) {
@@ -1105,6 +1105,9 @@ impl CoreManager {
         if Handle::global().is_exiting() {
             return Some(HandoffOutcome::NotReady);
         }
+        if !crate::feat::tun::the_service_serves_this_copy() {
+            return Some(HandoffOutcome::Failed);
+        }
 
         // Принудительно обновляем состояние службы, чтобы кэшированное состояние
         // не блокировало передачу
@@ -1218,6 +1221,16 @@ const fn delivery_when_the_tun_goes_on(reach: Option<&HandoffOutcome>) -> super:
     match reach {
         None => super::Delivery::Restart,
         Some(_) => super::Delivery::Reload,
+    }
+}
+
+/// Ядро идёт под службу, только если она готова и служит этой копии — то же
+/// правило, по которому службу предлагают для TUN.
+const fn backend_for(service_ready: bool, serves_this_copy: bool) -> Backend {
+    if service_ready && serves_this_copy {
+        Backend::Service
+    } else {
+        Backend::Sidecar
     }
 }
 
@@ -1425,6 +1438,20 @@ mod tests {
 
     /// macOS: подмена системного DNS живёт, пока жив туннель. Ядро сдалось
     /// после падений или не поднялось — подмена снимается в обоих местах.
+    /// Копию на томе без прав доступа служба не признает: ядро у неё своим
+    /// процессом, даже если на машине стоит готовая служба другой установки.
+    #[test]
+    fn a_copy_the_service_cannot_serve_runs_its_own_core() {
+        use super::{Backend, backend_for};
+        assert_eq!(backend_for(true, true), Backend::Service);
+        assert_eq!(backend_for(true, false), Backend::Sidecar);
+        assert_eq!(backend_for(false, true), Backend::Sidecar);
+        assert_eq!(backend_for(false, false), Backend::Sidecar);
+        let lifecycle = crate::utils::source_scan::without_test_modules(include_str!("lifecycle.rs"));
+        let reach = fn_body(lifecycle, "async fn handoff_is_out_of_reach").unwrap_or_default();
+        assert!(reach.contains("the_service_serves_this_copy()"), "{reach}");
+    }
+
     #[test]
     fn the_dns_override_does_not_outlive_the_tunnel() {
         let lifecycle = crate::utils::source_scan::without_test_modules(include_str!("lifecycle.rs"));
