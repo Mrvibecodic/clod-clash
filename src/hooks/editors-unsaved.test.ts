@@ -42,6 +42,14 @@ describe('окна с несохранённым', () => {
     assert.match(rules, /dismissUnlessDirty\(dirty \|\| pendingRule, onClose\)/)
     assert.match(
       rules,
+      /\{visualization && changes \? \(\s*dirty \|\| pendingRule \? \(/,
+    )
+    assert.match(
+      rules,
+      /onClick=\{\(\) => \{\s*reset\(\)\s*setRuleContent\(''\)\s*setTried\(false\)/,
+    )
+    assert.match(
+      rules,
       /save\(\{ prepend: nextPrepend, append: nextAppend \}\)/,
     )
     const sysproxy = source('../components/setting/mods/sysproxy-viewer.tsx')

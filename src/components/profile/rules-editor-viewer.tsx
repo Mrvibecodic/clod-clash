@@ -688,14 +688,23 @@ export const RulesEditorViewer = (props: Props) => {
       added:
         missing(nextPrepend, disk.prepend) +
         missing(nextAppend, disk.append) +
-        missing(disk.delete, deleteSeq),
+        missing(disk.delete, deleteSeq) +
+        (pendingRule && !withPending ? 1 : 0),
       removed:
         missing(disk.prepend, nextPrepend) +
         missing(disk.append, nextAppend) +
         missing(deleteSeq, disk.delete),
       onDisk: baseline !== null,
     }
-  }, [ready, baseline, nextPrepend, nextAppend, deleteSeq])
+  }, [
+    ready,
+    baseline,
+    nextPrepend,
+    nextAppend,
+    deleteSeq,
+    pendingRule,
+    withPending,
+  ])
   const unchanged = visualization && changes !== null && !dirty && !pendingRule
 
   const handleSave = useLockFn(async () => {
@@ -1169,7 +1178,7 @@ export const RulesEditorViewer = (props: Props) => {
         >
           <ReadFailureNote failure={readFailure} />
           {visualization && changes ? (
-            dirty || withPending ? (
+            dirty || pendingRule ? (
               <>
                 <Box
                   component="span"
@@ -1182,7 +1191,15 @@ export const RulesEditorViewer = (props: Props) => {
                       })
                     : t('rules.modals.editor.footer.reordered')}
                 </Box>
-                <Button size="small" sx={{ ml: 1 }} onClick={reset}>
+                <Button
+                  size="small"
+                  sx={{ ml: 1 }}
+                  onClick={() => {
+                    reset()
+                    setRuleContent('')
+                    setTried(false)
+                  }}
+                >
                   {t('rules.modals.editor.footer.reset')}
                 </Button>
               </>
