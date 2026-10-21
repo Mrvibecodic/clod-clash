@@ -140,7 +140,7 @@ pub(crate) fn strip_machine_local(verge: &mut Settings) {
 
 fn machine_local_of(verge: &IVerge) -> Result<Settings> {
     let serde_json::Value::Object(mut settings) = serde_json::to_value(verge)? else {
-        return Err(anyhow!("settings are not a map"));
+        return Err(anyhow!("{}", clash_verge_i18n::t!("errors.backupDamaged")));
     };
     settings.retain(|key, _| MACHINE_LOCAL_KEYS.contains(&key.as_str()));
     Ok(settings)
@@ -151,7 +151,7 @@ fn machine_local_of(verge: &IVerge) -> Result<Settings> {
 fn restored_settings(archived: &str, local: Settings) -> Result<IVerge> {
     let archived: IVerge = serde_yaml_ng::from_str(archived)?;
     let serde_json::Value::Object(mut settings) = serde_json::to_value(archived)? else {
-        return Err(anyhow!("restored settings are not a map"));
+        return Err(anyhow!("{}", clash_verge_i18n::t!("errors.backupDamaged")));
     };
     strip_machine_local(&mut settings);
     settings.extend(local);
@@ -294,10 +294,13 @@ where
 pub async fn import_local_backup(source: String) -> Result<String> {
     let source_path = PathBuf::from(source.as_str());
     if !source_path.exists() {
-        return Err(anyhow!("Backup file not found: {source}"));
+        return Err(anyhow!(
+            "{}",
+            clash_verge_i18n::t!("errors.backupNotFound", name = source)
+        ));
     }
     if !source_path.is_file() {
-        return Err(anyhow!("Backup path is not a file: {source}"));
+        return Err(anyhow!("{}", clash_verge_i18n::t!("errors.notAFile")));
     }
 
     let ext = source_path
@@ -306,13 +309,13 @@ pub async fn import_local_backup(source: String) -> Result<String> {
         .map(|ext| ext.to_ascii_lowercase())
         .unwrap_or_default();
     if ext != "zip" {
-        return Err(anyhow!("Only .zip backup files are supported"));
+        return Err(anyhow!("{}", clash_verge_i18n::t!("errors.backupOnlyZip")));
     }
 
     let file_name = source_path
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| anyhow!("Invalid backup file name"))?;
+        .ok_or_else(|| anyhow!("{}", clash_verge_i18n::t!("errors.backupBadName", name = source)))?;
 
     let backup_dir = local_backup_dir()?;
     let target_path = backup_dir.join(file_name);
@@ -326,12 +329,18 @@ pub async fn import_local_backup(source: String) -> Result<String> {
     }
 
     if target_path.exists() {
-        return Err(anyhow!("Backup file already exists: {file_name}"));
+        return Err(anyhow!(
+            "{}",
+            clash_verge_i18n::t!("errors.backupExists", name = file_name)
+        ));
     }
 
-    fs::copy(&source_path, &target_path)
-        .await
-        .map_err(|err| anyhow!("Failed to import backup file: {err:#?}"))?;
+    fs::copy(&source_path, &target_path).await.map_err(|err| {
+        anyhow!(
+            "{}",
+            clash_verge_i18n::t!("errors.backupNotImported", reason = err.to_string())
+        )
+    })?;
 
     Ok(file_name.to_string().into())
 }
@@ -349,12 +358,18 @@ async fn move_file(from: PathBuf, to: PathBuf) -> Result<()> {
                 Type::Backup,
                 "Failed to rename backup file directly, fallback to copy/remove: {rename_err:#?}"
             );
-            fs::copy(&from, &to)
-                .await
-                .map_err(|err| anyhow!("Failed to copy backup file: {err:#?}"))?;
-            fs::remove_file(&from)
-                .await
-                .map_err(|err| anyhow!("Failed to remove temp backup file: {err:#?}"))?;
+            fs::copy(&from, &to).await.map_err(|err| {
+                anyhow!(
+                    "{}",
+                    clash_verge_i18n::t!("errors.backupNotMoved", reason = err.to_string())
+                )
+            })?;
+            fs::remove_file(&from).await.map_err(|err| {
+                anyhow!(
+                    "{}",
+                    clash_verge_i18n::t!("errors.backupNotMoved", reason = err.to_string())
+                )
+            })?;
             Ok(())
         }
     }
@@ -407,7 +422,10 @@ fn is_plain_file_name(filename: &str) -> bool {
 
 fn backup_file_path(filename: &str) -> Result<PathBuf> {
     if !is_plain_file_name(filename) {
-        return Err(anyhow!("Invalid backup file name: {filename}"));
+        return Err(anyhow!(
+            "{}",
+            clash_verge_i18n::t!("errors.backupBadName", name = filename)
+        ));
     }
 
     Ok(local_backup_dir()?.join(filename))
@@ -426,7 +444,10 @@ pub async fn delete_local_backup(filename: String) -> Result<()> {
 pub async fn restore_local_backup(filename: String) -> Result<()> {
     let target_path = backup_file_path(filename.as_str())?;
     if !target_path.exists() {
-        return Err(anyhow!("Backup file not found: {}", filename));
+        return Err(anyhow!(
+            "{}",
+            clash_verge_i18n::t!("errors.backupNotFound", name = filename)
+        ));
     }
 
     let local = machine_local_config().await?;
@@ -439,17 +460,22 @@ pub async fn restore_local_backup(filename: String) -> Result<()> {
 pub async fn export_local_backup(filename: String, dest_path: PathBuf) -> Result<()> {
     let source_path = backup_file_path(filename.as_str())?;
     if !source_path.exists() {
-        return Err(anyhow!("Backup file not found: {}", filename));
+        return Err(anyhow!(
+            "{}",
+            clash_verge_i18n::t!("errors.backupNotFound", name = filename)
+        ));
     }
 
     if let Some(parent) = dest_path.parent() {
         fs::create_dir_all(parent).await?;
     }
 
-    fs::copy(&source_path, &dest_path)
-        .await
-        .map(|_| ())
-        .map_err(|err| anyhow!("Failed to export backup file: {err:#?}"))?;
+    fs::copy(&source_path, &dest_path).await.map(|_| ()).map_err(|err| {
+        anyhow!(
+            "{}",
+            clash_verge_i18n::t!("errors.backupNotExported", reason = err.to_string())
+        )
+    })?;
     Ok(())
 }
 

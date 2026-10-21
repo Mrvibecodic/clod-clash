@@ -136,6 +136,14 @@ errors:
   panelRefusedDevice: "Панель не пустила это устройство"
   legacyTls: "Сервер подписки знает только устаревший TLS 1.0/1.1 — нужен TLS 1.2 или 1.3"
   responseTooLarge: "Ответ больше {mib} МБ"
+  backupDamaged: "Настройки в копии повреждены"
+  backupNotFound: "Копия не найдена: {name}"
+  backupOnlyZip: "Подходят только копии .zip"
+  backupBadName: "Недопустимое имя копии: {name}"
+  backupExists: "Копия с таким именем уже есть: {name}"
+  backupNotImported: "Не удалось добавить копию: {reason}"
+  backupNotExported: "Не удалось сохранить копию: {reason}"
+  backupNotMoved: "Не удалось перенести копию: {reason}"
 tray:
   dashboard: Открыть окно
   ruleMode: "Режим: По правилам"

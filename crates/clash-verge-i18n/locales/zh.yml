@@ -136,6 +136,14 @@ errors:
   panelRefusedDevice: "The panel refused this device"
   legacyTls: "The subscription server only speaks the outdated TLS 1.0/1.1 — TLS 1.2 or 1.3 is required"
   responseTooLarge: "The response is larger than {mib} MiB"
+  backupDamaged: "The settings in the backup are damaged"
+  backupNotFound: "The backup was not found: {name}"
+  backupOnlyZip: "Only .zip backups are supported"
+  backupBadName: "Invalid backup name: {name}"
+  backupExists: "A backup with this name already exists: {name}"
+  backupNotImported: "Could not add the backup: {reason}"
+  backupNotExported: "Could not save the backup: {reason}"
+  backupNotMoved: "Could not move the backup: {reason}"
 tray:
   dashboard: 仪表板
   ruleMode: 规则模式
