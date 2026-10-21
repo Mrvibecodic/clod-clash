@@ -359,8 +359,8 @@ fn icons_of(groups: Option<&serde_yaml_ng::Value>) -> impl Iterator<Item = std::
         .map(str::to_owned)
 }
 
-/// Адреса значков групп подписки и её собственных групп человека; `None` —
-/// подписку прочитать не удалось, и судить, какие значки ей не нужны, нельзя.
+/// Адреса значков, которые окно может спросить у подписки; `None` — подписку
+/// прочитать не удалось, и судить, какие значки ей не нужны, нельзя.
 async fn group_icon_urls(uid: &str) -> Option<BTreeSet<std::string::String>> {
     let (item, own_groups) = {
         let profiles = Config::profiles().await;
@@ -373,14 +373,36 @@ async fn group_icon_urls(uid: &str) -> Option<BTreeSet<std::string::String>> {
         drop(arc);
         (item, own_groups)
     };
-    let subscription: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(&item.read_file().await.ok()?).ok()?;
+    let assembled = {
+        let runtime = Config::runtime().await.data_arc();
+        (runtime.profile_uid.as_deref() == Some(uid))
+            .then(|| runtime.config.clone())
+            .flatten()
+    };
+    let own = match own_groups {
+        Some(own_groups) => own_groups.read_file().await.ok(),
+        None => None,
+    };
+    wanted_icons(&item.read_file().await.ok()?, own.as_deref(), assembled.as_ref())
+}
+
+/// Значки групп файла подписки (с раскрытыми якорями) и её групп человека —
+/// так их показывает редактор групп, — а если из подписки собран запущенный
+/// конфиг, то и его групп (с Merge и Script), которые показывает окно прокси.
+fn wanted_icons(
+    subscription: &str,
+    own: Option<&str>,
+    assembled: Option<&serde_yaml_ng::Mapping>,
+) -> Option<BTreeSet<std::string::String>> {
+    let mut subscription: serde_yaml_ng::Value = serde_yaml_ng::from_str(subscription).ok()?;
+    help::apply_merge_transitively(&mut subscription, "subscription").ok()?;
     let mut urls: BTreeSet<_> = icons_of(subscription.get("proxy-groups")).collect();
-    if let Some(own_groups) = own_groups
-        && let Ok(raw) = own_groups.read_file().await
-        && let Ok(own) = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&raw)
-    {
+    if let Some(own) = own.and_then(|raw| serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(raw).ok()) {
         urls.extend(icons_of(own.get("prepend")));
         urls.extend(icons_of(own.get("append")));
+    }
+    if let Some(assembled) = assembled {
+        urls.extend(icons_of(assembled.get("proxy-groups")));
     }
     Some(urls)
 }
@@ -518,7 +540,7 @@ pub async fn group_icon(uid: &str, url: &str) -> Shown {
 mod tests {
     use super::{
         KNOWN_EXTENSIONS, Reply, Validators, cached_icons, icon_stem, icons_of, is_safe_uid, mime_for, remove_stem,
-        reply_to, saved_validators, store_fresh, validators_path,
+        reply_to, saved_validators, store_fresh, validators_path, wanted_icons,
     };
     use reqwest::header::{ETAG, HeaderMap, HeaderValue, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 
@@ -732,5 +754,34 @@ mod tests {
             ["https://cdn.example/a.png"]
         );
         assert_eq!(icons_of(None).count(), 0);
+    }
+
+    #[test]
+    fn the_icons_wanted_include_anchors_and_the_running_build() {
+        let subscription = "base: &base {type: select, icon: 'https://cdn.example/anchor.png'}\nproxy-groups:\n  - {<<: *base, name: A}\n  - {name: B, icon: 'https://cdn.example/b.png'}\n";
+        let own = "prepend:\n  - {name: Mine, icon: 'https://cdn.example/mine.png'}\n";
+        let assembled: serde_yaml_ng::Mapping =
+            serde_yaml_ng::from_str("proxy-groups:\n  - {name: Merged, icon: 'https://cdn.example/merge.png'}\n")
+                .expect("yaml");
+
+        let wanted = |assembled| {
+            wanted_icons(subscription, Some(own), assembled)
+                .expect("подписка читается")
+                .into_iter()
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            wanted(None),
+            [
+                "https://cdn.example/anchor.png",
+                "https://cdn.example/b.png",
+                "https://cdn.example/mine.png"
+            ]
+        );
+        assert!(
+            wanted(Some(&assembled)).contains(&"https://cdn.example/merge.png".to_owned()),
+            "значок из Merge запущенной сборки"
+        );
+        assert_eq!(wanted_icons("proxy-groups: [", None, None), None);
     }
 }

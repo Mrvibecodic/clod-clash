@@ -71,7 +71,7 @@ pub(crate) fn contains_merge_key(root: &Value) -> bool {
     false
 }
 
-fn apply_merge_transitively(value: &mut Value, source: &str) -> Result<()> {
+pub(crate) fn apply_merge_transitively(value: &mut Value, source: &str) -> Result<()> {
     for _ in 0..MAX_MERGE_PASSES {
         value.apply_merge()?;
         if !contains_merge_key(value) {
