@@ -35,8 +35,8 @@ pub(crate) fn profile_switch_in_progress() -> bool {
 }
 
 fn profile_import_error(err: &anyhow::Error) -> std::string::String {
-    if let Some(cause) = err.chain().find(|cause| cause.to_string().contains("TLS 1.0/1.1")) {
-        return cause.to_string();
+    if err.downcast_ref::<crate::utils::network::LegacyTls>().is_some() {
+        return crate::utils::network::LegacyTls.to_string();
     }
 
     format!("не удалось импортировать подписку: {err:#}")
@@ -903,6 +903,19 @@ mod delete_tests {
 #[cfg(test)]
 mod tests {
     use super::commit_current_profile;
+
+    /// Особое объяснение — только настоящему отказу сервера по старому TLS,
+    /// а не любой ошибке, в тексте которой встретились те же слова.
+    #[test]
+    fn only_a_legacy_tls_refusal_is_told_as_such() {
+        use crate::utils::network::LegacyTls;
+        let legacy = anyhow::Error::new(std::io::Error::other("handshake")).context(LegacyTls);
+        assert_eq!(super::profile_import_error(&legacy), LegacyTls.to_string());
+        let mentions = anyhow::anyhow!("the server says TLS 1.0/1.1 is off");
+        let told = super::profile_import_error(&mentions);
+        assert_ne!(told, mentions.to_string());
+        assert!(told.contains("TLS 1.0/1.1 is off"), "{told}");
+    }
 
     #[test]
     fn every_way_to_add_a_subscription_shares_one_tail() {

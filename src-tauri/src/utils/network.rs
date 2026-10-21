@@ -115,6 +115,19 @@ impl Default for NetworkManager {
     }
 }
 
+/// Сервер подписки говорит только устаревшим TLS 1.0/1.1. Вид ошибки — тип, а
+/// не слова в её тексте: текст переведён и на другом языке другой.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LegacyTls;
+
+impl std::fmt::Display for LegacyTls {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&clash_verge_i18n::t!("errors.legacyTls"))
+    }
+}
+
+impl std::error::Error for LegacyTls {}
+
 impl NetworkManager {
     pub const fn new() -> Self {
         Self
@@ -254,11 +267,7 @@ impl NetworkManager {
         let legacy_tls = Self::is_legacy_tls_protocol_error(&err);
         let err = anyhow::Error::new(err).context(context);
 
-        if legacy_tls {
-            err.context(clash_verge_i18n::t!("errors.legacyTls"))
-        } else {
-            err
-        }
+        if legacy_tls { err.context(LegacyTls) } else { err }
     }
 
     fn is_legacy_tls_protocol_error(err: &(dyn std::error::Error + 'static)) -> bool {
