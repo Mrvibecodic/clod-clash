@@ -465,35 +465,44 @@ Function CheckVCRuntime64
 FunctionEnd
 
 !macro CheckAllVergeProcesses
+  ; Одноимённое ядро есть и у других программ: своё узнаётся по полному пути.
+  System::Call 'kernel32::SetEnvironmentVariable(t "CLOD_CLASH_INSTDIR", t "$INSTDIR")i'
+
+  ; Служба общая с другой программой и держит ядро одной из них за раз:
+  ; останавливается, только если держит наше. 10 — наше, 11 — нет, иначе
+  ; узнать не удалось, и служба останавливается, чтобы файлы ядра заменились.
   SimpleSC::ExistsService "clash_verge_service"
   Pop $R0
   ${If} $R0 == 0
-    DetailPrint "Stopping ${PRODUCTNAME} Service..."
-    SimpleSC::StopService "clash_verge_service" 1 30
+    nsExec::ExecToLog /TIMEOUT=30000 `powershell.exe -NoProfile -NonInteractive -Command "$$ours = 'verge-mihomo.exe', 'verge-mihomo-alpha.exe' | ForEach-Object { Join-Path $$env:CLOD_CLASH_INSTDIR $$_ }; $$svc = (Get-CimInstance Win32_Service -ErrorAction Stop | Where-Object Name -eq 'clash_verge_service').ProcessId; if ($$svc -and (Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $$_.ParentProcessId -eq $$svc -and $$ours -contains $$_.ExecutablePath })) { exit 10 } else { exit 11 }"`
     Pop $R0
-    ${If} $R0 != 0
-    ${AndIf} $R0 != 1062
-      DetailPrint "Could not stop ${PRODUCTNAME} Service ($R0); falling back to killing it"
+    ${If} $R0 == 11
+      DetailPrint "${PRODUCTNAME} Service does not run the core of ${PRODUCTNAME}; leaving it as it is"
+    ${Else}
+      DetailPrint "Stopping ${PRODUCTNAME} Service..."
+      SimpleSC::StopService "clash_verge_service" 1 30
+      Pop $R0
+      ${If} $R0 != 0
+      ${AndIf} $R0 != 1062
+        DetailPrint "Could not stop ${PRODUCTNAME} Service ($R0); falling back to killing it"
+        !if "${INSTALLMODE}" == "currentUser"
+          nsis_tauri_utils::FindProcessCurrentUser "clash-verge-service.exe"
+        !else
+          nsis_tauri_utils::FindProcess "clash-verge-service.exe"
+        !endif
+        Pop $R0
+        ${If} $R0 = 0
+          DetailPrint "Kill clash-verge-service.exe..."
+          !if "${INSTALLMODE}" == "currentUser"
+            nsis_tauri_utils::KillProcessCurrentUser "clash-verge-service.exe"
+          !else
+            nsis_tauri_utils::KillProcess "clash-verge-service.exe"
+          !endif
+        ${EndIf}
+      ${EndIf}
     ${EndIf}
   ${EndIf}
 
-  !if "${INSTALLMODE}" == "currentUser"
-    nsis_tauri_utils::FindProcessCurrentUser "clash-verge-service.exe"
-  !else
-    nsis_tauri_utils::FindProcess "clash-verge-service.exe"
-  !endif
-  Pop $R0
-  ${If} $R0 = 0
-    DetailPrint "Kill clash-verge-service.exe..."
-    !if "${INSTALLMODE}" == "currentUser"
-      nsis_tauri_utils::KillProcessCurrentUser "clash-verge-service.exe"
-    !else
-      nsis_tauri_utils::KillProcess "clash-verge-service.exe"
-    !endif
-  ${EndIf}
-
-  ; Одноимённое ядро есть и у других программ: своё узнаётся по полному пути.
-  System::Call 'kernel32::SetEnvironmentVariable(t "CLOD_CLASH_INSTDIR", t "$INSTDIR")i'
   DetailPrint "Stopping the cores in $INSTDIR..."
   nsExec::ExecToLog /TIMEOUT=30000 `powershell.exe -NoProfile -NonInteractive -Command "$$ours = 'verge-mihomo.exe', 'verge-mihomo-alpha.exe' | ForEach-Object { Join-Path $$env:CLOD_CLASH_INSTDIR $$_ }; Get-Process -Name 'verge-mihomo', 'verge-mihomo-alpha' -ErrorAction SilentlyContinue | Where-Object { $$ours -contains $$_.Path } | Stop-Process -Force -PassThru -ErrorAction SilentlyContinue | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue"`
   Pop $R0
@@ -504,8 +513,6 @@ FunctionEnd
   Pop $0
 
   ${If} $0 == 0
-    SimpleSC::StopService "clash_verge_service" 1 30
-    Pop $0
     DetailPrint "Starting ${PRODUCTNAME} Service..."
     SimpleSC::StartService "clash_verge_service" "" 30
     Pop $0
@@ -528,10 +535,32 @@ FunctionEnd
 !macroend
 
 !macro RemoveVergeService
+  ; Пока установлена другая программа с той же службой (запись удаления
+  ; «Clash Verge»), служба остаётся ей.
+  StrCpy $1 ""
+  ${If} ${RunningX64}
+    SetRegView 64
+    ReadRegStr $1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
+    ${If} $1 == ""
+      ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
+    ${EndIf}
+  ${EndIf}
+  ${If} $1 == ""
+    SetRegView 32
+    ReadRegStr $1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
+    ${If} $1 == ""
+      ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
+    ${EndIf}
+  ${EndIf}
+  !insertmacro SetContext
+
   SimpleSC::ExistsService "clash_verge_service"
   Pop $0
 
-  ${If} $0 == 0
+  ${If} $1 != ""
+  ${AndIf} $0 == 0
+    DetailPrint "Another program still uses ${PRODUCTNAME} Service; leaving it registered"
+  ${ElseIf} $0 == 0
     DetailPrint "Stopping ${PRODUCTNAME} Service..."
     SimpleSC::StopService "clash_verge_service" 1 30
     Pop $0
