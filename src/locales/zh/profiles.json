@@ -199,7 +199,8 @@
       "title": "编辑代理组",
       "errors": {
         "nameRequired": "代理组名称不能为空",
-        "nameExists": "代理组名称已存在"
+        "nameExists": "代理组名称已存在",
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
       },
       "fields": {
         "type": "代理组类型",

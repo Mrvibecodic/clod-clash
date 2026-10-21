@@ -199,7 +199,8 @@
       "title": "تعديل مجموعات الوكلاء",
       "errors": {
         "nameRequired": "اسم المجموعة مطلوب",
-        "nameExists": "اسم المجموعة موجود بالفعل"
+        "nameExists": "اسم المجموعة موجود بالفعل",
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
       },
       "fields": {
         "type": "نوع المجموعة",

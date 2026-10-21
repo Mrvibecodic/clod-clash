@@ -199,7 +199,8 @@
       "title": "프록시 그룹 편집",
       "errors": {
         "nameRequired": "그룹 이름 필수",
-        "nameExists": "그룹 이름이 이미 존재함"
+        "nameExists": "그룹 이름이 이미 존재함",
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
       },
       "fields": {
         "type": "그룹 유형",

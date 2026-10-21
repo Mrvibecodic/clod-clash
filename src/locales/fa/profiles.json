@@ -199,7 +199,8 @@
       "title": "ویرایش گروه‌های پروکسی",
       "errors": {
         "nameRequired": "نام گروه مورد نیاز است",
-        "nameExists": "نام گروه قبلا وجود دارد"
+        "nameExists": "نام گروه قبلا وجود دارد",
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
       },
       "fields": {
         "type": "نوع گروه",

@@ -199,7 +199,8 @@
       "title": "Edit Proxy Groups",
       "errors": {
         "nameRequired": "Group Name Required",
-        "nameExists": "Group Name Already Exists"
+        "nameExists": "Group Name Already Exists",
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
       },
       "fields": {
         "type": "Group Type",

@@ -199,7 +199,8 @@
       "title": "Ubah Grup Proksi",
       "errors": {
         "nameRequired": "Nama Grup Diperlukan",
-        "nameExists": "Nama Grup Sudah Ada"
+        "nameExists": "Nama Grup Sudah Ada",
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
       },
       "fields": {
         "type": "Jenis Grup",

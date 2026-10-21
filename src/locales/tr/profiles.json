@@ -199,7 +199,8 @@
       "title": "Vekil Gruplarını Düzenle",
       "errors": {
         "nameRequired": "Grup Adı Gerekli",
-        "nameExists": "Grup Adı Zaten Var"
+        "nameExists": "Grup Adı Zaten Var",
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
       },
       "fields": {
         "type": "Grup Tipi",

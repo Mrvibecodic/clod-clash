@@ -308,6 +308,7 @@ export const translationKeys = [
   'profiles.modals.groupsEditor.title',
   'profiles.modals.groupsEditor.errors.nameRequired',
   'profiles.modals.groupsEditor.errors.nameExists',
+  'profiles.modals.groupsEditor.errors.nameTakenByProxy',
   'profiles.modals.groupsEditor.fields.type',
   'profiles.modals.groupsEditor.fields.name',
   'profiles.modals.groupsEditor.fields.icon',

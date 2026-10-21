@@ -56,7 +56,7 @@ import type { EditorReadFailure } from '@/utils/editor-save'
 import { optionalInt } from '@/utils/optional-int'
 import { readEachFile } from '@/utils/profile-files'
 import { BUILTIN_GROUP_POLICIES } from '@/utils/proxy-groups'
-import { takenSeqNames } from '@/utils/seq-names'
+import { groupNameConflict } from '@/utils/seq-names'
 import { parseYamlSafe } from '@/utils/yaml'
 
 interface Props {
@@ -172,6 +172,7 @@ export const GroupsEditorViewer = (props: Props) => {
   })
   const [groupList, setGroupList] = useState<IProxyGroupConfig[]>([])
   const [proxyPolicyList, setProxyPolicyList] = useState<string[]>([])
+  const [proxyNameList, setProxyNameList] = useState<string[]>([])
   const [proxyProviderList, setProxyProviderList] = useState<string[]>([])
   const [profileReadFailure, setProfileReadFailure] =
     useState<EditorReadFailure | null>(null)
@@ -373,6 +374,7 @@ export const GroupsEditorViewer = (props: Props) => {
     )
 
     setProxyPolicyList(Array.from(new Set(computedPolicyList)))
+    setProxyNameList(proxyNames)
   }, [appendSeq, deleteSeq, prependSeq, profileUid, proxiesUid])
   const fetchProfile = useCallback(async () => {
     const {
@@ -444,6 +446,20 @@ export const GroupsEditorViewer = (props: Props) => {
           max: GROUP_INTERVAL_MAX,
         }),
       )
+    }
+  }
+
+  const checkNameFree = () => {
+    const conflict = groupNameConflict(
+      formIns.getValues().name,
+      [prependSeq, groupList, appendSeq],
+      proxyNameList,
+    )
+    if (conflict === 'group') {
+      throw new Error(t('profiles.modals.groupsEditor.errors.nameExists'))
+    }
+    if (conflict === 'proxy') {
+      throw new Error(t('profiles.modals.groupsEditor.errors.nameTakenByProxy'))
     }
   }
 
@@ -999,15 +1015,7 @@ export const GroupsEditorViewer = (props: Props) => {
                   onClick={() => {
                     try {
                       validateGroup()
-                      if (
-                        takenSeqNames(prependSeq, groupList, appendSeq).has(
-                          formIns.getValues().name,
-                        )
-                      ) {
-                        throw new Error(
-                          t('profiles.modals.groupsEditor.errors.nameExists'),
-                        )
-                      }
+                      checkNameFree()
                       setPrependSeq([formIns.getValues(), ...prependSeq])
                     } catch (err) {
                       showNotice.error(err)
@@ -1025,15 +1033,7 @@ export const GroupsEditorViewer = (props: Props) => {
                   onClick={() => {
                     try {
                       validateGroup()
-                      if (
-                        takenSeqNames(prependSeq, groupList, appendSeq).has(
-                          formIns.getValues().name,
-                        )
-                      ) {
-                        throw new Error(
-                          t('profiles.modals.groupsEditor.errors.nameExists'),
-                        )
-                      }
+                      checkNameFree()
                       setAppendSeq([...appendSeq, formIns.getValues()])
                     } catch (err) {
                       showNotice.error(err)

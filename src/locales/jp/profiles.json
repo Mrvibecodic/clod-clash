@@ -199,7 +199,8 @@
       "title": "プロキシグループを編集",
       "errors": {
         "nameRequired": "プロキシグループ名は必須です",
-        "nameExists": "プロキシグループ名はすでに存在します"
+        "nameExists": "プロキシグループ名はすでに存在します",
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
       },
       "fields": {
         "type": "プロキシグループタイプ",

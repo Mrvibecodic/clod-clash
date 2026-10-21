@@ -365,6 +365,7 @@ export interface TranslationResources {
           errors: {
             nameExists: string
             nameRequired: string
+            nameTakenByProxy: string
           }
           fields: {
             excludeFilter: string

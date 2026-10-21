@@ -199,7 +199,8 @@
       "title": "編輯代理組",
       "errors": {
         "nameRequired": "代理組名稱為必填",
-        "nameExists": "代理組名稱已存在"
+        "nameExists": "代理組名稱已存在",
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
       },
       "fields": {
         "type": "代理組類型",

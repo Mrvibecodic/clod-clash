@@ -199,7 +199,8 @@
       "title": "Editar grupos de proxy",
       "errors": {
         "nameRequired": "El nombre del grupo de proxy no puede estar vacío",
-        "nameExists": "El nombre del grupo de proxy ya existe"
+        "nameExists": "El nombre del grupo de proxy ya existe",
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
       },
       "fields": {
         "type": "Tipo de grupo de proxy",
