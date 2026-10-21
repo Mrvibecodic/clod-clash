@@ -492,35 +492,11 @@ FunctionEnd
     !endif
   ${EndIf}
 
-  !if "${INSTALLMODE}" == "currentUser"
-    nsis_tauri_utils::FindProcessCurrentUser "verge-mihomo-alpha.exe"
-  !else
-    nsis_tauri_utils::FindProcess "verge-mihomo-alpha.exe"
-  !endif
+  ; Одноимённое ядро есть и у других программ: своё узнаётся по полному пути.
+  System::Call 'kernel32::SetEnvironmentVariable(t "CLOD_CLASH_INSTDIR", t "$INSTDIR")i'
+  DetailPrint "Stopping the cores in $INSTDIR..."
+  nsExec::ExecToLog /TIMEOUT=30000 `powershell.exe -NoProfile -NonInteractive -Command "$$ours = 'verge-mihomo.exe', 'verge-mihomo-alpha.exe' | ForEach-Object { Join-Path $$env:CLOD_CLASH_INSTDIR $$_ }; Get-Process -Name 'verge-mihomo', 'verge-mihomo-alpha' -ErrorAction SilentlyContinue | Where-Object { $$ours -contains $$_.Path } | Stop-Process -Force -PassThru -ErrorAction SilentlyContinue | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue"`
   Pop $R0
-  ${If} $R0 = 0
-    DetailPrint "Kill verge-mihomo-alpha.exe..."
-    !if "${INSTALLMODE}" == "currentUser"
-      nsis_tauri_utils::KillProcessCurrentUser "verge-mihomo-alpha.exe"
-    !else
-      nsis_tauri_utils::KillProcess "verge-mihomo-alpha.exe"
-    !endif
-  ${EndIf}
-
-  !if "${INSTALLMODE}" == "currentUser"
-    nsis_tauri_utils::FindProcessCurrentUser "verge-mihomo.exe"
-  !else
-    nsis_tauri_utils::FindProcess "verge-mihomo.exe"
-  !endif
-  Pop $R0
-  ${If} $R0 = 0
-    DetailPrint "Kill verge-mihomo.exe..."
-    !if "${INSTALLMODE}" == "currentUser"
-      nsis_tauri_utils::KillProcessCurrentUser "verge-mihomo.exe"
-    !else
-      nsis_tauri_utils::KillProcess "verge-mihomo.exe"
-    !endif
-  ${EndIf}
 !macroend
 
 !macro EnsureVergeService
