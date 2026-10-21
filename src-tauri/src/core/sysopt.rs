@@ -811,6 +811,21 @@ impl Sysopt {
         });
     }
 
+    /// Пересудить выбранный хост по спискам принятой сборки — только ради
+    /// уведомления: в систему ничего не пишется.
+    pub async fn judge_the_host_again(&self) {
+        if handle::Handle::global().is_exiting() {
+            return;
+        }
+        let _lock = self.update_lock.lock().await;
+        let verge = Config::verge().await.latest_arc();
+        let manual = verge.enable_system_proxy.unwrap_or_default() && !verge.proxy_auto_config.unwrap_or_default();
+        let ProxyHostNow {
+            choice, profile_uid, ..
+        } = Config::proxy_host_now(&verge).await;
+        self.remember_the_host_choice(choice.filter(|_| manual).map(|choice| (profile_uid, choice)));
+    }
+
     pub async fn update_sysproxy(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
             return Ok(());

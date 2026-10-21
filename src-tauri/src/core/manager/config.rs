@@ -433,9 +433,14 @@ impl CoreManager {
         } else if nodes_may_change {
             crate::module::freeze_check::nodes_changed();
         }
-        // Другая подписка — и о негодном хосте прокси говорится заново.
-        if mixed_port_changed || sharing_changed || subscription_changed {
-            Self::spawn_mixed_port_check(true);
+        match proxy_follow_up(mixed_port_changed, sharing_changed, subscription_changed) {
+            ProxyFollowUp::Repoint => Self::spawn_mixed_port_check(true),
+            ProxyFollowUp::JudgeTheHostAgain => {
+                crate::process::AsyncHandler::spawn(|| async {
+                    crate::core::sysopt::Sysopt::global().judge_the_host_again().await;
+                });
+            }
+            ProxyFollowUp::Nothing => {}
         }
         if mode_changed {
             crate::process::AsyncHandler::spawn(|| async {
@@ -792,6 +797,27 @@ async fn announce_discarded_keys(discarded: &[String]) {
     handle::Handle::notice_message("clod_config::keys_discarded", discarded.join(", "));
 }
 
+/// Что смена принятой сборки требует от системного прокси.
+#[derive(Debug, PartialEq, Eq)]
+enum ProxyFollowUp {
+    /// Порт или раздача сменились — прокси переписывается на подтверждённый порт.
+    Repoint,
+    /// Сменилась только подписка — хост судится заново ради уведомления, в
+    /// систему ничего не пишется.
+    JudgeTheHostAgain,
+    Nothing,
+}
+
+const fn proxy_follow_up(port_changed: bool, sharing_changed: bool, subscription_changed: bool) -> ProxyFollowUp {
+    if port_changed || sharing_changed {
+        ProxyFollowUp::Repoint
+    } else if subscription_changed {
+        ProxyFollowUp::JudgeTheHostAgain
+    } else {
+        ProxyFollowUp::Nothing
+    }
+}
+
 /// Негодный список раздачи подписки: её uid и ключ списка.
 type UnreadableLanList = (Option<String>, &'static str);
 
@@ -1037,6 +1063,25 @@ mod tests {
     };
     use crate::core::manager::CoreManager;
     use crate::core::manager::RunningMode::{NotRunning, Service, Sidecar};
+
+    #[test]
+    fn a_new_subscription_alone_does_not_write_the_system_proxy() {
+        use super::{ProxyFollowUp, proxy_follow_up};
+        for (port, sharing, subscription, wanted) in [
+            (true, false, false, ProxyFollowUp::Repoint),
+            (false, true, false, ProxyFollowUp::Repoint),
+            (true, true, true, ProxyFollowUp::Repoint),
+            (false, true, true, ProxyFollowUp::Repoint),
+            (false, false, true, ProxyFollowUp::JudgeTheHostAgain),
+            (false, false, false, ProxyFollowUp::Nothing),
+        ] {
+            assert_eq!(
+                proxy_follow_up(port, sharing, subscription),
+                wanted,
+                "{port} {sharing} {subscription}"
+            );
+        }
+    }
 
     #[test]
     fn an_unreadable_lan_list_is_told_when_it_appears_or_changes_not_with_every_build() {
