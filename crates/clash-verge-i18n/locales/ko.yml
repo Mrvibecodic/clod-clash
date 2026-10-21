@@ -20,6 +20,8 @@ notifications:
     busy: "The service setup is already running — wait for it to finish and try again"
     pending: "The system rights prompt is still open — confirm it, then turn TUN on again"
     volumeWithoutRights: "TUN is not available for a copy on a FAT/exFAT drive — move the app to an NTFS drive"
+  connectMethodLocked:
+    body: The connection method is set by your provider.
   lightweightModeEntered:
     title: 경량 모드
     body: 경량 모드에 진입했습니다.

@@ -20,6 +20,10 @@ pub enum NotificationEvent<'a> {
     TunSetupRefused {
         marker: &'a str,
     },
+    /// Цель не включена: способ подключения запер провайдер.
+    ConnectMethodLocked {
+        tun: bool,
+    },
     LightweightModeEntered,
     ProfilesReactivated,
     ProfilesNotReactivated {
@@ -128,6 +132,15 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
             if let Some(body) = tun_setup_refusal_text(marker) {
                 notify(clash_verge_i18n::t!("notifications.tunModeToggled.title"), body);
             }
+        }
+        NotificationEvent::ConnectMethodLocked { tun } => {
+            let title = if tun {
+                clash_verge_i18n::t!("notifications.tunModeToggled.title")
+            } else {
+                clash_verge_i18n::t!("notifications.systemProxyToggled.title")
+            };
+            let body = clash_verge_i18n::t!("notifications.connectMethodLocked.body");
+            notify(title, body);
         }
         NotificationEvent::LightweightModeEntered => {
             let title = clash_verge_i18n::t!("notifications.lightweightModeEntered.title");

@@ -72,11 +72,14 @@ pub enum Toggled {
     To(bool),
     /// Ничего не переключали; причину, если она есть, уже сказали.
     Untouched,
+    /// Ничего не переключали: способ подключения запер провайдер.
+    Locked,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SystemProxyStep {
     LeaveEverythingAlone,
+    RefuseLocked,
     DropConnectionsThenSwitch,
     Switch,
 }
@@ -88,8 +91,11 @@ const fn system_proxy_step(
     auto_close_connection: bool,
     tun_carries_traffic: bool,
 ) -> SystemProxyStep {
-    if exiting || (!current && !allowed) {
+    if exiting {
         return SystemProxyStep::LeaveEverythingAlone;
+    }
+    if !current && !allowed {
+        return SystemProxyStep::RefuseLocked;
     }
     if current && auto_close_connection && !tun_carries_traffic {
         SystemProxyStep::DropConnectionsThenSwitch
@@ -129,6 +135,7 @@ pub async fn toggle_system_proxy() -> Toggled {
         tun_carries_traffic,
     ) {
         SystemProxyStep::LeaveEverythingAlone => return Toggled::Untouched,
+        SystemProxyStep::RefuseLocked => return Toggled::Locked,
         SystemProxyStep::DropConnectionsThenSwitch => {
             if let Err(err) = handle::Handle::mihomo().close_all_connections().await {
                 logging!(error, Type::ProxyMode, "Failed to close all connections: {err}");
@@ -186,8 +193,18 @@ const fn system_proxy_failure_status(the_system_refused_the_write: bool) -> &'st
     }
 }
 
-/// Что записать по нажатию «TUN» в трее или клавишей; `Err` — ничего, с
-/// причиной отказа, которую человеку ещё не сказали. Включается, как в окне,
+/// Почему по нажатию «TUN» ничего не записано.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TunRefusal {
+    /// Сказать нечего или уже сказано.
+    Quiet,
+    /// Причина отказа, которую человеку ещё не сказали.
+    Untold(&'static str),
+    /// Способ подключения запер провайдер.
+    Locked,
+}
+
+/// Что записать по нажатию «TUN» в трее или клавишей. Включается, как в окне,
 /// только при готовой службе и вне замка провайдера: отказ в правах, неудача
 /// установки, уже идущая или отложенная подготовка TUN не включают.
 async fn tun_switch_to(
@@ -195,20 +212,20 @@ async fn tun_switch_to(
     active: bool,
     allowed: bool,
     prepare: impl AsyncFnOnce() -> SetupAnswer,
-) -> Result<bool, Option<&'static str>> {
+) -> Result<bool, TunRefusal> {
     if exiting {
-        return Err(None);
+        return Err(TunRefusal::Quiet);
     }
     if active {
         return Ok(false);
     }
     if !allowed {
-        return Err(None);
+        return Err(TunRefusal::Locked);
     }
     match prepare().await {
         SetupAnswer::Ready => Ok(true),
-        SetupAnswer::NotReady => Err(None),
-        SetupAnswer::Refused(marker) => Err(Some(marker)),
+        SetupAnswer::NotReady => Err(TunRefusal::Quiet),
+        SetupAnswer::Refused(marker) => Err(TunRefusal::Untold(marker)),
     }
 }
 
@@ -223,17 +240,17 @@ pub async fn toggle_tun_mode() -> Toggled {
     .await
     {
         Ok(enable) => enable,
-        Err(untold) => {
-            if let Some(marker) = untold {
-                crate::core::notification::tell_the_outcome(
-                    marker,
-                    std::string::String::new(),
-                    crate::utils::notification::NotificationEvent::TunSetupRefused { marker },
-                )
-                .await;
-            }
+        Err(TunRefusal::Quiet) => return Toggled::Untouched,
+        Err(TunRefusal::Untold(marker)) => {
+            crate::core::notification::tell_the_outcome(
+                marker,
+                std::string::String::new(),
+                crate::utils::notification::NotificationEvent::TunSetupRefused { marker },
+            )
+            .await;
             return Toggled::Untouched;
         }
+        Err(TunRefusal::Locked) => return Toggled::Locked,
     };
 
     match super::patch_verge(
@@ -310,18 +327,15 @@ pub async fn copy_clash_env() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        SetupAnswer, SystemProxyStep, goes_through, system_proxy_failure_status, system_proxy_step, tun_switch_to,
+        SetupAnswer, SystemProxyStep, TunRefusal, goes_through, system_proxy_failure_status, system_proxy_step,
+        tun_switch_to,
     };
 
     fn chain(hops: &[&str]) -> Vec<std::string::String> {
         hops.iter().map(|hop| (*hop).to_owned()).collect()
     }
 
-    async fn tun_switch(
-        exiting: bool,
-        active: bool,
-        answer: SetupAnswer,
-    ) -> (Result<bool, Option<&'static str>>, bool) {
+    async fn tun_switch(exiting: bool, active: bool, answer: SetupAnswer) -> (Result<bool, TunRefusal>, bool) {
         tun_switch_allowed(exiting, active, true, answer).await
     }
 
@@ -330,7 +344,7 @@ mod tests {
         active: bool,
         allowed: bool,
         answer: SetupAnswer,
-    ) -> (Result<bool, Option<&'static str>>, bool) {
+    ) -> (Result<bool, TunRefusal>, bool) {
         let asked = std::sync::atomic::AtomicBool::new(false);
         let target = tun_switch_to(exiting, active, allowed, async || {
             asked.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -345,7 +359,7 @@ mod tests {
         for active in [false, true] {
             assert_eq!(
                 tun_switch(true, active, SetupAnswer::Ready).await,
-                (Err(None), false),
+                (Err(TunRefusal::Quiet), false),
                 "active={active}: во время выхода подготовка службы не запускается"
             );
         }
@@ -360,9 +374,15 @@ mod tests {
     #[tokio::test]
     async fn a_refused_service_setup_leaves_tun_off_and_names_the_reason_as_in_the_window() {
         for (answer, untold) in [
-            (SetupAnswer::NotReady, None),
-            (SetupAnswer::Refused("tun::setup_busy"), Some("tun::setup_busy")),
-            (SetupAnswer::Refused("tun::setup_pending"), Some("tun::setup_pending")),
+            (SetupAnswer::NotReady, TunRefusal::Quiet),
+            (
+                SetupAnswer::Refused("tun::setup_busy"),
+                TunRefusal::Untold("tun::setup_busy"),
+            ),
+            (
+                SetupAnswer::Refused("tun::setup_pending"),
+                TunRefusal::Untold("tun::setup_pending"),
+            ),
         ] {
             assert_eq!(
                 tun_switch(false, false, answer).await,
@@ -376,7 +396,7 @@ mod tests {
     async fn a_tun_the_provider_locked_out_is_never_switched_on_but_can_be_switched_off() {
         assert_eq!(
             tun_switch_allowed(false, false, false, SetupAnswer::Ready).await,
-            (Err(None), false),
+            (Err(TunRefusal::Locked), false),
             "замок «только прокси»: TUN не включается и права не спрашиваются"
         );
         assert_eq!(
@@ -392,12 +412,14 @@ mod tests {
             for tun_carries_traffic in [false, true] {
                 assert_eq!(
                     system_proxy_step(false, false, false, auto_close_connection, tun_carries_traffic),
-                    SystemProxyStep::LeaveEverythingAlone,
+                    SystemProxyStep::RefuseLocked,
                     "замок «только TUN»: системный прокси не включается"
                 );
-                assert_ne!(
-                    system_proxy_step(false, true, false, auto_close_connection, tun_carries_traffic),
-                    SystemProxyStep::LeaveEverythingAlone,
+                assert!(
+                    !matches!(
+                        system_proxy_step(false, true, false, auto_close_connection, tun_carries_traffic),
+                        SystemProxyStep::LeaveEverythingAlone | SystemProxyStep::RefuseLocked
+                    ),
                     "включённый вне замка системный прокси выключить можно"
                 );
             }

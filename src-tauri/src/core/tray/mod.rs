@@ -4,6 +4,7 @@ use crate::core::tray::menu_def::TrayAction;
 use crate::module::lightweight;
 use crate::process::AsyncHandler;
 use crate::singleton;
+use crate::utils::notification::{NotificationEvent, notify_event};
 use crate::{Type, cmd, config::Config, feat, logging, module::lightweight::is_in_lightweight_mode, utils::help};
 use clash_verge_limiter::{Limiter, SystemClock, SystemLimiter};
 use clash_verge_logging::logging_error;
@@ -1047,10 +1048,14 @@ fn handle_primary_click() {
         logging!(debug, Type::Tray, "tray event: {verge_tray_action:?}");
         match verge_tray_action {
             TrayAction::SystemProxy => {
-                let _ = feat::toggle_system_proxy().await;
+                if feat::toggle_system_proxy().await == feat::Toggled::Locked {
+                    notify_event(NotificationEvent::ConnectMethodLocked { tun: false }).await;
+                }
             }
             TrayAction::TunMode => {
-                let _ = feat::toggle_tun_mode().await;
+                if feat::toggle_tun_mode().await == feat::Toggled::Locked {
+                    notify_event(NotificationEvent::ConnectMethodLocked { tun: true }).await;
+                }
             }
             TrayAction::MainWindow => lightweight::wake_or_show().await,
             TrayAction::TrayMenu => {

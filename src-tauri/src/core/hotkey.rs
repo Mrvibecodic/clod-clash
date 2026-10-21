@@ -194,17 +194,25 @@ impl Hotkey {
                 });
             }
             HotkeyFunction::ToggleSystemProxy => {
-                AsyncHandler::spawn(async move || {
-                    if let feat::Toggled::To(is_proxy_enabled) = feat::toggle_system_proxy().await {
+                AsyncHandler::spawn(async move || match feat::toggle_system_proxy().await {
+                    feat::Toggled::To(is_proxy_enabled) => {
                         notify_event(NotificationEvent::SystemProxyToggled(is_proxy_enabled)).await;
                     }
+                    feat::Toggled::Locked => {
+                        notify_event(NotificationEvent::ConnectMethodLocked { tun: false }).await;
+                    }
+                    feat::Toggled::Untouched => {}
                 });
             }
             HotkeyFunction::ToggleTunMode => {
-                AsyncHandler::spawn(async move || {
-                    if let feat::Toggled::To(is_tun_enable) = feat::toggle_tun_mode().await {
+                AsyncHandler::spawn(async move || match feat::toggle_tun_mode().await {
+                    feat::Toggled::To(is_tun_enable) => {
                         notify_event(NotificationEvent::TunModeToggled(is_tun_enable)).await;
                     }
+                    feat::Toggled::Locked => {
+                        notify_event(NotificationEvent::ConnectMethodLocked { tun: true }).await;
+                    }
+                    feat::Toggled::Untouched => {}
                 });
             }
             HotkeyFunction::EntryLightweightMode => {
