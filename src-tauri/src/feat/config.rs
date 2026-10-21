@@ -443,7 +443,11 @@ pub async fn commit_verge_edit(edit: impl FnOnce(&mut IVerge)) -> Result<()> {
 pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
     super::refuse_while_exiting()?;
     let _serialized = PATCH_VERGE_LOCK.lock().await;
+    patch_verge_locked(patch, not_save_file).await
+}
 
+/// Тело `patch_verge` для того, кто уже держит его замок.
+pub(crate) async fn patch_verge_locked(patch: &IVerge, not_save_file: bool) -> Result<()> {
     let verge = Config::verge().await;
     let before = verge.data_arc();
     verge.edit_draft(|d| d.patch_config(patch));
@@ -637,7 +641,7 @@ mod tests {
     #[test]
     fn turning_the_tun_on_leaves_the_choice_of_the_backend_to_the_start() {
         let source = crate::utils::source_scan::production_code(include_str!("config.rs"));
-        let body = crate::utils::source_scan::fn_body(source, "pub async fn patch_verge").unwrap_or_default();
+        let body = crate::utils::source_scan::fn_body(source, "async fn patch_verge_locked(").unwrap_or_default();
         assert!(!body.is_empty(), "тело patch_verge не найдено — тест ослеп");
         assert!(!body.contains("handoff_to_service_if_needed"), "{body}");
         assert!(body.contains("delivery_for_turning_tun_on()"), "{body}");

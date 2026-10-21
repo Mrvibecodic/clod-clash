@@ -164,6 +164,24 @@ async fn machine_local_config() -> Result<Settings> {
     machine_local_of(&verge)
 }
 
+/// Распаковать копию и принять её — под замками правок Clash и настроек и под
+/// разрешением правки реестра, в том же порядке, что обычные правки: правка в
+/// полёте иначе записала бы поверх восстановленного своё, прежнее.
+async fn restore_from(archive: PathBuf) -> Result<()> {
+    super::refuse_while_exiting()?;
+    let _clash_serialized = super::patch_clash_lock().lock().await;
+    let _verge_serialized = super::patch_verge_lock().lock().await;
+    let local = machine_local_config().await?;
+    Config::profiles()
+        .await
+        .with_data_modify(|_| async move {
+            extract_backup(archive, app_home_dir()?).await?;
+            Ok((IProfiles::new().await, ()))
+        })
+        .await?;
+    finalize_restored_verge_config(local).await
+}
+
 async fn finalize_restored_verge_config(local: Settings) -> Result<()> {
     let archived = fs::read_to_string(verge_path()?).await?;
     let restored = restored_settings(&archived, local)?;
@@ -176,20 +194,13 @@ async fn finalize_restored_verge_config(local: Settings) -> Result<()> {
     });
     clash_draft.apply();
 
-    let restored_profiles = IProfiles::new().await;
-    let profiles_draft = Config::profiles().await;
-    profiles_draft.edit_draft(|d| {
-        *d = restored_profiles.clone();
-    });
-    profiles_draft.apply();
-
     let verge_draft = Config::verge().await;
     verge_draft.edit_draft(|d| {
         *d = restored.clone();
     });
     verge_draft.apply();
 
-    super::patch_verge(&restored, true).await.map_err(|err| {
+    super::patch_verge_locked(&restored, true).await.map_err(|err| {
         logging!(error, Type::Backup, "Failed to apply restored verge config: {err:#?}");
         handle::Handle::refresh_verge();
         handle::Handle::refresh_clash();
@@ -236,8 +247,6 @@ pub async fn delete_webdav_backup(filename: String) -> Result<()> {
 }
 
 pub async fn restore_webdav_backup(filename: String) -> Result<()> {
-    let local = machine_local_config().await?;
-
     let backup_storage_path = app_home_dir()
         .map_err(|e| anyhow::anyhow!("Failed to get app home dir: {e}"))?
         .join(filename.as_str());
@@ -249,10 +258,7 @@ pub async fn restore_webdav_backup(filename: String) -> Result<()> {
             err
         })?;
 
-    let res = match extract_backup(backup_storage_path.clone(), app_home_dir()?).await {
-        Ok(()) => finalize_restored_verge_config(local).await,
-        Err(err) => Err(err),
-    };
+    let res = restore_from(backup_storage_path.clone()).await;
     let _ = backup_storage_path.remove_if_exists().await;
     res
 }
@@ -450,11 +456,7 @@ pub async fn restore_local_backup(filename: String) -> Result<()> {
         ));
     }
 
-    let local = machine_local_config().await?;
-
-    extract_backup(target_path, app_home_dir()?).await?;
-    finalize_restored_verge_config(local).await?;
-    Ok(())
+    restore_from(target_path).await
 }
 
 pub async fn export_local_backup(filename: String, dest_path: PathBuf) -> Result<()> {
@@ -525,6 +527,29 @@ mod tests {
             .flatten()
             .filter(|entry| crate::utils::help::is_staging_leftover(&entry.file_name().to_string_lossy()))
             .count()
+    }
+
+    #[test]
+    fn a_restore_waits_for_the_edits_in_flight_before_it_touches_the_files() {
+        use crate::utils::source_scan::{fn_body, without_test_modules};
+        let source = without_test_modules(include_str!("backup.rs"));
+        let unpacking = source
+            .match_indices("extract_backup(")
+            .filter(|(at, _)| !source[..*at].ends_with("fn "))
+            .count();
+        assert_eq!(unpacking, 1, "копия распаковывается мимо общего пути");
+        let body = fn_body(source, "async fn restore_from(").unwrap_or_default();
+        let at = |needle: &str| body.find(needle).unwrap_or(usize::MAX);
+        assert!(
+            at("patch_clash_lock().lock()") < at("patch_verge_lock().lock()"),
+            "{body}"
+        );
+        assert!(at("patch_verge_lock().lock()") < at("with_data_modify("), "{body}");
+        assert!(at("with_data_modify(") < at("extract_backup("), "{body}");
+        assert!(body.contains("finalize_restored_verge_config("), "{body}");
+        let finalize = fn_body(source, "async fn finalize_restored_verge_config(").unwrap_or_default();
+        assert!(finalize.contains("patch_verge_locked("), "{finalize}");
+        assert!(!finalize.contains("Config::profiles()"), "{finalize}");
     }
 
     #[test]
