@@ -153,6 +153,7 @@
             "protocols": "پروتکل",
             "existing": "تونل‌های موجود",
             "empty": "No tunnels yet — add one below.",
+            "fromSubscription": "These tunnels come from the subscription. Save the page to make them yours: subscription updates will no longer change them.",
             "default": "پیروی از تنظیمات فعلی",
             "followGroup": "پیروی از انتخاب گروه",
             "optional": "اختیاری",

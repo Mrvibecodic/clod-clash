@@ -25,6 +25,9 @@ pub struct CoreLadder {
     /// Раздачу просил человек, а принятая сборка её не открыла: этот список
     /// адресов не читается. Тумблер раздачи стоит на просьбе и говорит почему.
     lan_sharing_held: Option<&'static str>,
+    /// Туннели работающей сборки задала подписка: человек страницу «Туннели»
+    /// не сохранял, и окно не выдаёт их за его выбор.
+    tunnels_from_subscription: bool,
 }
 
 fn read_ladder(clash: &Mapping) -> CoreLadder {
@@ -77,7 +80,16 @@ fn read_ladder(clash: &Mapping) -> CoreLadder {
         mixed_port,
         tun: clash.get("tun").and_then(serde_yaml_ng::Value::as_mapping).cloned(),
         lan_sharing_held: None,
+        tunnels_from_subscription: false,
     }
+}
+
+fn tunnels_from_subscription(clash: &Mapping, running: Option<&Mapping>) -> bool {
+    !clash.contains_key("tunnels")
+        && running
+            .and_then(|config| config.get("tunnels"))
+            .and_then(serde_yaml_ng::Value::as_sequence)
+            .is_some_and(|tunnels| !tunnels.is_empty())
 }
 
 #[tauri::command]
@@ -85,7 +97,9 @@ pub async fn get_core_ladder() -> CmdResult<CoreLadder> {
     let clash = Config::clash().await;
     let clash = clash.latest_arc();
     let mut ladder = read_ladder(&clash.0);
-    ladder.lan_sharing_held = Config::runtime().await.data_arc().unreadable_lan_list;
+    let runtime = Config::runtime().await.data_arc();
+    ladder.lan_sharing_held = runtime.unreadable_lan_list;
+    ladder.tunnels_from_subscription = tunnels_from_subscription(&clash.0, runtime.config.as_ref());
     Ok(ladder)
 }
 
@@ -430,7 +444,7 @@ pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{base_of_the_page, dns_reference_check, read_ladder};
+    use super::{base_of_the_page, dns_reference_check, read_ladder, tunnels_from_subscription};
     use crate::enhance::dns_page::References;
     use serde_yaml_ng::{Mapping, Value};
 
@@ -481,6 +495,17 @@ mod tests {
                 .as_deref()
                 .is_some_and(|text| text.contains("«rs-one»"))
         );
+    }
+
+    #[test]
+    fn the_tunnels_page_tells_the_subscriptions_tunnels_from_the_users() {
+        let running = serde_yaml_ng::from_str::<Mapping>(r#"{tunnels: ["tcp,127.0.0.1:6553,example.com:53"]}"#)
+            .unwrap_or_default();
+        assert!(tunnels_from_subscription(&Mapping::new(), Some(&running)));
+        let saved = clash_with(&[("tunnels", Value::Sequence(Vec::new()))]);
+        assert!(!tunnels_from_subscription(&saved, Some(&running)));
+        assert!(!tunnels_from_subscription(&Mapping::new(), Some(&Mapping::new())));
+        assert!(!tunnels_from_subscription(&Mapping::new(), None));
     }
 
     fn clash_with(pairs: &[(&str, Value)]) -> Mapping {

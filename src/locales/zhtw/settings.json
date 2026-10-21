@@ -153,6 +153,7 @@
             "protocols": "協定",
             "existing": "已設定的通道",
             "empty": "No tunnels yet — add one below.",
+            "fromSubscription": "These tunnels come from the subscription. Save the page to make them yours: subscription updates will no longer change them.",
             "default": "跟隨目前設定",
             "followGroup": "跟隨代理組的選擇",
             "optional": "可選",

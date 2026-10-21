@@ -153,6 +153,7 @@
             "protocols": "프로토콜",
             "existing": "기존 터널",
             "empty": "No tunnels yet — add one below.",
+            "fromSubscription": "These tunnels come from the subscription. Save the page to make them yours: subscription updates will no longer change them.",
             "default": "현재 설정 따르기",
             "followGroup": "그룹 선택 따르기",
             "optional": "선택 사항",

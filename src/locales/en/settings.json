@@ -153,6 +153,7 @@
             "protocols": "Protocol",
             "existing": "Existing Tunnels",
             "empty": "No tunnels yet — add one below.",
+            "fromSubscription": "These tunnels come from the subscription. Save the page to make them yours: subscription updates will no longer change them.",
             "default": "Follow Current Configuration",
             "followGroup": "Follow the group's selection",
             "optional": "optional",

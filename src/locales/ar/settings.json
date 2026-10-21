@@ -153,6 +153,7 @@
             "protocols": "البروتوكول",
             "existing": "الأنفاق الموجودة",
             "empty": "No tunnels yet — add one below.",
+            "fromSubscription": "These tunnels come from the subscription. Save the page to make them yours: subscription updates will no longer change them.",
             "default": "اتباع الإعدادات الحالية",
             "followGroup": "اتباع اختيار المجموعة",
             "optional": "اختياري",

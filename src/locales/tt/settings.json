@@ -153,6 +153,7 @@
             "protocols": "Protokollar",
             "existing": "Bar Tunnel'lär",
             "empty": "No tunnels yet — add one below.",
+            "fromSubscription": "These tunnels come from the subscription. Save the page to make them yours: subscription updates will no longer change them.",
             "default": "Xäzerge Köyläwlärgä iärü",
             "followGroup": "Төркем сайлавына иярү",
             "optional": "Mäcbüri tügel",

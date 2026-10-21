@@ -153,6 +153,7 @@
             "protocols": "Protokol",
             "existing": "Terowongan yang Ada",
             "empty": "No tunnels yet — add one below.",
+            "fromSubscription": "These tunnels come from the subscription. Save the page to make them yours: subscription updates will no longer change them.",
             "default": "Ikuti Konfigurasi Saat Ini",
             "followGroup": "Ikuti pilihan grup",
             "optional": "Opsional",

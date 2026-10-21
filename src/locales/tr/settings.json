@@ -153,6 +153,7 @@
             "protocols": "Protokol",
             "existing": "Mevcut Tüneller",
             "empty": "No tunnels yet — add one below.",
+            "fromSubscription": "These tunnels come from the subscription. Save the page to make them yours: subscription updates will no longer change them.",
             "default": "Geçerli Yapılandırmayı İzle",
             "followGroup": "Grubun seçimini izle",
             "optional": "İsteğe Bağlı",

@@ -153,6 +153,7 @@
             "protocols": "プロトコル",
             "existing": "既存のトンネル",
             "empty": "No tunnels yet — add one below.",
+            "fromSubscription": "These tunnels come from the subscription. Save the page to make them yours: subscription updates will no longer change them.",
             "default": "現在の設定に従う",
             "followGroup": "グループの選択に従う",
             "optional": "任意",

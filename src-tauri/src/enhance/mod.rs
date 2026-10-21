@@ -960,6 +960,7 @@ fn share_with_the_lan(
     mut config: Mapping,
     user_declined: bool,
     subscription_wants: bool,
+    tunnels_are_the_users: bool,
 ) -> (Mapping, Option<&'static str>) {
     let user_wants = config.get("allow-lan").and_then(Value::as_bool).unwrap_or(false);
     let request = read_lan_request(&config, subscription_wants);
@@ -973,7 +974,62 @@ fn share_with_the_lan(
     }
     let unreadable = the_unreadable_lan_list(&sharing, user_wants);
     clamp_dns_listen(&mut config, user_wants && matches!(sharing, LanSharing::On { .. }));
-    (apply_lan_sharing(config, sharing), unreadable)
+    let closed = !matches!(sharing, LanSharing::On { .. });
+    let mut config = apply_lan_sharing(config, sharing);
+    if closed && !tunnels_are_the_users {
+        keep_the_tunnels_on_the_loopback(&mut config);
+    }
+    (config, unreadable)
+}
+
+/// Туннели, которые задала подписка (страницу «Туннели» человек не сохранял),
+/// слушают сеть мимо `allow-lan`: пока раздача закрыта, их локальный адрес —
+/// петля; туннель с адресом, который не разбирается, снимается.
+fn keep_the_tunnels_on_the_loopback(config: &mut Mapping) {
+    let Some(tunnels) = config.get_mut("tunnels").and_then(Value::as_sequence_mut) else {
+        return;
+    };
+    let mut kept = 0_usize;
+    tunnels.retain_mut(|tunnel| match tunnel {
+        Value::String(line) => {
+            let mut parts: Vec<std::string::String> = line.split(',').map(|part| part.trim().to_owned()).collect();
+            let Some(address) = parts.get_mut(1) else {
+                return true;
+            };
+            let Some(narrowed) = on_the_loopback(address) else {
+                kept += 1;
+                return false;
+            };
+            if narrowed != *address {
+                *address = narrowed;
+                *line = parts.join(",");
+                kept += 1;
+            }
+            true
+        }
+        Value::Mapping(entry) => {
+            let Some(address) = entry.get("address").and_then(Value::as_str).map(str::to_owned) else {
+                return true;
+            };
+            let Some(narrowed) = on_the_loopback(&address) else {
+                kept += 1;
+                return false;
+            };
+            if narrowed != address {
+                entry.insert(Value::from("address"), Value::from(narrowed));
+                kept += 1;
+            }
+            true
+        }
+        _ => true,
+    });
+    if kept > 0 {
+        logging!(
+            warn,
+            Type::Config,
+            "{kept} subscription tunnel(s) would face the whole network while sharing is off; keeping them on the loopback"
+        );
+    }
 }
 
 /// `host:port` на петле: петля остаётся как есть, иначе тот же порт на
@@ -2224,6 +2280,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         *address = "".into();
     }
 
+    let tunnels_are_the_users = clash_config.contains_key("tunnels");
     let tun_owned = tun_owned_keys(clash_config.get("tun").and_then(Value::as_mapping), &tun_overrides);
     let config = merge_default_config(
         config,
@@ -2275,7 +2332,12 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     // После цепочек merge и script и после страницы DNS: любая из них может
     // вернуть `dns.listen` наружу. `allow-lan` здесь уже наш, восстановленный из
     // снимка control-plane.
-    let (config, unreadable_lan_list) = share_with_the_lan(config, lan_sharing_declined, subscription_wants_sharing);
+    let (config, unreadable_lan_list) = share_with_the_lan(
+        config,
+        lan_sharing_declined,
+        subscription_wants_sharing,
+        tunnels_are_the_users,
+    );
     let config = ensure_store_selected(config);
 
     let (config, sentinel_report) = if profile_is_remote && !profile_shows_zero_hosts {
@@ -3379,6 +3441,53 @@ mod tests {
         );
         assert!(!unreadable.contains_key("ss-config"));
         assert!(!unreadable.contains_key("tuic-server"));
+    }
+
+    #[test]
+    fn the_subscriptions_tunnels_listen_on_the_loopback_while_sharing_is_closed() {
+        let template = r#"{
+            tunnels: [
+                "tcp/udp,0.0.0.0:6553,example.com:53,VPN",
+                {network: [tcp], address: ":7000", target: "example.com:80"},
+                {network: [udp], address: "127.0.0.1:7001", target: "example.com:81"},
+                {network: [tcp], address: "nowhere", target: "example.com:82"}
+            ]
+        }"#;
+        let addresses = |config: &serde_yaml_ng::Mapping| -> Vec<std::string::String> {
+            config["tunnels"]
+                .as_sequence()
+                .into_iter()
+                .flatten()
+                .map(|tunnel| match tunnel {
+                    serde_yaml_ng::Value::String(line) => line.clone(),
+                    other => other["address"].as_str().unwrap_or_default().to_owned(),
+                })
+                .collect()
+        };
+        let share = |text: &str, tunnels_are_the_users| {
+            super::share_with_the_lan(mapping(text), false, false, tunnels_are_the_users).0
+        };
+        assert_eq!(
+            addresses(&share(template, false)),
+            [
+                "tcp/udp,127.0.0.1:6553,example.com:53,VPN",
+                "127.0.0.1:7000",
+                "127.0.0.1:7001"
+            ]
+        );
+        // Сохранённые человеком на странице «Туннели» — его выбор.
+        assert_eq!(
+            addresses(&share(template, true)),
+            [
+                "tcp/udp,0.0.0.0:6553,example.com:53,VPN",
+                ":7000",
+                "127.0.0.1:7001",
+                "nowhere"
+            ]
+        );
+        // Раздачу открыл человек — туннели подписки как есть.
+        let shared = format!("{{allow-lan: true, {}", template.trim_start().trim_start_matches('{'));
+        assert_eq!(addresses(&share(&shared, false)).len(), 4);
     }
 
     #[test]
@@ -4910,7 +5019,7 @@ proxy-groups:
     #[test]
     fn the_dns_server_faces_the_lan_only_when_the_user_opened_sharing() {
         let listen = |text: &str, subscription_wants| {
-            let (config, _) = super::share_with_the_lan(mapping(text), false, subscription_wants);
+            let (config, _) = super::share_with_the_lan(mapping(text), false, subscription_wants, false);
             config["dns"]["listen"].as_str().map(str::to_owned)
         };
         // Человек включил, а список не читается — раздача не открыта.

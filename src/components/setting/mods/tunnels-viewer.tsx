@@ -89,7 +89,7 @@ const Pending = ({ value, hint }: { value: string; hint: string }) =>
 
 export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
   const { t } = useTranslation()
-  const { runtime, patchClash } = useClash()
+  const { runtime, ladder, patchClash } = useClash()
   const { refreshProxy } = useAppRefreshers()
 
   const [open, setOpen] = useState(false)
@@ -315,6 +315,11 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
         title={t('settings.sections.clash.form.fields.tunnels.existing')}
         count={draftTunnels.length}
       />
+      {ladder?.tunnels_from_subscription && (
+        <FormHint>
+          {t('settings.sections.clash.form.fields.tunnels.fromSubscription')}
+        </FormHint>
+      )}
       {tunnelEntries.length === 0 ? (
         <FormHint>
           {t('settings.sections.clash.form.fields.tunnels.empty')}

@@ -153,6 +153,7 @@
             "protocols": "协议",
             "existing": "已配置的隧道",
             "empty": "No tunnels yet — add one below.",
+            "fromSubscription": "These tunnels come from the subscription. Save the page to make them yours: subscription updates will no longer change them.",
             "default": "跟随当前配置",
             "followGroup": "跟随代理组的选择",
             "optional": "可选",

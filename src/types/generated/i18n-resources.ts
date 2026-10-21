@@ -1403,6 +1403,7 @@ export interface TranslationResources {
                 empty: string
                 existing: string
                 followGroup: string
+                fromSubscription: string
                 localAddr: string
                 localPort: string
                 messages: {

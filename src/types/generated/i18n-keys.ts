@@ -628,6 +628,7 @@ export const translationKeys = [
   'settings.sections.clash.form.fields.tunnels.protocols',
   'settings.sections.clash.form.fields.tunnels.existing',
   'settings.sections.clash.form.fields.tunnels.empty',
+  'settings.sections.clash.form.fields.tunnels.fromSubscription',
   'settings.sections.clash.form.fields.tunnels.default',
   'settings.sections.clash.form.fields.tunnels.followGroup',
   'settings.sections.clash.form.fields.tunnels.optional',

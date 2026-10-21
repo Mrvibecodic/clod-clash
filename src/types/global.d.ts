@@ -871,6 +871,7 @@ interface ICoreLadder {
   mixed_port?: number | null
   tun?: Record<string, unknown> | null
   lan_sharing_held?: string | null
+  tunnels_from_subscription?: boolean
 }
 
 interface IVergeConfig {
