@@ -757,7 +757,10 @@ impl CoreManager {
         if let Err(swap_error) = swap().await {
             // Nothing switched; bring the old core back before reporting.
             if let Err(start_error) = self.start_core_inner().await {
-                return Err(swap_error.context(format!("and restarting the old core failed too: {start_error:#}")));
+                return Err(swap_error.context(clash_verge_i18n::t!(
+                    "core.previousAlsoFailed",
+                    reason = format!("{start_error:#}")
+                )));
             }
             return Err(swap_error);
         }
@@ -775,17 +778,19 @@ impl CoreManager {
                 // ни стоял на месте, работающее ядро лучше, чем никакого.
                 let restart_result = self.start_core_inner().await;
                 match (rollback_result, restart_result) {
-                    (Ok(()), Ok(())) => {
-                        Err(start_error.context("the new core failed to start; the previous one is back"))
-                    }
-                    (Ok(()), Err(restart_error)) => Err(start_error.context(format!(
-                        "and restarting the previous core failed too: {restart_error:#}"
+                    (Ok(()), Ok(())) => Err(start_error.context(clash_verge_i18n::t!("core.newCoreFailed"))),
+                    (Ok(()), Err(restart_error)) => Err(start_error.context(clash_verge_i18n::t!(
+                        "core.previousAlsoFailed",
+                        reason = format!("{restart_error:#}")
                     ))),
-                    (Err(rollback_error), Ok(())) => Err(start_error.context(format!(
-                        "the rollback write failed ({rollback_error:#}) but a core is running again"
+                    (Err(rollback_error), Ok(())) => Err(start_error.context(clash_verge_i18n::t!(
+                        "core.rollbackWriteFailed",
+                        reason = format!("{rollback_error:#}")
                     ))),
-                    (Err(rollback_error), Err(restart_error)) => Err(start_error.context(format!(
-                        "the rollback failed ({rollback_error:#}) and so did the restart: {restart_error:#}"
+                    (Err(rollback_error), Err(restart_error)) => Err(start_error.context(clash_verge_i18n::t!(
+                        "core.rollbackAndRestartFailed",
+                        reason = format!("{rollback_error:#}"),
+                        restart = format!("{restart_error:#}")
                     ))),
                 }
             }

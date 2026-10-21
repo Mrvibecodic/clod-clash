@@ -444,7 +444,10 @@ impl CoreManager {
         if delivery == Delivery::Restart || matches!(*self.get_running_mode(), super::RunningMode::NotRunning) {
             return self.replace_core_and_apply(build).await;
         }
-        let config = build.config.as_ref().ok_or_else(|| anyhow!("собранный конфиг пуст"))?;
+        let config = build
+            .config
+            .as_ref()
+            .ok_or_else(|| anyhow!("{}", clash_verge_i18n::t!("core.emptyBuild")))?;
         // clod:svc-2.6 — в service-режиме ядро работает не с нашим файлом, а с
         // копией в «поколении» службы: сначала просим службу привести поколение
         // к новому конфигу (staging), и ядру отдаётся ПУТЬ ИЗ ПОКОЛЕНИЯ.
@@ -598,7 +601,10 @@ impl CoreManager {
                 if !self.core_switch.load(Ordering::Acquire) {
                     self.bring_back_the_previous_core().await;
                 }
-                Err(anyhow!("Failed to apply config: {}", err))
+                Err(anyhow!(
+                    "{}",
+                    clash_verge_i18n::t!("core.configNotApplied", reason = format!("{err:#}"))
+                ))
             }
         }
     }

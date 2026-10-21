@@ -103,6 +103,12 @@ core:
   noStopAnswer: "no answer in {secs} s"
   diedWhileStarting: "the core process {pid} exited while it was being checked"
   stillRunning: "the core process {pid} did not stop: it is still in the process table"
+  emptyBuild: "the built configuration is empty"
+  configNotApplied: "The configuration was not applied: {reason}"
+  newCoreFailed: "the new core failed to start — the previous one is back"
+  previousAlsoFailed: "and the previous core did not start either: {reason}"
+  rollbackWriteFailed: "the previous core could not be put back ({reason}), but a core is running again"
+  rollbackAndRestartFailed: "the previous core could not be put back ({reason}), and no core started: {restart}"
 service:
   adminInstallPrompt: 시스템 서비스 설치에는 관리자 권한이 필요합니다.
   adminUninstallPrompt: 시스템 서비스 제거에는 관리자 권한이 필요합니다.
@@ -112,6 +118,11 @@ service:
   noChannel: "the service is not answering: its channel is gone"
   uninstallDeclined: "Uninstalling the service was cancelled: no administrator rights. The service and the way to connect stay as they were."
   uninstallFailed: "The service could not be uninstalled — the details are in the app log."
+  connectFailed: "Could not connect to the service"
+  noStagingAnswer: "the service did not return the result of the runtime swap"
+  noSessionAnswer: "the service did not return the session details"
+  noStatusAnswer: "the service did not return its state"
+  unavailable: "The service is unavailable: {reason}"
 errors:
   subscriptionNotImported: "Could not import the subscription: {reason}"
   reorderFailed: "Could not reorder the subscriptions: {reason}"

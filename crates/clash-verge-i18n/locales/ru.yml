@@ -103,6 +103,12 @@ core:
   noStopAnswer: "нет ответа за {secs} с"
   diedWhileStarting: "процесс ядра {pid} завершился во время проверки готовности"
   stillRunning: "процесс ядра {pid} не остановлен: он всё ещё в таблице процессов"
+  emptyBuild: "собранный конфиг пуст"
+  configNotApplied: "Конфигурация не применена: {reason}"
+  newCoreFailed: "новое ядро не запустилось — прежнее возвращено"
+  previousAlsoFailed: "и прежнее ядро тоже не поднялось: {reason}"
+  rollbackWriteFailed: "прежнее ядро не вернулось на место ({reason}), но ядро снова работает"
+  rollbackAndRestartFailed: "прежнее ядро не вернулось на место ({reason}), и ядро не поднялось: {restart}"
 service:
   adminInstallPrompt: Для установки системной службы требуются права администратора.
   adminUninstallPrompt: Для удаления системной службы требуются права администратора.
@@ -112,6 +118,11 @@ service:
   noChannel: "служба не отвечает: её канала нет"
   uninstallDeclined: "Удаление службы отменено — нет прав администратора. Служба и способ подключения остались как были."
   uninstallFailed: "Не удалось удалить службу — подробности в журнале приложения."
+  connectFailed: "Не удалось подключиться к службе"
+  noStagingAnswer: "служба не вернула результат подмены рантайма"
+  noSessionAnswer: "служба не вернула сведения о сессии"
+  noStatusAnswer: "служба не вернула своё состояние"
+  unavailable: "Служба недоступна: {reason}"
 errors:
   subscriptionNotImported: "Не удалось импортировать подписку: {reason}"
   reorderFailed: "Не удалось изменить порядок подписок: {reason}"

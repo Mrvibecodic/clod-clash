@@ -1074,7 +1074,7 @@ pub(crate) async fn stage_runtime_by_service(config: &serde_yaml_ng::Mapping) ->
 
     let response = clash_verge_service_ipc::stage_runtime(&credentials, &session, &runtime)
         .await
-        .context("Не удалось подключиться к Clash Verge Service")?;
+        .context(clash_verge_i18n::t!("service.connectFailed"))?;
     if response.code > 0 {
         return Ok(StageRequest::Refused {
             code: response.code,
@@ -1084,7 +1084,7 @@ pub(crate) async fn stage_runtime_by_service(config: &serde_yaml_ng::Mapping) ->
     response
         .data
         .map(StageRequest::Answered)
-        .context("служба не вернула результат подмены рантайма")
+        .context(clash_verge_i18n::t!("service.noStagingAnswer"))
 }
 
 pub(super) async fn start_with_existing_service(config: &serde_yaml_ng::Mapping, ready: ServiceReady) -> Result<()> {
@@ -1105,7 +1105,7 @@ pub(super) async fn start_with_existing_service(config: &serde_yaml_ng::Mapping,
 
     let response = clash_verge_service_ipc::start_clash(&credentials, &request)
         .await
-        .context("Не удалось подключиться к Clash Verge Service")?;
+        .context(clash_verge_i18n::t!("service.connectFailed"))?;
 
     if response.code > 0 {
         let err_msg = response.message;
@@ -1113,7 +1113,7 @@ pub(super) async fn start_with_existing_service(config: &serde_yaml_ng::Mapping,
         bail!(err_msg);
     }
 
-    let result = response.data.context("служба не вернула сведения о сессии")?;
+    let result = response.data.context(clash_verge_i18n::t!("service.noSessionAnswer"))?;
     *ACTIVE_SERVICE_SESSION.lock() = Some(ActiveServiceSession {
         proof: OwnerSessionProof {
             generation: result.session.generation,
@@ -1150,7 +1150,7 @@ pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
     let credentials = current_owner_credentials()?;
     let response = clash_verge_service_ipc::get_clash_logs(&credentials)
         .await
-        .context("Не удалось подключиться к Clash Verge Service")?;
+        .context(clash_verge_i18n::t!("service.connectFailed"))?;
 
     if response.code > 0 {
         let err_msg = response.message;
@@ -1171,7 +1171,7 @@ pub(super) async fn get_clash_log_snapshot_by_service() -> Result<String> {
     let credentials = current_owner_credentials()?;
     let response = clash_verge_service_ipc::get_clash_log_snapshot(&credentials)
         .await
-        .context("Не удалось подключиться к Clash Verge Service")?;
+        .context(clash_verge_i18n::t!("service.connectFailed"))?;
 
     if response.code > 0 {
         bail!(response.message);
@@ -1193,11 +1193,11 @@ pub(super) async fn service_status() -> Result<ServiceStatusSnapshot> {
     let credentials = current_owner_credentials()?;
     let response = clash_verge_service_ipc::get_status(&credentials)
         .await
-        .context("Не удалось подключиться к Clash Verge Service")?;
+        .context(clash_verge_i18n::t!("service.connectFailed"))?;
     if response.code > 0 {
         bail!(response.message);
     }
-    response.data.context("служба не вернула своё состояние")
+    response.data.context(clash_verge_i18n::t!("service.noStatusAnswer"))
 }
 
 pub(super) async fn stop_core_by_service() -> Result<()> {
@@ -1208,7 +1208,7 @@ pub(super) async fn stop_core_by_service() -> Result<()> {
     let session = active_service_session()?;
     let response = clash_verge_service_ipc::stop_clash(&credentials, &session)
         .await
-        .context("Не удалось подключиться к Clash Verge Service")?;
+        .context(clash_verge_i18n::t!("service.connectFailed"))?;
 
     if response.code > 0 {
         if response.code == ServiceErrorCode::NotActive as u16
@@ -1238,7 +1238,7 @@ pub(crate) async fn update_writer_by_service(writer: &WriterConfig) -> Result<()
     let session = active_service_session()?;
     let response = clash_verge_service_ipc::update_writer(&credentials, &session, writer)
         .await
-        .context("Не удалось подключиться к Clash Verge Service")?;
+        .context(clash_verge_i18n::t!("service.connectFailed"))?;
     if response.code > 0 {
         bail!(response.message);
     }
@@ -1578,7 +1578,7 @@ impl ServiceManager {
                     "Служба недоступна: {}, будет использован режим Sidecar",
                     reason
                 );
-                bail!("Служба недоступна: {}", reason);
+                bail!("{}", clash_verge_i18n::t!("service.unavailable", reason = reason));
             }
         }
 
