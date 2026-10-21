@@ -21,9 +21,12 @@ static CLAIMED_LISTENER: Mutex<Option<std::net::TcpListener>> = Mutex::new(None)
 
 /// Единственность экземпляра — это замок на файле: он не зависит от того, дала
 /// ли система порт, и снимается вместе с процессом. Порт — только канал, по
-/// которому вторая копия передаёт первой команду.
-static INSTANCE_LOCK: Mutex<Option<std::fs::File>> = Mutex::new(None);
+/// которому вторая копия передаёт первой команду. Замков два: на каталог
+/// данных (две копии в одном каталоге — у разных пользователей одной флешки)
+/// и на пользователя (любая его установка, как и порт, одна на всех).
+static INSTANCE_LOCK: Mutex<Option<Vec<std::fs::File>>> = Mutex::new(None);
 const INSTANCE_LOCK_FILE: &str = "instance.lock";
+const USER_LOCK_FILE: &str = "user-instance.lock";
 
 /// Ссылка не ходит через порт: команду «установи подписку» принял бы любой,
 /// кто до порта дотянулся, включая страницу в браузере. Вторая копия кладёт
@@ -74,21 +77,44 @@ fn lock_the_file(file: &std::fs::File) -> InstanceLock {
     }
 }
 
-fn take_the_instance_lock() -> InstanceLock {
-    let file = crate::utils::dirs::preinit_app_home_dir().and_then(|home| {
-        std::fs::create_dir_all(&home)?;
+/// Чужой хоть один из замков — копия этого пользователя жива.
+const fn both_locks(home: InstanceLock, user: InstanceLock) -> InstanceLock {
+    match (home, user) {
+        (InstanceLock::Theirs, _) | (_, InstanceLock::Theirs) => InstanceLock::Theirs,
+        (InstanceLock::Ours, _) | (_, InstanceLock::Ours) => InstanceLock::Ours,
+        (InstanceLock::Unavailable, InstanceLock::Unavailable) => InstanceLock::Unavailable,
+    }
+}
+
+fn lock_in(dir: Result<std::path::PathBuf>, name: &str) -> Option<(std::fs::File, InstanceLock)> {
+    let file = dir.and_then(|dir| {
+        std::fs::create_dir_all(&dir)?;
         Ok(std::fs::File::options()
             .create(true)
             .truncate(false)
             .write(true)
-            .open(home.join(INSTANCE_LOCK_FILE))?)
+            .open(dir.join(name))?)
     });
-    let Ok(file) = file else {
-        return InstanceLock::Unavailable;
-    };
+    let file = file.ok()?;
     let lock = lock_the_file(&file);
+    Some((file, lock))
+}
+
+fn take_the_instance_lock() -> InstanceLock {
+    let home = lock_in(crate::utils::dirs::preinit_app_home_dir(), INSTANCE_LOCK_FILE);
+    let user = lock_in(handover_dir(), USER_LOCK_FILE);
+    let state =
+        |held: &Option<(std::fs::File, InstanceLock)>| held.as_ref().map_or(InstanceLock::Unavailable, |held| held.1);
+    let lock = both_locks(state(&home), state(&user));
     if lock == InstanceLock::Ours {
-        *INSTANCE_LOCK.lock() = Some(file);
+        *INSTANCE_LOCK.lock() = Some(
+            [home, user]
+                .into_iter()
+                .flatten()
+                .filter(|held| held.1 == InstanceLock::Ours)
+                .map(|held| held.0)
+                .collect(),
+        );
     }
     lock
 }
@@ -340,7 +366,7 @@ async fn claim_the_port(port: u16, lock: InstanceLock, left_at: &mut Option<std:
     if !held_by_someone(&refusal) {
         return Ok(());
     }
-    // Порт держит копия без замка — прежняя версия или другая установка.
+    // Порт держит копия без замка — прежняя версия.
     leave_the_link_once(left_at).await;
     let error = match ask_to_show_the_window(port, HANDOVER_WAIT).await {
         Handover::Delivered => return leave_to_the_running_copy(),
@@ -354,7 +380,8 @@ async fn claim_the_port(port: u16, lock: InstanceLock, left_at: &mut Option<std:
         error
     );
     if lock == InstanceLock::Ours {
-        // Замок доказывает, что другой нашей копии нет: порт занял посторонний.
+        // Замок пользователя доказывает, что другой его копии нет — ни этой
+        // установки, ни другой: порт занял посторонний.
         return Ok(());
     }
     bail!("singleton port {port} is held and nobody answered the command: {error}");
@@ -512,6 +539,22 @@ mod tests {
         }
         assert!(!presents_the_token(Some(issued), None));
         assert!(!presents_the_token(None, None));
+    }
+
+    /// Копия другой установки того же пользователя держит его замок: ждём её,
+    /// а не встаём рядом, даже если свой замок установки свободен.
+    #[test]
+    fn a_copy_of_another_installation_is_waited_for() {
+        use super::InstanceLock::{Ours, Theirs, Unavailable};
+        use super::both_locks;
+        assert_eq!(both_locks(Ours, Theirs), Theirs, "другая установка жива");
+        assert_eq!(both_locks(Theirs, Ours), Theirs, "эта установка жива");
+        assert_eq!(both_locks(Theirs, Unavailable), Theirs);
+        assert_eq!(both_locks(Unavailable, Theirs), Theirs);
+        assert_eq!(both_locks(Ours, Ours), Ours);
+        assert_eq!(both_locks(Ours, Unavailable), Ours);
+        assert_eq!(both_locks(Unavailable, Ours), Ours);
+        assert_eq!(both_locks(Unavailable, Unavailable), Unavailable);
     }
 
     #[test]
