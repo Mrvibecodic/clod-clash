@@ -43,22 +43,16 @@ const fn can_reach_the_page(listening: bool, window_exists: bool) -> bool {
     listening && window_exists
 }
 
-/// Исход действия, начатого не из окна (трей, горячая клавиша), человек
-/// должен увидеть сразу: страница не слушает — значит, системным
-/// уведомлением, а не тостом, который ждал бы открытия окна.
-const fn the_outcome_goes_to_the_page(listening: bool, window_exists: bool) -> bool {
-    can_reach_the_page(listening, window_exists)
-}
-
+/// Исход, который человек должен увидеть сразу (трей, горячая клавиша,
+/// установка обновления): страница слушает — тостом в окне, не слушает (окно
+/// спрятано или его нет) — системным уведомлением, а не тостом, который ждал
+/// бы открытия окна.
 pub async fn tell_the_outcome(
     status: &str,
     message: std::string::String,
     system: crate::utils::notification::NotificationEvent<'_>,
 ) {
-    let window_exists = crate::core::handle::Handle::app_handle()
-        .get_webview_window("main")
-        .is_some();
-    if the_outcome_goes_to_the_page(FRONTEND_LISTENING.load(Ordering::Acquire), window_exists) {
+    if NotificationSystem::the_page_hears(crate::core::handle::Handle::app_handle()) {
         crate::core::handle::Handle::notice_message(status, message);
     } else {
         crate::utils::notification::notify_event(system).await;
@@ -601,10 +595,28 @@ mod tests {
 
     #[test]
     fn the_outcome_of_a_tray_or_hotkey_action_is_seen_while_the_window_is_hidden() {
-        use super::the_outcome_goes_to_the_page;
-        assert!(the_outcome_goes_to_the_page(true, true));
-        assert!(!the_outcome_goes_to_the_page(false, true), "окно спрятано");
-        assert!(!the_outcome_goes_to_the_page(false, false), "окна нет");
+        assert!(can_reach_the_page(true, true), "страница слушает — тост");
+        assert!(
+            !can_reach_the_page(false, true),
+            "окно спрятано — системное уведомление"
+        );
+        assert!(!can_reach_the_page(false, false), "окна нет — системное уведомление");
+        let told = crate::utils::source_scan::fn_body(
+            crate::utils::source_scan::without_test_modules(include_str!("notification.rs")),
+            "pub async fn tell_the_outcome(",
+        )
+        .unwrap_or_default();
+        assert!(told.contains("the_page_hears("), "{told}");
+        let updater = crate::utils::source_scan::fn_body(
+            crate::utils::source_scan::without_test_modules(include_str!("updater.rs")),
+            "async fn tell_the_install_failed(",
+        )
+        .unwrap_or_default();
+        assert!(updater.contains("tell_the_outcome("), "{updater}");
+        assert!(
+            !updater.contains("notify_event(") && !updater.contains("notice_message("),
+            "{updater}"
+        );
         for (source, signature, next) in [
             (
                 include_str!("hotkey.rs"),

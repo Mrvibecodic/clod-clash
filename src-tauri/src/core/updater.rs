@@ -534,36 +534,28 @@ impl std::fmt::Display for InstallerNotLaunched {
 
 impl std::error::Error for InstallerNotLaunched {}
 
-/// Как сказать, что обновление не встало, — одно решение для установки на
-/// старте и из окна: страница слушает — уведомлением в окне, не слушает
-/// (окна ещё нет, облегчённый режим, окно спрятано) — системным уведомлением.
-enum InstallFailureVoice {
-    Page(std::string::String),
-    System(crate::utils::notification::NotificationEvent<'static>),
-}
-
 const INSTALL_FAILED_STATUS: &str = "update::install_failed";
 
-fn install_failure_voice(page_hears: bool, failure: &anyhow::Error) -> InstallFailureVoice {
+/// Системное уведомление о несостоявшейся установке: отказ в правах, иной
+/// срыв запуска установщика или иной сбой.
+fn install_failure_event(failure: &anyhow::Error) -> crate::utils::notification::NotificationEvent<'static> {
     use crate::utils::notification::NotificationEvent;
-    if page_hears {
-        return InstallFailureVoice::Page(crate::cmd::public_error_text(&format!("{failure:#}")).into());
-    }
-    InstallFailureVoice::System(match failure.downcast_ref::<InstallerNotLaunched>() {
+    match failure.downcast_ref::<InstallerNotLaunched>() {
         Some(not_launched) => NotificationEvent::UpdateInstallerNotLaunched {
             declined: not_launched.declined,
         },
         None => NotificationEvent::UpdateNotInstalled,
-    })
+    }
 }
 
+/// Кому сказать — окну или системе — решает то же место, что и для трея.
 async fn tell_the_install_failed(failure: &anyhow::Error) {
-    let page_hears =
-        crate::core::notification::NotificationSystem::the_page_hears(crate::core::handle::Handle::app_handle());
-    match install_failure_voice(page_hears, failure) {
-        InstallFailureVoice::Page(text) => crate::core::handle::Handle::notice_message(INSTALL_FAILED_STATUS, text),
-        InstallFailureVoice::System(event) => crate::utils::notification::notify_event(event).await,
-    }
+    crate::core::notification::tell_the_outcome(
+        INSTALL_FAILED_STATUS,
+        crate::cmd::public_error_text(&format!("{failure:#}")).into(),
+        install_failure_event(failure),
+    )
+    .await;
 }
 
 /// Отказ в правах на запуск: `ERROR_CANCELLED`.
@@ -1506,32 +1498,26 @@ mod tests {
         }
     }
 
-    /// Слушает страница — скажет окно (на любом пути), не слушает — системное
-    /// уведомление с причиной: отказ в правах, иной срыв запуска, иной сбой.
+    /// Системное уведомление называет причину: отказ в правах, иной срыв
+    /// запуска, иной сбой.
     #[test]
-    fn a_failed_install_is_told_by_the_window_only_while_the_page_hears() {
-        use super::{InstallFailureVoice, InstallerNotLaunched, install_failure_voice};
+    fn a_failed_install_names_its_cause_in_the_system_notification() {
+        use super::{InstallerNotLaunched, install_failure_event};
         use crate::utils::notification::NotificationEvent;
         let declined = anyhow::Error::from(InstallerNotLaunched { declined: true });
         let not_started = anyhow::Error::from(InstallerNotLaunched { declined: false });
         let other = anyhow::anyhow!("bad signature");
-        for failure in [&declined, &not_started, &other] {
-            assert!(
-                matches!(install_failure_voice(true, failure), InstallFailureVoice::Page(ref text) if !text.is_empty()),
-                "{failure}"
-            );
-        }
         assert!(matches!(
-            install_failure_voice(false, &declined),
-            InstallFailureVoice::System(NotificationEvent::UpdateInstallerNotLaunched { declined: true })
+            install_failure_event(&declined),
+            NotificationEvent::UpdateInstallerNotLaunched { declined: true }
         ));
         assert!(matches!(
-            install_failure_voice(false, &not_started),
-            InstallFailureVoice::System(NotificationEvent::UpdateInstallerNotLaunched { declined: false })
+            install_failure_event(&not_started),
+            NotificationEvent::UpdateInstallerNotLaunched { declined: false }
         ));
         assert!(matches!(
-            install_failure_voice(false, &other),
-            InstallFailureVoice::System(NotificationEvent::UpdateNotInstalled)
+            install_failure_event(&other),
+            NotificationEvent::UpdateNotInstalled
         ));
     }
 
