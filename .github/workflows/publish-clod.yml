@@ -54,7 +54,7 @@ jobs:
             exit 1
           fi
 
-          bash scripts/check-release-assets.sh "$id" "$VERSION"
+          bash scripts/release-assets.sh check "$id" "$VERSION"
 
           # Тело релиза — из сообщения аннотированного publish-тега (если есть)
           NOTES=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
@@ -74,18 +74,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RELEASE_ID="${{ steps.publish.outputs.release_id }}"
-          VERSION="${GITHUB_REF_NAME#publish-clod-v}"
-          gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets?per_page=100" \
-            --jq '.[] | "\(.id) \(.name)"' > assets.list
-          while read -r id name; do
-            new="${name/_${VERSION}_/_}"
-            new="${new/-${VERSION}-1./-}"
-            if [ "$new" = "$name" ]; then
-              continue
-            fi
-            gh api -X PATCH "repos/${{ github.repository }}/releases/assets/$id" -f name="$new" --jq .name
-          done < assets.list
+          bash scripts/release-assets.sh unversion \
+            "${{ steps.publish.outputs.release_id }}" "${GITHUB_REF_NAME#publish-clod-v}"
 
       - name: Roll latest.json into the updater release
         env:
