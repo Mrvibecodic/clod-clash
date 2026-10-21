@@ -403,7 +403,11 @@ mod tests {
         assert!(!tray.contains("profiles_set_selected_node_safe"));
         let mode = crate::utils::source_scan::fn_body(include_str!("clash.rs"), "pub async fn change_clash_mode(")
             .expect("change_clash_mode() is in clash.rs");
-        let freed = mode.find("drop(turn);\n    if switched").unwrap_or(usize::MAX);
+        let freed = mode
+            .match_indices("drop(turn);")
+            .map(|(at, found)| at + found.len())
+            .find(|end| mode[*end..].trim_start().starts_with("if switched"))
+            .unwrap_or(usize::MAX);
         let told = mode.find("the_mode_changed(&mode)").unwrap_or(0);
         assert!(freed < told, "{mode}");
     }
