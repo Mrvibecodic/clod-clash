@@ -1,0 +1,50 @@
+[
+  {
+    "verge": [null, null],
+    "profile": [null, false],
+    "targets": [true, false],
+    "locked": null
+  },
+  {
+    "verge": [false, true],
+    "profile": ["proxy", false],
+    "targets": [false, true],
+    "locked": null
+  },
+  {
+    "verge": [true, false],
+    "profile": ["tun", true],
+    "targets": [false, true],
+    "locked": [false, true]
+  },
+  {
+    "verge": [false, true],
+    "profile": ["proxy", true],
+    "targets": [true, false],
+    "locked": [true, false]
+  },
+  {
+    "verge": [null, null],
+    "profile": ["both", true],
+    "targets": [true, true],
+    "locked": [true, true]
+  },
+  {
+    "verge": [false, true],
+    "profile": [null, true],
+    "targets": [false, true],
+    "locked": null
+  },
+  {
+    "verge": [false, false],
+    "profile": [null, false],
+    "targets": [true, false],
+    "locked": null
+  },
+  {
+    "verge": [null, null],
+    "profile": ["tun", false],
+    "targets": [false, true],
+    "locked": null
+  }
+]

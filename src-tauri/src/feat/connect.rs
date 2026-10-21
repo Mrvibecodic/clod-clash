@@ -46,8 +46,9 @@ pub async fn current_allowed_targets() -> (bool, bool) {
 /// приложения. При `clod-lock-mode` побеждает панель — иначе заголовок
 /// «только TUN» не сработал бы ни у кого, кто однажды трогал тумблеры.
 ///
-/// Зеркало `useConnectTargets` на фронте, включая последнее правило: способ
-/// не может быть пустым, системный прокси возвращается сам.
+/// Зеркало `connectTargets` на фронте (таблица примеров общая), включая
+/// последнее правило: способ не может быть пустым, системный прокси
+/// возвращается сам.
 pub(crate) fn connect_targets(verge: &IVerge, item: &PrfItem) -> (bool, bool) {
     let locked = locked_targets(item);
     let provider = item.connect_mode.as_deref().and_then(provider_targets);
@@ -88,7 +89,7 @@ pub async fn launch_connect_state() -> (bool, bool) {
 
 #[cfg(test)]
 mod tests {
-    use super::{allowed_targets, connect_targets, provider_targets};
+    use super::{allowed_targets, connect_targets, locked_targets, provider_targets};
     use crate::config::{IVerge, PrfItem};
 
     fn verge(sys: Option<bool>, tun: Option<bool>) -> IVerge {
@@ -163,6 +164,33 @@ mod tests {
         assert_eq!(allowed_targets(Some(&profile(Some("tun"), false))), (true, true));
         assert_eq!(allowed_targets(Some(&profile(None, true))), (true, true));
         assert_eq!(allowed_targets(None), (true, true));
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Case {
+        verge: (Option<bool>, Option<bool>),
+        profile: (Option<String>, bool),
+        targets: (bool, bool),
+        locked: Option<(bool, bool)>,
+    }
+
+    /// Примеры общие с `src/utils/connect-targets.test.ts`: окно, трей и
+    /// горячие клавиши знают о способе подключения и замке одно и то же.
+    #[test]
+    fn the_window_counts_the_targets_and_the_lock_as_the_backend_does() {
+        let cases: Vec<Case> =
+            serde_json::from_str(include_str!("../../../src/utils/connect-targets-cases.json")).unwrap_or_default();
+        assert!(!cases.is_empty());
+        for case in cases {
+            let item = profile(case.profile.0.as_deref(), case.profile.1);
+            let label = format!("{:?} {:?}", case.verge, case.profile);
+            assert_eq!(
+                connect_targets(&verge(case.verge.0, case.verge.1), &item),
+                case.targets,
+                "{label}"
+            );
+            assert_eq!(locked_targets(&item), case.locked, "{label}");
+        }
     }
 
     #[test]

@@ -8,27 +8,8 @@ import { useTunState } from '@/hooks/use-tun-state'
 import { useTunSwitch } from '@/hooks/use-tun-switch'
 import { useVerge } from '@/hooks/use-verge'
 import { getRunningMode, restartCore } from '@/services/cmds'
+import { connectTargets } from '@/utils/connect-targets'
 import { tunFailureKey } from '@/utils/tun-notice'
-
-/**
- * clod:connect-mode — что просит поднимать провайдер (`clod-connect-mode`).
- *
- * Закрытый список: заголовок с чем-то другим бэкенд до профиля не доносит.
- */
-const providerTargets = (
-  mode?: string,
-): { sys: boolean; tun: boolean } | undefined => {
-  switch (mode) {
-    case 'tun':
-      return { sys: false, tun: true }
-    case 'proxy':
-      return { sys: true, tun: false }
-    case 'both':
-      return { sys: true, tun: true }
-    default:
-      return undefined
-  }
-}
 
 /**
  * What the Connect button actually switches.
@@ -66,43 +47,28 @@ export const useConnectTargets = () => {
 
   const { current } = useProfiles()
   const providerMode = current?.connect_mode
-  const providerLocked = Boolean(current?.lock_mode)
+  const providerLocked = current?.lock_mode
 
   // clod:connect-mode — замок отбирает у пользователя выбор способа
   // подключения ТОЛЬКО когда провайдер этот способ назвал. `clod-lock-mode`
   // сам по себе про режим маршрутизации; пряча заодно и эти два тумблера, мы
   // оставляли клиента навсегда на системном прокси без единого способа
   // переключиться — ровно на это и жаловались тестировщики.
-  const targetsLocked =
-    providerLocked && providerTargets(providerMode) !== undefined
-
-  const { targetSys, targetTun } = useMemo(() => {
-    // clod:connect-mode — три уровня, как и у режима интерфейса: выбор
-    // пользователя → пожелание панели → умолчание приложения. Разница одна:
-    // при `clod-lock-mode` переключателей у пользователя нет вовсе, поэтому
-    // там побеждает панель — иначе заголовок «только TUN» не мог бы
-    // сработать ни у кого, кто однажды трогал тумблеры.
-    const provider = providerTargets(providerMode)
-    const sys =
-      (providerLocked ? provider?.sys : undefined) ??
-      verge?.connect_system_proxy ??
-      provider?.sys ??
-      true
-    const tun =
-      (providerLocked ? provider?.tun : undefined) ??
-      verge?.connect_tun_mode ??
-      provider?.tun ??
-      false
-    // Обе цели выключены — кнопка ничего не переключала бы; системный прокси
-    // возвращается сам. Провайдер, попросивший «только TUN», под это правило
-    // не попадает: у него цель есть.
-    return { targetSys: sys || !tun, targetTun: tun }
-  }, [
-    providerLocked,
-    providerMode,
-    verge?.connect_system_proxy,
-    verge?.connect_tun_mode,
-  ])
+  const { targetSys, targetTun, targetsLocked } = useMemo(
+    () =>
+      connectTargets({
+        connectSystemProxy: verge?.connect_system_proxy,
+        connectTunMode: verge?.connect_tun_mode,
+        connectMode: providerMode,
+        lockMode: providerLocked,
+      }),
+    [
+      providerLocked,
+      providerMode,
+      verge?.connect_system_proxy,
+      verge?.connect_tun_mode,
+    ],
+  )
 
   const connected =
     !isCoreDown &&
