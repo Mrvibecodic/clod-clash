@@ -495,8 +495,10 @@ FunctionEnd
           DetailPrint "Kill clash-verge-service.exe..."
           !if "${INSTALLMODE}" == "currentUser"
             nsis_tauri_utils::KillProcessCurrentUser "clash-verge-service.exe"
+            Pop $R0
           !else
             nsis_tauri_utils::KillProcess "clash-verge-service.exe"
+            Pop $R0
           !endif
         ${EndIf}
       ${EndIf}
@@ -778,9 +780,13 @@ Section Install
   Pop $0
 
   nsExec::Exec 'netsh advfirewall firewall delete rule name=all dir=in program="$INSTDIR\verge-mihomo.exe"'
+  Pop $0
   nsExec::Exec 'netsh advfirewall firewall add rule name="Clod Clash core (verge-mihomo.exe)" dir=in action=allow program="$INSTDIR\verge-mihomo.exe" enable=yes'
+  Pop $0
   nsExec::Exec 'netsh advfirewall firewall delete rule name=all dir=in program="$INSTDIR\verge-mihomo-alpha.exe"'
+  Pop $0
   nsExec::Exec 'netsh advfirewall firewall add rule name="Clod Clash core (verge-mihomo-alpha.exe)" dir=in action=allow program="$INSTDIR\verge-mihomo-alpha.exe" enable=yes'
+  Pop $0
 
   !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
   !insertmacro CheckAllVergeProcesses
@@ -928,7 +934,9 @@ Section Uninstall
   !insertmacro RemoveVergeService
 
   nsExec::Exec 'netsh advfirewall firewall delete rule name=all dir=in program="$INSTDIR\verge-mihomo.exe"'
+  Pop $0
   nsExec::Exec 'netsh advfirewall firewall delete rule name=all dir=in program="$INSTDIR\verge-mihomo-alpha.exe"'
+  Pop $0
 
   !insertmacro SetContext
 
@@ -1008,7 +1016,9 @@ Section Uninstall
   ${If} $UpdateMode <> 1
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
     nsExec::Exec 'schtasks /Delete /TN "${PRODUCTNAME}" /F'
+    Pop $0
     nsExec::Exec 'schtasks /Delete /TN "${PRODUCTNAME} (Admin)" /F'
+    Pop $0
   ${EndIf}
 
   ${If} $DeleteAppDataCheckboxState = 1
