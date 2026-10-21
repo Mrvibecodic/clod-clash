@@ -217,7 +217,7 @@ async fn accept_the_download(uid: &String, mut item: PrfItem, move_to: Option<Mo
         item.file_data = Some(disarmed.into());
     }
     let Some(body) = item.file_data.take() else {
-        bail!("подписка пришла без содержимого");
+        bail!("{}", clash_verge_i18n::t!("errors.subscriptionArrivedEmpty"));
     };
 
     let dir = crate::utils::dirs::app_profiles_dir()?;
@@ -338,7 +338,7 @@ async fn promote_and_record(
         .with_data_modify(|mut profiles| async move {
             profiles
                 .get_item(&owner)
-                .with_context(|| "подписка удалена, пока шла проверка — файл не заменяем")?;
+                .with_context(|| clash_verge_i18n::t!("errors.subscriptionRemovedMeanwhile"))?;
             if disarming {
                 let _ = tokio::fs::remove_file(&spare).await;
             } else if let Ok(previous) = tokio::fs::read(&target).await
@@ -424,7 +424,7 @@ async fn follow_move(uid: &String, move_to: Option<Move>) {
     };
     let verdict = match served {
         Ok(true) => crate::config::profiles::profiles_move_url_safe(uid, from, to.clone()).await,
-        Ok(false) => Err(anyhow::anyhow!("the panel refused this device")),
+        Ok(false) => Err(anyhow::anyhow!("{}", clash_verge_i18n::t!("errors.panelRefusedDevice"))),
         Err(err) => Err(err),
     };
     match verdict {

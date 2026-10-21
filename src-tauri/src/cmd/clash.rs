@@ -257,9 +257,9 @@ fn dns_reference_check(
 pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
     let dns_path = Config::current_dns_page_path()
         .await
-        .ok_or_else(|| "no subscription is selected, there is nothing to set DNS for".to_owned())?;
+        .ok_or_else(|| clash_verge_i18n::t!("errors.noSubscriptionSelected").into_owned())?;
     let Some(page) = dns_page::Page::from_file(&dns_config) else {
-        return Err("the DNS page is not a YAML mapping".into());
+        return Err(clash_verge_i18n::t!("errors.dnsPageNotMapping").into_owned().into());
     };
 
     let (base, dns_settings_on) = {
@@ -399,12 +399,25 @@ pub async fn get_dns_page_view(bare: bool) -> CmdResult<Mapping> {
             Some(path) => match fs::read_to_string(&path).await {
                 // Неразбираемый файл не прячем за подпиской: сохранение
                 // затёрло бы его молча. Человек видит причину.
-                Ok(raw) => dns_page::Page::parse(&raw)
-                    .ok_or_else(|| format!("the DNS page {path:?} does not parse as YAML; fix or delete the file"))?,
+                Ok(raw) => dns_page::Page::parse(&raw).ok_or_else(|| {
+                    clash_verge_i18n::t!("errors.dnsPageUnparsable", path = format!("{path:?}")).into_owned()
+                })?,
                 Err(err) if err.kind() == std::io::ErrorKind::NotFound => dns_page::Page::default(),
-                Err(err) => return Err(format!("the DNS page {path:?} cannot be read: {err}").into()),
+                Err(err) => {
+                    return Err(clash_verge_i18n::t!(
+                        "errors.dnsPageUnreadable",
+                        path = format!("{path:?}"),
+                        reason = err.to_string()
+                    )
+                    .into_owned()
+                    .into());
+                }
             },
-            None => return Err("no subscription is selected".into()),
+            None => {
+                return Err(clash_verge_i18n::t!("errors.noSubscriptionSelected")
+                    .into_owned()
+                    .into());
+            }
         }
     };
     Ok(base.with(&page).to_file())

@@ -1335,11 +1335,11 @@ async fn within_budget<T>(
     work: impl std::future::Future<Output = Result<T>>,
 ) -> Result<T> {
     if tokio::time::Instant::now() >= deadline {
-        bail!("clod-sub-budget: на этот адрес подписки отведённое время уже вышло");
+        bail!("clod-sub-budget: {}", clash_verge_i18n::t!("errors.budgetSpent"));
     }
     match tokio::time::timeout_at(deadline, work).await {
         Ok(result) => result,
-        Err(_) => bail!("clod-sub-budget: адрес подписки не ответил за отведённое время"),
+        Err(_) => bail!("clod-sub-budget: {}", clash_verge_i18n::t!("errors.budgetTimeout")),
     }
 }
 
@@ -1988,9 +1988,12 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
         Ok(u) => u,
         Err(e) => {
             return Err(anyhow::anyhow!(
-                "failed to parse subscription URL: {:?}, input: {}",
-                e,
-                help::mask_url(input)
+                "{}",
+                clash_verge_i18n::t!(
+                    "errors.subscriptionUrlUnreadable",
+                    reason = e.to_string(),
+                    url = help::mask_url(input)
+                )
             ));
         }
     };
@@ -2004,7 +2007,10 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
     }
 
     if url.host_str().is_none_or(str::is_empty) {
-        anyhow::bail!("subscription URL has no host: {}", help::mask_url(input));
+        anyhow::bail!(
+            "{}",
+            clash_verge_i18n::t!("errors.subscriptionUrlNoHost", url = help::mask_url(input))
+        );
     }
 
     if url.query().is_none() && url.path().contains('&') {

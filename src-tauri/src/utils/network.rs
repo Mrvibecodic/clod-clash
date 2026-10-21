@@ -255,7 +255,7 @@ impl NetworkManager {
         let err = anyhow::Error::new(err).context(context);
 
         if legacy_tls {
-            err.context("Subscription server uses legacy TLS; only TLS 1.2/1.3 is supported. TLS 1.0/1.1 is insecure")
+            err.context(clash_verge_i18n::t!("errors.legacyTls"))
         } else {
             err
         }
@@ -378,7 +378,12 @@ impl NetworkManager {
 
     /// Тело ответа байтами, но не больше `cap` байт после распаковки.
     pub(crate) async fn read_capped_bytes(mut response: reqwest::Response, cap: usize) -> Result<Vec<u8>> {
-        let too_large = || anyhow::anyhow!("the response body is larger than {} MiB", cap >> 20);
+        let too_large = || {
+            anyhow::anyhow!(
+                "{}",
+                clash_verge_i18n::t!("errors.responseTooLarge", mib = (cap >> 20).to_string())
+            )
+        };
         if response.content_length().is_some_and(|len| len > cap as u64) {
             return Err(too_large());
         }

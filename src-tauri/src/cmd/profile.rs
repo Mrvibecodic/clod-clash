@@ -104,7 +104,11 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
 
         if let Err(e) = feat::add_profile(item).await {
             logging!(error, Type::Cmd, "[импорт подписки] не удалось сохранить конфиг: {}", e);
-            return Err(format!("не удалось импортировать подписку: {}", super::public_error_text(&e)).into());
+            return Err(
+                clash_verge_i18n::t!("errors.subscriptionNotImported", reason = super::public_error_text(&e))
+                    .into_owned()
+                    .into(),
+            );
         }
         logging!(info, Type::Cmd, "[импорт подписки] файл конфига сохранён");
         Ok(item.uid.clone())
@@ -156,11 +160,11 @@ pub async fn reorder_profile(active_id: String, over_id: String) -> CmdResult {
         }
         Err(err) => {
             logging!(error, Type::Cmd, "не удалось изменить порядок файлов конфига: {}", err);
-            Err(format!(
-                "не удалось изменить порядок файлов конфига: {}",
-                super::public_error_text(&err)
+            Err(
+                clash_verge_i18n::t!("errors.reorderFailed", reason = super::public_error_text(&err))
+                    .into_owned()
+                    .into(),
             )
-            .into())
         }
     }
 }
@@ -175,14 +179,14 @@ pub async fn create_profile_from_file(item: PrfItem, path: String) -> CmdResult 
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"));
     if !is_yaml {
-        return Err("only .yaml or .yml files can be imported".into());
+        return Err(clash_verge_i18n::t!("errors.onlyYamlFiles").into_owned().into());
     }
     let meta = tokio::fs::metadata(&source).await.stringify_err()?;
     if !meta.is_file() {
-        return Err("profile path is not a file".into());
+        return Err(clash_verge_i18n::t!("errors.notAFile").into_owned().into());
     }
     if meta.len() > LOCAL_PROFILE_MAX_BYTES {
-        return Err("profile file is too large".into());
+        return Err(clash_verge_i18n::t!("errors.fileTooLarge").into_owned().into());
     }
     let data = tokio::fs::read_to_string(&source).await.stringify_err()?;
     create_profile(item, Some(data.into())).await.map(|_| ())
@@ -221,10 +225,11 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
             }
             Ok(true)
         }
-        Err(err) => match err.to_string().as_str() {
-            "the file already exists" => Err("the file already exists".into()),
-            _ => Err(format!("add profile error: {}", super::public_error_text(&err)).into()),
-        },
+        Err(err) => Err(
+            clash_verge_i18n::t!("errors.subscriptionNotAdded", reason = super::public_error_text(&err))
+                .into_owned()
+                .into(),
+        ),
     }
 }
 
@@ -238,7 +243,9 @@ pub async fn set_secure_channel(index: String, on: bool) -> CmdResult {
         let profiles = Config::profiles().await.latest_arc();
         let item = profiles.get_item(&index).stringify_err()?;
         if item.itype.as_deref() != Some("remote") {
-            return Err("the secure channel needs a remote subscription".into());
+            return Err(clash_verge_i18n::t!("errors.secureChannelNeedsRemote")
+                .into_owned()
+                .into());
         }
         let url = item
             .url

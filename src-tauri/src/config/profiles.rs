@@ -155,7 +155,7 @@ impl IProfiles {
     fn plan_move_item_url(&mut self, uid: &String, from: String, to: String) -> Result<()> {
         let each = self.item_mut(uid)?;
         if each.url.as_ref() != Some(&from) {
-            bail!("the subscription address was changed meanwhile");
+            bail!("{}", clash_verge_i18n::t!("errors.subscriptionAddressChanged"));
         }
         let former = each.former_urls.get_or_insert_with(Vec::new);
         former.retain(|url| *url != to);
@@ -381,7 +381,7 @@ impl IProfiles {
     /// замена на диске) занимается вызывающий до этого слияния.
     pub fn merge_updated_item(&mut self, uid: &String, item: &mut PrfItem) -> Result<()> {
         if item.file_data.is_some() {
-            bail!("содержимое подписки принимается до слияния в реестр, а не вместе с ним");
+            bail!("{}", clash_verge_i18n::t!("errors.subscriptionMergedWithContent"));
         }
         let file = self.file_name_for(uid, item)?;
         let each = self.item_mut(uid)?;

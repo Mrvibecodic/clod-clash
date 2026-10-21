@@ -240,14 +240,22 @@ fn dns_config_problem(raw: &str) -> Option<std::string::String> {
 pub(crate) async fn ensure_dns_config_file() -> Result<()> {
     let Some(dns_path) = Config::current_dns_page_path().await else {
         return Err(anyhow::anyhow!(
-            "no subscription is selected, DNS has nothing to apply to"
+            "{}",
+            clash_verge_i18n::t!("errors.noSubscriptionSelected")
         ));
     };
 
     if fs::try_exists(&dns_path).await? {
         let raw = fs::read_to_string(&dns_path).await?;
         return match dns_config_problem(&raw) {
-            Some(problem) => Err(anyhow::anyhow!("DNS config file {:?} is unusable: {problem}", dns_path)),
+            Some(problem) => Err(anyhow::anyhow!(
+                "{}",
+                clash_verge_i18n::t!(
+                    "errors.dnsPageUnusable",
+                    path = format!("{dns_path:?}"),
+                    reason = problem
+                )
+            )),
             None => Ok(()),
         };
     }
