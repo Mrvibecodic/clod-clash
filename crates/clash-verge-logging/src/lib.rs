@@ -124,17 +124,37 @@ pub mod startup {
     pub struct StartupLog {
         redact: fn(&str) -> String,
         inner: OnceLock<Box<dyn Log>>,
-        held: Mutex<Vec<HeldLine>>,
+        held: Mutex<Option<Vec<HeldLine>>>,
     }
 
     static STARTUP_LOG: OnceLock<&'static StartupLog> = OnceLock::new();
 
     impl StartupLog {
-        fn held(&self) -> std::sync::MutexGuard<'_, Vec<HeldLine>> {
+        fn new(redact: fn(&str) -> String) -> Self {
+            Self {
+                redact,
+                inner: OnceLock::new(),
+                held: Mutex::new(Some(Vec::new())),
+            }
+        }
+
+        fn held(&self) -> std::sync::MutexGuard<'_, Option<Vec<HeldLine>>> {
             match self.held.lock() {
                 Ok(guard) => guard,
                 Err(poisoned) => poisoned.into_inner(),
             }
+        }
+
+        fn held_lines(&self) -> Vec<String> {
+            self.held()
+                .iter()
+                .flatten()
+                .map(|held_line| held_line.line.clone())
+                .collect()
+        }
+
+        fn stop_holding(&self) {
+            *self.held() = None;
         }
     }
 
@@ -163,6 +183,9 @@ pub mod startup {
             let line = format!("[{}] [{}] {}", stamp(), record.level(), message);
             let _ = writeln!(std::io::stderr(), "{line}");
             let mut held = self.held();
+            let Some(held) = held.as_mut() else {
+                return;
+            };
             if held.len() >= HELD_CAP {
                 held.remove(0);
             }
@@ -182,11 +205,7 @@ pub mod startup {
     }
 
     pub fn install(redact: fn(&str) -> String) -> bool {
-        let startup_log: &'static StartupLog = Box::leak(Box::new(StartupLog {
-            redact,
-            inner: OnceLock::new(),
-            held: Mutex::new(Vec::new()),
-        }));
+        let startup_log: &'static StartupLog = Box::leak(Box::new(StartupLog::new(redact)));
         if log::set_logger(startup_log).is_err() {
             return false;
         }
@@ -200,7 +219,7 @@ pub mod startup {
             return log::set_boxed_logger(logger);
         };
         let Err(logger) = startup_log.inner.set(logger) else {
-            let lines: Vec<HeldLine> = std::mem::take(&mut *startup_log.held());
+            let lines: Vec<HeldLine> = startup_log.held().take().unwrap_or_default();
             if let Some(inner) = startup_log.inner.get() {
                 for held_line in lines {
                     inner.log(
@@ -219,13 +238,44 @@ pub mod startup {
     }
 
     pub fn held_lines() -> Vec<String> {
-        STARTUP_LOG.get().map_or_else(Vec::new, |startup_log| {
-            startup_log
-                .held()
-                .iter()
-                .map(|held_line| held_line.line.clone())
-                .collect()
-        })
+        STARTUP_LOG
+            .get()
+            .map_or_else(Vec::new, |startup_log| startup_log.held_lines())
+    }
+
+    pub fn stop_holding() {
+        if let Some(startup_log) = STARTUP_LOG.get() {
+            startup_log.stop_holding();
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{HELD_CAP, StartupLog};
+        use log::{Level, Log as _, Record};
+
+        fn log_line(startup_log: &StartupLog, text: &str) {
+            startup_log.log(
+                &Record::builder()
+                    .level(Level::Info)
+                    .target("app")
+                    .args(format_args!("{text}"))
+                    .build(),
+            );
+        }
+
+        #[test]
+        fn lines_are_not_held_once_the_main_log_failed() {
+            let startup_log = StartupLog::new(str::to_owned);
+            log_line(&startup_log, "before");
+            assert_eq!(startup_log.held_lines().len(), 1);
+
+            startup_log.stop_holding();
+            for _ in 0..=HELD_CAP {
+                log_line(&startup_log, "after");
+            }
+            assert!(startup_log.held_lines().is_empty(), "{:?}", startup_log.held_lines());
+        }
     }
 }
 

@@ -34,8 +34,9 @@ pub fn init_work_dir_and_logger() -> anyhow::Result<()> {
     AsyncHandler::block_on(async {
         init_work_config().await;
         logging!(info, Type::Setup, "Initializing logger");
-        Logger::global().init().await?;
-        Ok(())
+        Logger::global().init().await.inspect_err(|_| {
+            clash_verge_logging::startup::stop_holding();
+        })
     })
 }
 
