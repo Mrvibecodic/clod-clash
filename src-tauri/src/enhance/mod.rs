@@ -169,14 +169,15 @@ pub struct Sources {
     pub verge: Overlay<IVerge>,
     pub profiles: Overlay<IProfiles>,
     /// Страница DNS, которую собирать вместо файла на диске — кандидат из
-    /// редактора: так его проверяет та же сборка, что потом пойдёт в ядро.
-    /// Ложится и при выключенном тумблере: проверяют именно её.
-    pub dns_page: Option<dns_page::Page>,
+    /// редактора, с uid подписки, чья это страница: так его проверяет та же
+    /// сборка, что потом пойдёт в ядро. Ложится и при выключенном тумблере:
+    /// проверяют именно её.
+    pub dns_page: Option<(String, dns_page::Page)>,
 }
 
 impl Sources {
-    pub fn with_dns_page(mut self, page: dns_page::Page) -> Self {
-        self.dns_page = Some(page);
+    pub fn with_dns_page(mut self, profile_uid: String, page: dns_page::Page) -> Self {
+        self.dns_page = Some((profile_uid, page));
         self
     }
 
@@ -214,7 +215,7 @@ pub struct Resolved {
     pub clash: SharedDraft<IClashTemp>,
     pub verge: SharedDraft<IVerge>,
     pub profiles: SharedDraft<IProfiles>,
-    pub dns_page: Option<dns_page::Page>,
+    pub dns_page: Option<(String, dns_page::Page)>,
 }
 
 #[derive(Debug)]
@@ -2071,6 +2072,21 @@ async fn apply_dns_settings(
     (config, Some(page))
 }
 
+/// Страница из редактора — только для той подписки, чья она: подписка могла
+/// смениться, пока страница ждала сборки.
+fn the_dns_page_candidate<'a>(
+    candidate: Option<&'a (String, dns_page::Page)>,
+    profile_uid: &str,
+) -> Result<Option<&'a dns_page::Page>> {
+    match candidate {
+        Some((uid, _)) if uid != profile_uid => {
+            anyhow::bail!("{}", clash_verge_i18n::t!("dns.subscriptionChanged"))
+        }
+        Some((_, page)) => Ok(Some(page)),
+        None => Ok(None),
+    }
+}
+
 /// Прочитать страницу с диска; старую копию свести к отличиям и переписать
 /// (комментарии человека переносятся в шапку). Файла нет — пустая страница:
 /// при включённом тумблере она есть у каждой подписки, пусть и без отличий.
@@ -2239,7 +2255,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         &profile_uid,
         !profile_is_a_candidate,
         &dns_base,
-        sources.dns_page.as_ref(),
+        the_dns_page_candidate(sources.dns_page.as_ref(), &profile_uid)?,
     )
     .await;
 
@@ -2348,6 +2364,14 @@ mod tests {
             super::Overlay::<IProfiles>::default(),
             super::Overlay::Accepted
         ));
+    }
+
+    #[test]
+    fn a_dns_page_is_laid_only_on_its_own_subscription() {
+        let candidate = ("A".into(), super::dns_page::Page::default());
+        assert!(super::the_dns_page_candidate(Some(&candidate), "A").is_ok_and(|page| page.is_some()));
+        assert!(super::the_dns_page_candidate(Some(&candidate), "B").is_err());
+        assert!(super::the_dns_page_candidate(None, "B").is_ok_and(|page| page.is_none()));
     }
 
     fn mapping(yaml: &str) -> serde_yaml_ng::Mapping {

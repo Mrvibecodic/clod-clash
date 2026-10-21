@@ -255,18 +255,15 @@ fn dns_reference_check(
 /// её отсутствие не приговор, ядро рассудит при следующей сборке.
 #[tauri::command]
 pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
-    let dns_path = Config::current_dns_page_path()
-        .await
+    let (uid, base) = the_dns_page_subject().await;
+    let (uid, dns_path) = uid
+        .and_then(|uid| Some((uid.clone(), crate::utils::dirs::dns_page_path(&uid).ok()?)))
         .ok_or_else(|| clash_verge_i18n::t!("errors.noSubscriptionSelected").into_owned())?;
     let Some(page) = dns_page::Page::from_file(&dns_config) else {
         return Err(clash_verge_i18n::t!("errors.dnsPageNotMapping").into_owned().into());
     };
 
-    let (base, dns_settings_on) = {
-        let runtime = Config::runtime().await.data_arc();
-        let on = Config::verge().await.latest_arc().enable_dns_settings.unwrap_or(false);
-        (runtime.dns_base.clone().unwrap_or_default(), on)
-    };
+    let dns_settings_on = Config::verge().await.latest_arc().enable_dns_settings.unwrap_or(false);
     let page = page.differences_from(&base);
 
     let references = check_dns_references(&page).await;
@@ -286,7 +283,7 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
 
     let manager = CoreManager::global();
     let staged = manager
-        .stage_unless_unchanged(crate::enhance::Sources::default().with_dns_page(page.clone()))
+        .stage_unless_unchanged(crate::enhance::Sources::default().with_dns_page(uid, page.clone()))
         .await
         .stringify_err()?;
     let staged = match staged {
@@ -353,6 +350,23 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
     })
 }
 
+/// Подписка страницы DNS (текущая) и блок, от которого считаются её отличия, —
+/// от сборки этой же подписки.
+async fn the_dns_page_subject() -> (Option<String>, dns_page::Base) {
+    let uid = Config::profiles().await.latest_arc().get_current().cloned();
+    let base = base_of_the_page(uid.as_ref(), &Config::runtime().await.data_arc());
+    (uid, base)
+}
+
+/// Принятая сборка другой подписки — блока для этой страницы нет.
+fn base_of_the_page(uid: Option<&String>, runtime: &crate::config::runtime::IRuntime) -> dns_page::Base {
+    if runtime.profile_uid.as_ref() == uid {
+        runtime.dns_base.clone().unwrap_or_default()
+    } else {
+        dns_page::Base::default()
+    }
+}
+
 async fn write_dns_page(dns_path: &std::path::Path, page: &dns_page::Page) -> CmdResult {
     page.save(dns_path).await.stringify_err()?;
     logging!(info, Type::Config, "DNS page saved to {dns_path:?}");
@@ -391,11 +405,11 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
 /// подписке»). Пока конфиг не собран, подписки нет — видна одна страница.
 #[tauri::command]
 pub async fn get_dns_page_view(bare: bool) -> CmdResult<Mapping> {
-    let base = Config::runtime().await.data_arc().dns_base.clone().unwrap_or_default();
+    let (uid, base) = the_dns_page_subject().await;
     let page = if bare {
         dns_page::Page::default()
     } else {
-        match Config::current_dns_page_path().await {
+        match uid.and_then(|uid| crate::utils::dirs::dns_page_path(&uid).ok()) {
             Some(path) => match fs::read_to_string(&path).await {
                 // Неразбираемый файл не прячем за подпиской: сохранение
                 // затёрло бы его молча. Человек видит причину.
@@ -431,10 +445,29 @@ pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{dns_reference_check, reached_a_verdict, read_ladder};
+    use super::{base_of_the_page, dns_reference_check, reached_a_verdict, read_ladder};
     use crate::core::validate::{ValidationErrorKind, ValidationOutcome, ValidationSkipReason};
     use crate::enhance::dns_page::References;
     use serde_yaml_ng::{Mapping, Value};
+
+    #[test]
+    fn the_page_is_counted_from_its_own_subscriptions_block() {
+        let mut dns = Mapping::new();
+        dns.insert("ipv6".into(), Value::Bool(false));
+        let runtime = crate::config::runtime::IRuntime {
+            profile_uid: Some("A".into()),
+            dns_base: Some(crate::enhance::dns_page::Base { dns, hosts: None }),
+            ..crate::config::runtime::IRuntime::default()
+        };
+        assert_eq!(
+            base_of_the_page(Some(&"A".into()), &runtime),
+            runtime.dns_base.clone().unwrap_or_default()
+        );
+        assert_eq!(
+            base_of_the_page(Some(&"B".into()), &runtime),
+            crate::enhance::dns_page::Base::default()
+        );
+    }
 
     #[test]
     fn a_lost_rule_set_refuses_the_page_but_an_unknown_tail_only_warns() {
