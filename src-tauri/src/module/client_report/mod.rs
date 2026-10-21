@@ -490,7 +490,7 @@ async fn record_previous(previous: Runtime) {
 }
 
 /// Соединение открыто раньше `since` (мс). Время не разобралось — считать.
-fn opened_before(start: &str, since: i64) -> bool {
+pub(crate) fn opened_before(start: &str, since: i64) -> bool {
     chrono::DateTime::parse_from_rfc3339(start).is_ok_and(|start| start.timestamp_millis() < since)
 }
 

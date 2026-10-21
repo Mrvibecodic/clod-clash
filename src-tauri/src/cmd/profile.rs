@@ -345,6 +345,7 @@ pub async fn delete_profile(index: String) -> CmdResult {
     // раньше не удалялся вовсе, поэтому чистится здесь же.
     pending_files.cleanup().await;
     crate::module::logo_cache::clear(&index).await;
+    crate::core::traffic_estimate::forget(&index).await;
 
     Timer::global().refresh().await.stringify_err()?;
     drop_system_proxy_without_profiles().await;

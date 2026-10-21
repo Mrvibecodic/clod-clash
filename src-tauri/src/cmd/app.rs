@@ -159,8 +159,8 @@ pub async fn fit_window_to_content(content_height: f64) -> CmdResult<Option<f64>
 }
 
 #[tauri::command]
-pub fn get_traffic_estimate() -> crate::core::traffic_estimate::TrafficEstimate {
-    crate::core::traffic_estimate::snapshot()
+pub async fn get_traffic_estimate(uid: String) -> crate::core::traffic_estimate::TrafficEstimate {
+    crate::core::traffic_estimate::snapshot(&uid).await
 }
 
 #[cfg(test)]

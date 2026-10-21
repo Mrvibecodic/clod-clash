@@ -666,8 +666,8 @@ export const fitWindowToContent = async (contentHeight: number) => {
   return invoke<number | null>('fit_window_to_content', { contentHeight })
 }
 
-export const getTrafficEstimate = async () => {
-  return invoke<ITrafficEstimate>('get_traffic_estimate')
+export const getTrafficEstimate = async (uid: string) => {
+  return invoke<ITrafficEstimate>('get_traffic_estimate', { uid })
 }
 
 export const uninstallService = async () => {

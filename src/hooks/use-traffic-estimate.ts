@@ -50,7 +50,7 @@ export const useTrafficEstimate = (profile?: IProfileItem) => {
   // только про `document.hidden`, а окно уезжает в трей целиком.
   const { data } = useSWR(
     uid && extra ? ['trafficEstimate', uid] : null,
-    getTrafficEstimate,
+    ([, key]: [string, string]) => getTrafficEstimate(key),
     {
       refreshInterval: visible ? POLL_INTERVAL_MS : 0,
       revalidateOnFocus: false,

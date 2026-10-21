@@ -123,7 +123,7 @@ pub fn resolve_setup_async() {
             init_auto_launch_resync(),
         );
 
-        crate::core::traffic_estimate::init();
+        crate::core::traffic_estimate::init().await;
         crate::core::connections_poll::spawn();
         AsyncHandler::spawn(crate::module::logo_cache::sweep_orphans);
 
