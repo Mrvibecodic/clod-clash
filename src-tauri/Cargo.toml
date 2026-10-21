@@ -71,7 +71,7 @@ tauri-plugin-shell = "2.3.5"
 tauri-plugin-dialog = "2.7.1"
 tauri-plugin-deep-link = "2.4.9"
 tauri-plugin-window-state = "2.4.1"
-zip = "8.6.0"
+zip = "9.0.5"
 flate2 = "1.1"
 # Путь файла провайдера узлов у ядра: `proxies/<md5 адреса>`.
 md-5 = "0.10"
@@ -95,7 +95,7 @@ clash_verge_service_ipc = { version = "2.6.1", features = [
 ], git = "https://github.com/clash-verge-rev/clash-verge-service-ipc", tag = "v2.6.1" }
 arc-swap = "1.9.2"
 rustls = { version = "0.23.41", features = ["ring"] }
-webpki-roots = "1.0.8"
+webpki-roots = "1.0.10"
 dark-light = { git = "https://github.com/rust-dark-light/dark-light", rev = "0f18d2fbcaa5d1c175db8aae7d53428988d7e961" }
 windows-sys.workspace = true
 tokio-util = { version = "0.7.18", features = ["time"] }

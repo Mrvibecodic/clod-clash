@@ -84,7 +84,17 @@ fn stage_entries(archive: &Path, target: &Path, staged: &mut Vec<(PathBuf, PathB
     let mut zip = zip::ZipArchive::new(file)?;
     for index in 0..zip.len() {
         let mut entry = zip.by_index(index)?;
-        let raw_name = entry.name().to_owned();
+        let raw_name = match entry.name() {
+            Ok(name) => name.into_owned(),
+            Err(e) => {
+                logging!(
+                    warn,
+                    Type::Backup,
+                    "backup entry with an unreadable name was not unpacked: {e}"
+                );
+                continue;
+            }
+        };
         let Some(relative) = restorable_backup_entry(&raw_name) else {
             // Запись каталога — часть устройства архива, а не потерянный файл;
             // замеры отчёта из старых копий не берутся намеренно.
