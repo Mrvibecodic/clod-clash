@@ -29,7 +29,7 @@ values are sent not as headers but inside the encrypted request to the middlewar
 | `subscription-userinfo` | traffic and expiry on the card |
 | `subscription-refill-date` | traffic top-up date |
 | `profile-update-interval` | auto-update interval in hours; applied with every update until the user sets their own. If it has never arrived and there's no user value, the subscription isn't updated on a schedule; a missing header keeps the last interval; to stop, send `0` |
-| `profile-logo` | provider logo (`https` only), stored locally |
+| `profile-logo` | provider logo, stored locally: a public `https` address only (not a local network address), up to 2 MB, png, jpg, gif, webp, avif, ico, bmp or svg. A logo that doesn't fit is not shown |
 | `profile-web-page-url` | the "Subscription page" item in the subscription card menu |
 | `support-url` | the "Support" button (`https`, `tg:`, `mailto:`) |
 | `announce`, `announce-url` | a permanent announcement and its link |
@@ -41,3 +41,4 @@ values are sent not as headers but inside the encrypted request to the middlewar
 Additional headers are set in the panel via `customResponseHeaders`.
 Values with non-ASCII text are more reliably sent as `base64:<payload>`;
 links — `https://` only; `support-url` and `clod-bot-url` also accept `tg:` and `mailto:`.
+Group icons (`icon` of the groups in the template) are downloaded by the same rules as the logo.
