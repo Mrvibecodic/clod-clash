@@ -214,12 +214,8 @@ export const handleNoticeMessage = (
       showNotice.error('shared.feedback.validation.yaml.syntaxError', msg),
     'config_validate::yaml_read_error': () =>
       showNotice.error('shared.feedback.validation.yaml.readError', msg),
-    'config_validate::yaml_mapping_error': () =>
-      showNotice.error('shared.feedback.validation.yaml.mappingError', msg),
     'config_validate::merge_syntax_error': () =>
       showNotice.error('shared.feedback.validation.merge.syntaxError', msg),
-    'config_validate::merge_mapping_error': () =>
-      showNotice.error('shared.feedback.validation.merge.mappingError', msg),
     'tun::setup_started': () =>
       showNotice.info(
         'settings.sections.system.notifications.tunMode.setupStarted',

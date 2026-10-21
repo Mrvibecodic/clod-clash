@@ -23,15 +23,13 @@ pub(crate) const fn notice_key(kind: ValidationErrorKind, target: ValidationNoti
             ValidationNoticeTarget::Script => "config_validate::script_error",
             ValidationNoticeTarget::Runtime => "config_validate::yaml_syntax_error",
         },
-        ValidationErrorKind::YamlMapping => match target {
-            ValidationNoticeTarget::Merge => "config_validate::merge_mapping_error",
-            ValidationNoticeTarget::Script => "config_validate::script_error",
-            ValidationNoticeTarget::Runtime => "config_validate::yaml_mapping_error",
-        },
         ValidationErrorKind::ScriptSyntax => "config_validate::script_syntax_error",
         ValidationErrorKind::ScriptMissingMain => "config_validate::script_missing_main",
         ValidationErrorKind::ProcessTerminated => "config_validate::process_terminated",
-        ValidationErrorKind::CoreRejected | ValidationErrorKind::Timeout => "config_validate::error",
+        ValidationErrorKind::CoreRejected
+        | ValidationErrorKind::BuildFailed
+        | ValidationErrorKind::ApplyFailed
+        | ValidationErrorKind::Timeout => "config_validate::error",
     }
 }
 

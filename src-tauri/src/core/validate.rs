@@ -26,53 +26,41 @@ pub enum ValidationErrorKind {
     FileMissing,
     FileRead,
     YamlSyntax,
-    YamlMapping,
     ScriptSyntax,
     ScriptMissingMain,
     CoreRejected,
+    /// Конфиг не собрался из подписки и настроек — до ядра дело не дошло.
+    BuildFailed,
+    /// Конфиг не дошёл до ядра или принятое не записалось — о самом конфиге
+    /// это ничего не говорит.
+    ApplyFailed,
     ProcessTerminated,
     Timeout,
 }
 
 impl ValidationErrorKind {
-    /// Это слово ядра о конфиге, а не о среде: прибитая проверка и таймаут
-    /// про сам конфиг ничего не говорят.
+    /// Это слово о конфиге, а не о среде: прибитая проверка, таймаут и
+    /// несостоявшееся применение про сам конфиг ничего не говорят.
     pub const fn is_the_cores_verdict(self) -> bool {
-        !matches!(self, Self::ProcessTerminated | Self::Timeout)
-    }
-
-    pub fn from_message(message: &str) -> Self {
-        // clod: сообщения об ошибках теперь русские (их читает и пользователь, и
-        // поддержка), поэтому классификатору нужны русские иглы — и полноценный
-        // to_lowercase: ASCII-версия кириллицу не опускает, «Таймаут» мимо
-        // «таймаут» проходил бы молча. Английские иглы остаются: их приносит
-        // само ядро.
-        let lower = message.to_lowercase();
-
-        if lower.contains("file not found") || lower.contains("файл не найден") {
-            Self::FileMissing
-        } else if lower.contains("failed to read") || lower.contains("не удалось прочитать") {
-            Self::FileRead
-        } else if lower.contains("script must contain a main function") {
-            Self::ScriptMissingMain
-        } else if lower.contains("script syntax error") {
-            Self::ScriptSyntax
-        } else if lower.contains("mapping values are not allowed")
-            || lower.contains("failed to transform to yaml mapping")
-            || lower.contains("failed to apply merge")
-        {
-            Self::YamlMapping
-        } else if lower.contains("yaml syntax error") || lower.contains("did not find expected key") {
-            Self::YamlSyntax
-        } else if lower.contains("timeout") || lower.contains("таймаут") {
-            Self::Timeout
-        } else if lower.contains("terminated") || lower.contains("прерван") {
-            Self::ProcessTerminated
-        } else {
-            Self::CoreRejected
-        }
+        !matches!(self, Self::ProcessTerminated | Self::Timeout | Self::ApplyFailed)
     }
 }
+
+/// Отказ, вид которого известен там, где он возник: сборка кладёт его в ошибку,
+/// а вид достаётся из неё ([`ValidationOutcome::of_a_failed_build`]).
+#[derive(Debug)]
+pub struct Refusal {
+    pub kind: ValidationErrorKind,
+    pub message: String,
+}
+
+impl fmt::Display for Refusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for Refusal {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -105,22 +93,19 @@ impl ValidationOutcome {
         }
     }
 
-    pub fn invalid_from_message(message: impl Into<String>) -> Self {
-        let message = message.into();
-        Self::invalid(ValidationErrorKind::from_message(&message), message)
+    /// Сборка не удалась: вид — тот, что назвало место отказа, а без него —
+    /// «конфиг не собрался».
+    pub fn of_a_failed_build(err: &anyhow::Error) -> Self {
+        match err.downcast_ref::<Refusal>() {
+            Some(refusal) => Self::invalid(refusal.kind, refusal.message.clone()),
+            None => Self::invalid(ValidationErrorKind::BuildFailed, err.to_string()),
+        }
     }
 
-    /// Отказ, произнесённый самим ядром (`mihomo -t` дало вывод и ненулевой код).
-    /// Вид — по тексту, но никогда не «прервано»/«таймаут»: слово `timeout` в
-    /// сообщении ядра — про поле конфига, а не про судьбу проверки, и такой
-    /// отказ остаётся вердиктом.
+    /// Отказ, произнесённый самим ядром (`mihomo -t` дало вывод и ненулевой код),
+    /// — вердикт, какими бы словами ядро его ни назвало.
     pub fn rejected_by_core(message: impl Into<String>) -> Self {
-        let message = message.into();
-        let kind = match ValidationErrorKind::from_message(&message) {
-            ValidationErrorKind::ProcessTerminated | ValidationErrorKind::Timeout => ValidationErrorKind::CoreRejected,
-            kind => kind,
-        };
-        Self::invalid(kind, message)
+        Self::invalid(ValidationErrorKind::CoreRejected, message)
     }
 
     pub const fn is_valid(&self) -> bool {
@@ -242,7 +227,7 @@ impl CoreConfigValidator {
             Err(err) => {
                 let error_msg: String = format!("Failed to read file: {err}").into();
                 logging!(error, Type::Validate, "Не удалось прочитать файл: {}", error_msg);
-                return Ok(ValidationOutcome::invalid_from_message(error_msg));
+                return Ok(ValidationOutcome::invalid(ValidationErrorKind::FileRead, error_msg));
             }
         };
         // Пробуем распарсить YAML-файл, проверяем только корректность синтаксиса
@@ -255,7 +240,7 @@ impl CoreConfigValidator {
             Err(err) => {
                 let error_msg: String = format!("YAML syntax error: {err}").into();
                 logging!(error, Type::Validate, "Ошибка синтаксиса YAML: {}", error_msg);
-                Ok(ValidationOutcome::invalid_from_message(error_msg))
+                Ok(ValidationOutcome::invalid(ValidationErrorKind::YamlSyntax, error_msg))
             }
         }
     }
@@ -268,7 +253,7 @@ impl CoreConfigValidator {
             Err(err) => {
                 let error_msg: String = format!("Failed to read script file: {err}").into();
                 logging!(warn, Type::Validate, "Ошибка синтаксиса скрипта: {}", err);
-                return Ok(ValidationOutcome::invalid_from_message(error_msg));
+                return Ok(ValidationOutcome::invalid(ValidationErrorKind::FileRead, error_msg));
             }
         };
 
@@ -299,7 +284,10 @@ impl CoreConfigValidator {
                 {
                     let error_msg = "Script must contain a main function";
                     logging!(warn, Type::Validate, "В скрипте отсутствует функция main: {}", path);
-                    return Ok(ValidationOutcome::invalid_from_message(error_msg));
+                    return Ok(ValidationOutcome::invalid(
+                        ValidationErrorKind::ScriptMissingMain,
+                        error_msg,
+                    ));
                 }
 
                 Ok(ValidationOutcome::Valid)
@@ -307,7 +295,7 @@ impl CoreConfigValidator {
             Err(err) => {
                 let error_msg: String = format!("Script syntax error: {err}").into();
                 logging!(warn, Type::Validate, "Ошибка синтаксиса скрипта: {}", err);
-                Ok(ValidationOutcome::invalid_from_message(error_msg))
+                Ok(ValidationOutcome::invalid(ValidationErrorKind::ScriptSyntax, error_msg))
             }
         }
     }
@@ -328,7 +316,7 @@ impl CoreConfigValidator {
         // Проверяем существование файла
         if !std::path::Path::new(config_path).exists() {
             let error_msg: String = format!("File not found: {config_path}").into();
-            return Ok(ValidationOutcome::invalid_from_message(error_msg));
+            return Ok(ValidationOutcome::invalid(ValidationErrorKind::FileMissing, error_msg));
         }
 
         // Если это merge-файл и это не принудительная проверка, выполняем
@@ -558,20 +546,46 @@ mod verdict_tests {
 
     #[test]
     fn the_cores_own_refusal_is_a_verdict_whatever_words_it_uses() {
-        let outcome = ValidationOutcome::rejected_by_core("proxy-groups[0].timeout: invalid type");
-        assert!(
-            matches!(outcome, ValidationOutcome::Invalid { kind, .. } if kind.is_the_cores_verdict()),
-            "слово timeout в тексте ядра — про поле конфига, отказ остаётся вердиктом"
-        );
-        let outcome = ValidationOutcome::rejected_by_core("yaml syntax error: did not find expected key");
-        assert!(matches!(
-            outcome,
-            ValidationOutcome::Invalid {
-                kind: ValidationErrorKind::YamlSyntax,
-                ..
-            }
-        ));
+        for said in [
+            "proxy-groups[0].timeout: invalid type",
+            "yaml syntax error: did not find expected key",
+            "rule-providers[geo]: open ./geo.mrs: file not found",
+            "failed to read the provider file",
+            "проверка прервана: таймаут поля",
+        ] {
+            assert_eq!(
+                ValidationOutcome::rejected_by_core(said),
+                ValidationOutcome::invalid(ValidationErrorKind::CoreRejected, said),
+                "{said}"
+            );
+        }
         assert!(!ValidationErrorKind::ProcessTerminated.is_the_cores_verdict());
         assert!(!ValidationErrorKind::Timeout.is_the_cores_verdict());
+        assert!(!ValidationErrorKind::ApplyFailed.is_the_cores_verdict());
+    }
+
+    #[test]
+    fn a_failed_build_keeps_the_kind_its_origin_named_whatever_the_words() {
+        // Переведённый текст сборки со «словом-ловушкой» — по-прежнему отказ сборки.
+        let plain = anyhow::anyhow!("Пока сохранялась страница DNS, подписка сменилась (таймаут, прервано)");
+        assert_eq!(
+            ValidationOutcome::of_a_failed_build(&plain),
+            ValidationOutcome::invalid(ValidationErrorKind::BuildFailed, plain.to_string())
+        );
+        let unread: anyhow::Result<()> = Err(anyhow::anyhow!("yaml: line 1: did not find expected key"));
+        let unread = anyhow::Context::context(
+            unread,
+            super::Refusal {
+                kind: ValidationErrorKind::FileRead,
+                message: "failed to read current profile \"R1\"".into(),
+            },
+        )
+        .err()
+        .unwrap_or_else(|| anyhow::anyhow!("no error"));
+        assert_eq!(
+            ValidationOutcome::of_a_failed_build(&unread),
+            ValidationOutcome::invalid(ValidationErrorKind::FileRead, "failed to read current profile \"R1\"")
+        );
+        assert!(ValidationErrorKind::BuildFailed.is_the_cores_verdict());
     }
 }

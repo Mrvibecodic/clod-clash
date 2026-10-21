@@ -154,12 +154,10 @@
       },
       "yaml": {
         "syntaxError": "YAML-Syntaxfehler. Die Änderungen wurden rückgängig gemacht.",
-        "readError": "YAML-Lesefehler. Die Änderungen wurden rückgängig gemacht.",
-        "mappingError": "YAML-Mappingfehler. Die Änderungen wurden rückgängig gemacht."
+        "readError": "YAML-Lesefehler. Die Änderungen wurden rückgängig gemacht."
       },
       "merge": {
-        "syntaxError": "Syntaxfehler in der Überdeckungsdatei. Die Änderungen wurden rückgängig gemacht.",
-        "mappingError": "Mappingfehler in der Überdeckungsdatei. Die Änderungen wurden rückgängig gemacht."
+        "syntaxError": "Syntaxfehler in der Überdeckungsdatei. Die Änderungen wurden rückgängig gemacht."
       }
     },
     "crash": {

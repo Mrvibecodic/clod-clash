@@ -154,12 +154,10 @@
       },
       "yaml": {
         "syntaxError": "YAML 구문 오류",
-        "readError": "YAML 읽기 오류",
-        "mappingError": "YAML 매핑 오류"
+        "readError": "YAML 읽기 오류"
       },
       "merge": {
-        "syntaxError": "병합 파일 구문 오류",
-        "mappingError": "병합 파일 매핑 오류"
+        "syntaxError": "병합 파일 구문 오류"
       }
     },
     "crash": {

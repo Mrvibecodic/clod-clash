@@ -154,12 +154,10 @@
       },
       "yaml": {
         "syntaxError": "YAML syntax error, changes reverted",
-        "readError": "YAML read error, changes reverted",
-        "mappingError": "YAML mapping error, changes reverted"
+        "readError": "YAML read error, changes reverted"
       },
       "merge": {
-        "syntaxError": "Merge file syntax error, changes reverted",
-        "mappingError": "Merge file mapping error, changes reverted"
+        "syntaxError": "Merge file syntax error, changes reverted"
       }
     },
     "crash": {

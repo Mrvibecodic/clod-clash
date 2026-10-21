@@ -794,8 +794,8 @@ mod tests {
         let refused = |kind| boot_verdict(&Ok(ValidationOutcome::invalid(kind, "why")));
         for kind in [
             ValidationErrorKind::CoreRejected,
+            ValidationErrorKind::BuildFailed,
             ValidationErrorKind::YamlSyntax,
-            ValidationErrorKind::YamlMapping,
             ValidationErrorKind::ScriptSyntax,
             ValidationErrorKind::ScriptMissingMain,
             ValidationErrorKind::FileMissing,

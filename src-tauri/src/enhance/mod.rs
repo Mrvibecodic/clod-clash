@@ -19,6 +19,7 @@ use crate::utils::dirs;
 use crate::{
     config::{Config, IClashTemp, IProfiles, IVerge, PrfItem, runtime::IRuntime},
     constants,
+    core::validate::{Refusal, ValidationErrorKind},
     utils::{help, tmpl},
 };
 use anyhow::{Context as _, Result};
@@ -389,10 +390,10 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
         }
     };
 
-    let mut current = profiles_arc
-        .current_mapping()
-        .await
-        .with_context(|| format!("failed to read current profile \"{current_profile_uid}\""))?;
+    let mut current = profiles_arc.current_mapping().await.with_context(|| Refusal {
+        kind: ValidationErrorKind::FileRead,
+        message: format!("failed to read current profile \"{current_profile_uid}\"").into(),
+    })?;
 
     let dropped_ui_keys = EXTERNAL_UI_KEYS
         .iter()

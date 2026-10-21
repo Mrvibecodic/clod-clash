@@ -222,7 +222,7 @@ impl CoreManager {
     ) -> Result<std::result::Result<Staged<'a>, ValidationOutcome>> {
         let build = match Config::build(sources).await {
             Ok(build) => build,
-            Err(err) => return Ok(Err(ValidationOutcome::invalid_from_message(err.to_string()))),
+            Err(err) => return Ok(Err(ValidationOutcome::of_a_failed_build(&err))),
         };
         self.stage_under(guard, build, if_unchanged).await
     }
@@ -256,7 +256,10 @@ impl CoreManager {
         if_unchanged: IfUnchanged,
     ) -> Result<std::result::Result<Staged<'a>, ValidationOutcome>> {
         let Some(config) = build.config.as_ref() else {
-            return Ok(Err(ValidationOutcome::invalid_from_message("собранный конфиг пуст")));
+            return Ok(Err(ValidationOutcome::invalid(
+                ValidationErrorKind::BuildFailed,
+                "собранный конфиг пуст",
+            )));
         };
         let verdict = if if_unchanged == IfUnchanged::Skip && self.same_as_running(&build).await {
             logging!(debug, Type::Core, "Runtime config unchanged, check skipped");
@@ -375,7 +378,10 @@ impl CoreManager {
 
     async fn deliver_build(&self, build: IRuntime, delivery: Delivery) -> Result<Applied> {
         let Some(config) = build.config.as_ref() else {
-            return Ok(Err(ValidationOutcome::invalid_from_message("собранный конфиг пуст")));
+            return Ok(Err(ValidationOutcome::invalid(
+                ValidationErrorKind::BuildFailed,
+                "собранный конфиг пуст",
+            )));
         };
         // clod:port-ladder — порт мог приехать из подписки: системный
         // прокси и PAC указывают на него, и после смены их надо

@@ -16,7 +16,7 @@ use crate::{
         manager::{CommitFailed, Delivered, Delivery},
         timer::Timer,
         tray::Tray,
-        validate::ValidationOutcome,
+        validate::{ValidationErrorKind, ValidationOutcome},
     },
     enhance::Sources,
     feat,
@@ -555,7 +555,7 @@ fn handle_update_error<E: std::fmt::Display>(e: E) -> ValidationOutcome {
     // Ядро чаще всего работает на прежнем профиле: это «изменения отменены»,
     // а не отказ старта.
     handle::Handle::notice_message("config_validate::error", message.clone());
-    ValidationOutcome::invalid_from_message(message)
+    ValidationOutcome::invalid(ValidationErrorKind::ApplyFailed, message)
 }
 
 /// Собрать конфиг из кандидата реестра (`patch` поверх принятого — уже в своей
@@ -595,7 +595,7 @@ async fn perform_config_update(patch: IProfiles, current_value: Option<String>) 
                                     let message: String = super::public_error_text(&format!("{e}; повтор: {err:#}"));
                                     logging!(error, Type::Cmd, "{message}");
                                     handle::Handle::notice_message("update_failed", message.clone());
-                                    Ok(ValidationOutcome::invalid_from_message(message))
+                                    Ok(ValidationOutcome::invalid(ValidationErrorKind::ApplyFailed, message))
                                 }
                             }
                         }

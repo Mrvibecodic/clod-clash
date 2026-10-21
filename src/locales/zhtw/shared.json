@@ -154,12 +154,10 @@
       },
       "yaml": {
         "syntaxError": "YAML 語法錯誤，變更已撤銷",
-        "readError": "YAML 讀取錯誤，變更已撤銷",
-        "mappingError": "YAML 映射錯誤，變更已撤銷"
+        "readError": "YAML 讀取錯誤，變更已撤銷"
       },
       "merge": {
-        "syntaxError": "覆寫檔案語法錯誤，變更已撤銷",
-        "mappingError": "覆寫檔案映射錯誤，變更已撤銷"
+        "syntaxError": "覆寫檔案語法錯誤，變更已撤銷"
       }
     },
     "crash": {

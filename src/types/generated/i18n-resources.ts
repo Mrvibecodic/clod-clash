@@ -1686,7 +1686,6 @@ export interface TranslationResources {
             processTerminated: string
           }
           merge: {
-            mappingError: string
             syntaxError: string
           }
           script: {
@@ -1696,7 +1695,6 @@ export interface TranslationResources {
             syntaxError: string
           }
           yaml: {
-            mappingError: string
             readError: string
             syntaxError: string
           }

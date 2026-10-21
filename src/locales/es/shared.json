@@ -154,12 +154,10 @@
       },
       "yaml": {
         "syntaxError": "Error de sintaxis YAML. Los cambios se han deshecho",
-        "readError": "Error al leer el archivo YAML. Los cambios se han deshecho",
-        "mappingError": "Error de mapeo YAML. Los cambios se han deshecho"
+        "readError": "Error al leer el archivo YAML. Los cambios se han deshecho"
       },
       "merge": {
-        "syntaxError": "Error de sintaxis en el archivo de sobrescritura. Los cambios se han deshecho",
-        "mappingError": "Error de mapeo en el archivo de sobrescritura. Los cambios se han deshecho"
+        "syntaxError": "Error de sintaxis en el archivo de sobrescritura. Los cambios se han deshecho"
       }
     },
     "crash": {

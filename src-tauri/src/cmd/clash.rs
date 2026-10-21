@@ -165,8 +165,8 @@ const fn reached_a_verdict(outcome: &ValidationOutcome) -> bool {
         ValidationOutcome::Invalid { kind, .. } => matches!(
             kind,
             ValidationErrorKind::CoreRejected
+                | ValidationErrorKind::BuildFailed
                 | ValidationErrorKind::YamlSyntax
-                | ValidationErrorKind::YamlMapping
                 | ValidationErrorKind::ScriptSyntax
                 | ValidationErrorKind::ScriptMissingMain
         ),
@@ -505,8 +505,8 @@ mod tests {
 
         for kind in [
             ValidationErrorKind::CoreRejected,
+            ValidationErrorKind::BuildFailed,
             ValidationErrorKind::YamlSyntax,
-            ValidationErrorKind::YamlMapping,
             ValidationErrorKind::ScriptSyntax,
             ValidationErrorKind::ScriptMissingMain,
         ] {
@@ -522,6 +522,7 @@ mod tests {
         for kind in [
             ValidationErrorKind::FileMissing,
             ValidationErrorKind::FileRead,
+            ValidationErrorKind::ApplyFailed,
             ValidationErrorKind::ProcessTerminated,
             ValidationErrorKind::Timeout,
         ] {
