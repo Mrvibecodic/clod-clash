@@ -12,6 +12,7 @@ notifications:
     'off': System proxy has been disabled.
     writeFailed: "The system did not accept the proxy settings: {reason}"
     failed: "The system proxy was not switched: {reason}"
+    coreNotRunning: "The system proxy was not turned on: the core is not running."
   tunModeToggled:
     title: 虛擬網路介面卡模式
     'on': TUN mode has been enabled.

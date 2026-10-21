@@ -12,6 +12,7 @@ notifications:
     'off': 系统代理已禁用。
     writeFailed: "The system did not accept the proxy settings: {reason}"
     failed: "The system proxy was not switched: {reason}"
+    coreNotRunning: "The system proxy was not turned on: the core is not running."
   tunModeToggled:
     title: 虚拟网卡模式
     'on': TUN 模式已开启。

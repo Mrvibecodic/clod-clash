@@ -624,6 +624,11 @@ mod tests {
                 "HotkeyFunction::",
             ),
             (include_str!("tray/mod.rs"), "MenuIds::RESTART_CLASH =>", "MenuIds::"),
+            (
+                include_str!("../feat/config.rs"),
+                "SysProxyStep::RefuseAndTurnTheSettingOff =>",
+                "SysProxyStep::",
+            ),
         ] {
             let code = crate::utils::source_scan::without_test_modules(source);
             let arm = code.split(signature).nth(1).unwrap_or_default();

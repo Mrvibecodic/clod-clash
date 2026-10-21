@@ -15,6 +15,8 @@ pub enum NotificationEvent<'a> {
         system_refused: bool,
         reason: &'a str,
     },
+    /// Системный прокси не включён: ядро не запущено.
+    SystemProxyCoreNotRunning,
     TunModeToggled(bool),
     /// TUN из трея или клавишей не включён: подготовка службы отказала.
     TunSetupRefused {
@@ -116,6 +118,11 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
             } else {
                 clash_verge_i18n::t!("notifications.systemProxyToggled.failed", reason = reason)
             };
+            notify(title, body);
+        }
+        NotificationEvent::SystemProxyCoreNotRunning => {
+            let title = clash_verge_i18n::t!("notifications.systemProxyToggled.title");
+            let body = clash_verge_i18n::t!("notifications.systemProxyToggled.coreNotRunning");
             notify(title, body);
         }
         NotificationEvent::TunModeToggled(enabled) => {

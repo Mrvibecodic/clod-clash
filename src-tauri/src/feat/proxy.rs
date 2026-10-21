@@ -158,7 +158,8 @@ pub async fn toggle_system_proxy() -> Toggled {
     match patch_result {
         Ok(_) => {
             handle::Handle::refresh_verge();
-            Toggled::To(
+            toggled_as_asked(
+                requested,
                 Config::verge()
                     .await
                     .latest_arc()
@@ -185,6 +186,16 @@ pub async fn toggle_system_proxy() -> Toggled {
             .await;
             Toggled::Untouched
         }
+    }
+}
+
+/// Переключено — только если записано то, о чём просили: шаг, который вернул
+/// настройку назад (ядро не запущено, ядро отвергло конфиг), о себе уже сказал.
+const fn toggled_as_asked(requested: bool, recorded: bool) -> Toggled {
+    if requested == recorded {
+        Toggled::To(recorded)
+    } else {
+        Toggled::Untouched
     }
 }
 
@@ -277,7 +288,10 @@ pub async fn toggle_tun_mode() -> Toggled {
             // после удавшегося перезапуска ядра `patch_verge` сохраняет её и
             // всё равно возвращает ошибку. Отвечаем тем, что реально записано,
             // иначе уведомление скажет «TUN выключен» при работающем TUN.
-            Toggled::To(Config::verge().await.data_arc().enable_tun_mode.unwrap_or(desired))
+            toggled_as_asked(
+                enable,
+                Config::verge().await.data_arc().enable_tun_mode.unwrap_or(desired),
+            )
         }
     }
 }
@@ -331,8 +345,8 @@ pub async fn copy_clash_env() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        SetupAnswer, SystemProxyStep, TunRefusal, goes_through, system_proxy_failure_status, system_proxy_step,
-        tun_switch_to,
+        SetupAnswer, SystemProxyStep, Toggled, TunRefusal, goes_through, system_proxy_failure_status,
+        system_proxy_step, toggled_as_asked, tun_switch_to,
     };
 
     fn chain(hops: &[&str]) -> Vec<std::string::String> {
@@ -428,6 +442,22 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_switch_that_was_turned_back_is_not_reported_as_done() {
+        assert_eq!(toggled_as_asked(true, true), Toggled::To(true));
+        assert_eq!(toggled_as_asked(false, false), Toggled::To(false));
+        assert_eq!(
+            toggled_as_asked(true, false),
+            Toggled::Untouched,
+            "ядро не запущено — прокси не включён, «выключен» не пишем"
+        );
+        assert_eq!(
+            toggled_as_asked(false, true),
+            Toggled::Untouched,
+            "выключение откатилось — «включён» не пишем"
+        );
     }
 
     #[test]

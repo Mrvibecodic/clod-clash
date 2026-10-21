@@ -365,7 +365,12 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
                         draft.connect_system_proxy,
                     );
                 });
-                handle::Handle::notice_message("sysproxy::core_not_running", "");
+                crate::core::notification::tell_the_outcome(
+                    "sysproxy::core_not_running",
+                    std::string::String::new(),
+                    crate::utils::notification::NotificationEvent::SystemProxyCoreNotRunning,
+                )
+                .await;
                 sysopt::Sysopt::global().refresh_guard().await;
             }
             SysProxyStep::RefuseQuietly => {
