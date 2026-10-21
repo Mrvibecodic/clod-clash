@@ -46,7 +46,7 @@
       "instruction": "프록시 체인에 추가하려면 순서대로 노드를 클릭하세요",
       "minimumNodes": "체인 프록시는 최소 2개의 노드가 필요합니다",
       "minimumNodesHint": "체인 프록시는 최소 2개의 노드가 필요합니다. 하나 더 추가하세요.",
-      "connectFailed": "프록시 체인 연결 실패",
+      "connectFailed": "Failed to connect to proxy chain: {{reason}}",
       "disconnectFailed": "프록시 체인 연결 해제 실패",
       "duplicateNode": "프록시 노드가 체인에 이미 존재합니다",
       "entryNode": "입구",

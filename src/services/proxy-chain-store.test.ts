@@ -220,3 +220,16 @@ describe('leaving the chain mode', () => {
     assert.ok(off > 0 && failed > off && left > failed)
   })
 })
+
+describe('a refused connection', () => {
+  it('tells the reason the backend gave', () => {
+    const chain = readFileSync(
+      new URL('../components/proxy/proxy-chain.tsx', import.meta.url),
+      'utf8',
+    )
+    assert.match(
+      chain,
+      /showNotice\.error\('proxies\.page\.chain\.connectFailed', \{\s*reason: errorReason\(error, t\),?\s*\}\)/,
+    )
+  })
+})

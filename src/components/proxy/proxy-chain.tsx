@@ -56,6 +56,7 @@ import {
 import { revalidateQueriesByPrefix } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
 import { delayText, delayTone, failedDelay } from '@/utils/delay-color'
+import { errorReason } from '@/utils/error-explanation'
 import { nodeName, typeText } from '@/utils/proxy-label'
 
 interface ProxyChainProps {
@@ -347,7 +348,9 @@ export const ProxyChain = ({
       debugLog('Successfully connected to proxy chain')
     } catch (error) {
       console.error('Failed to connect to proxy chain:', error)
-      showNotice.error('proxies.page.chain.connectFailed')
+      showNotice.error('proxies.page.chain.connectFailed', {
+        reason: errorReason(error, t),
+      })
     } finally {
       setIsConnecting(false)
     }
@@ -358,6 +361,7 @@ export const ProxyChain = ({
     targetGroup,
     onUpdateChain,
     profileUid,
+    t,
   ])
 
   useEffect(() => {

@@ -46,7 +46,7 @@
       "instruction": "依序點擊節點新增到鏈式代理中",
       "minimumNodes": "鏈式代理至少需要 2 個節點",
       "minimumNodesHint": "鏈式代理至少需要 2 個節點，請再新增一個節點。",
-      "connectFailed": "連線鏈式代理失敗",
+      "connectFailed": "Failed to connect to proxy chain: {{reason}}",
       "disconnectFailed": "中斷鏈式代理失敗",
       "duplicateNode": "該節點已在鏈式代理表中",
       "entryNode": "入口",

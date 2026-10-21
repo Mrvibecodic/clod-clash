@@ -46,7 +46,7 @@
       "instruction": "Click nodes in order to add to proxy chain",
       "minimumNodes": "Chain proxy requires at least 2 nodes",
       "minimumNodesHint": "Chain proxy requires at least 2 nodes. Please add one more node.",
-      "connectFailed": "Failed to connect to proxy chain",
+      "connectFailed": "Failed to connect to proxy chain: {{reason}}",
       "disconnectFailed": "Failed to disconnect from proxy chain",
       "duplicateNode": "Proxy node already exists in chain",
       "entryNode": "入口",
