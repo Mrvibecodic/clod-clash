@@ -890,10 +890,6 @@ pub fn init_scheme() -> Result<()> {
     crate::utils::linux::mime::ensure_mimeapps_entries(desktop_file, DEEP_LINK_SCHEMES)?;
     Ok(())
 }
-#[cfg(target_os = "macos")]
-pub const fn init_scheme() -> Result<()> {
-    Ok(())
-}
 
 #[cfg(target_os = "linux")]
 use crate::constants::branding::DEEP_LINK_SCHEMES;

@@ -42,6 +42,7 @@ pub fn init_work_dir_and_logger() -> anyhow::Result<()> {
 
 pub fn resolve_setup_sync() {
     AsyncHandler::spawn(|| async {
+        #[cfg(not(target_os = "macos"))]
         AsyncHandler::spawn_blocking(init_scheme);
         init_embed_server();
     });
@@ -151,6 +152,7 @@ pub fn resolve_setup_async() {
     });
 }
 
+#[cfg(not(target_os = "macos"))]
 pub(super) fn init_scheme() {
     logging_error!(Type::Setup, init::init_scheme());
 }
