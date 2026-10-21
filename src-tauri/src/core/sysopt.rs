@@ -205,13 +205,25 @@ impl OurListener {
 }
 
 /// Включён ли в системе наш прокси: в режиме PAC — наша автонастройка, иначе
-/// ручной прокси на нашем слушателе.
-fn our_proxy_is_on_in(observed: &ObservedProxy, pac: bool, ours: &OurListener) -> bool {
+/// ручной прокси на нашем слушателе; `None` — систему прочитать не удалось.
+/// Читается только то, что решает текущий режим, а адрес ручного прокси —
+/// только если он может быть включён: на Linux каждое поле — отдельный процесс.
+fn our_proxy_is_on_in(
+    pac: bool,
+    ours: &OurListener,
+    manual_may_be_on: impl FnOnce() -> Option<bool>,
+    manual: impl FnOnce() -> Option<Sysproxy>,
+    auto: impl FnOnce() -> Option<Autoproxy>,
+) -> Option<bool> {
     if pac {
-        observed.auto_enable && ours.serves_pac(&observed.auto_url)
-    } else {
-        observed.sys_enable && ours.serves(&observed.host, observed.port)
+        let auto = auto()?;
+        return Some(auto.enable && ours.serves_pac(&auto.url));
     }
+    if !manual_may_be_on()? {
+        return Some(false);
+    }
+    let manual = manual()?;
+    Some(manual.enable && ours.serves(&manual.host, manual.port))
 }
 
 /// Негодный выбранный адрес (пропал у машины или не пускается списками
@@ -705,8 +717,21 @@ impl Sysopt {
         let verge = Config::verge().await.latest_arc();
         let ours = OurListener::now().await;
         let pac = verge.proxy_auto_config.unwrap_or_default();
-        match tokio::task::spawn_blocking(ObservedProxy::read).await.ok().flatten() {
-            Some(observed) => our_proxy_is_on_in(&observed, pac, &ours),
+        #[cfg(target_os = "linux")]
+        let manual_may_be_on = || Sysproxy::get_enable().ok();
+        #[cfg(not(target_os = "linux"))]
+        let manual_may_be_on = || Some(true);
+        let read = tokio::task::spawn_blocking(move || {
+            our_proxy_is_on_in(
+                pac,
+                &ours,
+                manual_may_be_on,
+                || Sysproxy::get_system_proxy().ok(),
+                || Autoproxy::get_auto_proxy().ok(),
+            )
+        });
+        match read.await.ok().flatten() {
+            Some(on) => on,
             None => verge.enable_system_proxy.unwrap_or_default(),
         }
     }
@@ -1097,6 +1122,7 @@ mod tests {
         the_take_down_we_have_to_skip, the_unusable_address_to_announce,
     };
     use crate::config::HostChoice;
+    use sysproxy::{Autoproxy, Sysproxy};
 
     fn observed(sys_enable: bool, host: &str, port: u16, auto_enable: bool) -> ObservedProxy {
         ObservedProxy {
@@ -1140,26 +1166,97 @@ mod tests {
             (&alone, "192.168.1.5", 7897, false),
         ] {
             assert_eq!(
-                our_proxy_is_on_in(&observed(true, host, port, false), false, listener),
-                ours,
+                manual_is_ours(listener, true, host, port),
+                Some(ours),
                 "{host}:{port} при раздаче {}",
                 listener.sharing
             );
-            assert!(!our_proxy_is_on_in(
-                &observed(false, host, port, false),
-                false,
-                listener
-            ));
+            assert_eq!(manual_is_ours(listener, false, host, port), Some(false));
         }
         let v6 = OurListener::with("[fe80::1]", true, 7897);
-        assert!(our_proxy_is_on_in(&observed(true, "fe80::1", 7897, false), false, &v6));
+        assert_eq!(manual_is_ours(&v6, true, "fe80::1", 7897), Some(true));
 
-        let mut pac = observed(false, "", 0, true);
-        pac.auto_url = sharing.pac_url.clone();
-        assert!(our_proxy_is_on_in(&pac, true, &sharing));
-        assert!(!our_proxy_is_on_in(&pac, false, &sharing));
-        pac.auto_url = "http://192.168.1.5:33331/commands/pac".to_owned();
-        assert!(!our_proxy_is_on_in(&pac, true, &sharing));
+        let pac = |url: &str| {
+            Some(Autoproxy {
+                url: url.to_owned(),
+                enable: true,
+            })
+        };
+        let no_manual = || -> Option<Sysproxy> { None };
+        assert_eq!(
+            our_proxy_is_on_in(true, &sharing, || None, no_manual, || pac(&sharing.pac_url)),
+            Some(true)
+        );
+        assert_eq!(
+            our_proxy_is_on_in(false, &sharing, || Some(false), no_manual, || pac(&sharing.pac_url)),
+            Some(false)
+        );
+        assert_eq!(
+            our_proxy_is_on_in(
+                true,
+                &sharing,
+                || None,
+                no_manual,
+                || { pac("http://192.168.1.5:33331/commands/pac") }
+            ),
+            Some(false)
+        );
+    }
+
+    fn manual_is_ours(listener: &OurListener, enable: bool, host: &str, port: u16) -> Option<bool> {
+        let manual = Sysproxy {
+            host: host.to_owned(),
+            bypass: std::string::String::new(),
+            port,
+            enable,
+        };
+        our_proxy_is_on_in(false, listener, || Some(true), || Some(manual), || None)
+    }
+
+    #[test]
+    fn the_tray_check_reads_only_what_the_current_mode_decides() {
+        let ours = OurListener::with("127.0.0.1", false, 7897);
+        let reads = std::cell::RefCell::new(Vec::new());
+        let read = |what: &'static str| reads.borrow_mut().push(what);
+
+        let off = our_proxy_is_on_in(
+            false,
+            &ours,
+            || {
+                read("manual switch");
+                Some(false)
+            },
+            || {
+                read("manual proxy");
+                Some(Sysproxy::default())
+            },
+            || {
+                read("pac");
+                Some(Autoproxy::default())
+            },
+        );
+        assert_eq!((off, reads.take()), (Some(false), vec!["manual switch"]));
+
+        let pac = our_proxy_is_on_in(
+            true,
+            &ours,
+            || {
+                read("manual switch");
+                Some(true)
+            },
+            || {
+                read("manual proxy");
+                Some(Sysproxy::default())
+            },
+            || {
+                read("pac");
+                Some(Autoproxy::default())
+            },
+        );
+        assert_eq!((pac, reads.take()), (Some(false), vec!["pac"]));
+
+        let unreadable = our_proxy_is_on_in(false, &ours, || None, || Some(Sysproxy::default()), || None);
+        assert_eq!(unreadable, None, "переключатель не прочитан — система не прочитана");
     }
 
     #[test]
