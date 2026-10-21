@@ -464,8 +464,24 @@ Function CheckVCRuntime64
     Pop $R0
 FunctionEnd
 
+Var PowerShellExe
+
+; Установщик 32-битный: на 64-битной Windows обычный вызов дал бы 32-битный
+; PowerShell, которому не видны пути 64-битных процессов и часть настроек
+; системы. Sysnative есть только у 32-битного процесса на 64-битной системе.
+!macro FindPowerShell
+  StrCpy $PowerShellExe "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe"
+  ${If} ${FileExists} "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+    StrCpy $PowerShellExe "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+  ${EndIf}
+!macroend
+
+; Наши ядра — процессы, чей исполняемый файл лежит в папке установки
+; (`CLOD_CLASH_INSTDIR`): одноимённое ядро есть и у других программ.
+!define OUR_CORES "$$ours = 'verge-mihomo.exe', 'verge-mihomo-alpha.exe' | ForEach-Object { Join-Path $$env:CLOD_CLASH_INSTDIR $$_ }; $$cores = @(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $$ours -contains $$_.ExecutablePath })"
+
 !macro CheckAllVergeProcesses
-  ; Одноимённое ядро есть и у других программ: своё узнаётся по полному пути.
+  !insertmacro FindPowerShell
   System::Call 'kernel32::SetEnvironmentVariable(t "CLOD_CLASH_INSTDIR", t "$INSTDIR")i'
 
   ; Служба общая с другой программой и держит ядро одной из них за раз:
@@ -474,7 +490,7 @@ FunctionEnd
   SimpleSC::ExistsService "clash_verge_service"
   Pop $R0
   ${If} $R0 == 0
-    nsExec::ExecToLog /TIMEOUT=30000 `powershell.exe -NoProfile -NonInteractive -Command "$$ours = 'verge-mihomo.exe', 'verge-mihomo-alpha.exe' | ForEach-Object { Join-Path $$env:CLOD_CLASH_INSTDIR $$_ }; $$svc = (Get-CimInstance Win32_Service -ErrorAction Stop | Where-Object Name -eq 'clash_verge_service').ProcessId; if ($$svc -and (Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $$_.ParentProcessId -eq $$svc -and $$ours -contains $$_.ExecutablePath })) { exit 10 } else { exit 11 }"`
+    nsExec::ExecToLog /TIMEOUT=30000 `"$PowerShellExe" -NoProfile -NonInteractive -Command "${OUR_CORES}; $$svc = (Get-CimInstance Win32_Service -ErrorAction Stop | Where-Object Name -eq 'clash_verge_service').ProcessId; if ($$svc -and ($$cores | Where-Object { $$_.ParentProcessId -eq $$svc })) { exit 10 } else { exit 11 }"`
     Pop $R0
     ${If} $R0 == 11
       DetailPrint "${PRODUCTNAME} Service does not run the core of ${PRODUCTNAME}; leaving it as it is"
@@ -506,7 +522,7 @@ FunctionEnd
   ${EndIf}
 
   DetailPrint "Stopping the cores in $INSTDIR..."
-  nsExec::ExecToLog /TIMEOUT=30000 `powershell.exe -NoProfile -NonInteractive -Command "$$ours = 'verge-mihomo.exe', 'verge-mihomo-alpha.exe' | ForEach-Object { Join-Path $$env:CLOD_CLASH_INSTDIR $$_ }; Get-Process -Name 'verge-mihomo', 'verge-mihomo-alpha' -ErrorAction SilentlyContinue | Where-Object { $$ours -contains $$_.Path } | Stop-Process -Force -PassThru -ErrorAction SilentlyContinue | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue"`
+  nsExec::ExecToLog /TIMEOUT=30000 `"$PowerShellExe" -NoProfile -NonInteractive -Command "${OUR_CORES}; foreach ($$core in $$cores) { Stop-Process -Id $$core.ProcessId -Force -ErrorAction SilentlyContinue; Wait-Process -Id $$core.ProcessId -Timeout 10 -ErrorAction SilentlyContinue }"`
   Pop $R0
 !macroend
 
@@ -776,7 +792,8 @@ Section Install
 
   ; BBR2 на Windows 11 24H2 рвёт соединения через 127.0.0.1, на котором слушает
   ; ядро: стоит он — только он и меняется на CUBIC, прочие настройки TCP не трогаются.
-  nsExec::ExecToLog /TIMEOUT=30000 `powershell.exe -NoProfile -NonInteractive -Command "Get-NetTCPSetting -ErrorAction SilentlyContinue | Where-Object { $$_.CongestionProvider -eq 'BBR2' } | ForEach-Object { netsh int tcp set supplemental template=$$($$_.SettingName.ToLower()) congestionprovider=cubic }"`
+  !insertmacro FindPowerShell
+  nsExec::ExecToLog /TIMEOUT=30000 `"$PowerShellExe" -NoProfile -NonInteractive -Command "Get-NetTCPSetting -ErrorAction SilentlyContinue | Where-Object { $$_.CongestionProvider -eq 'BBR2' } | ForEach-Object { netsh int tcp set supplemental template=$$($$_.SettingName.ToLower()) congestionprovider=cubic }"`
   Pop $0
 
   nsExec::Exec 'netsh advfirewall firewall delete rule name=all dir=in program="$INSTDIR\verge-mihomo.exe"'
