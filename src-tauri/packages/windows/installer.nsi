@@ -482,7 +482,14 @@ Var PowerShellExe
 
 !macro CheckAllVergeProcesses
   !insertmacro FindPowerShell
-  System::Call 'kernel32::SetEnvironmentVariable(t "CLOD_CLASH_INSTDIR", t "$INSTDIR")i'
+  ; ExecutablePath процессов всегда длинный: путь установки с короткими
+  ; 8.3-именами разворачивается, иначе свои ядра не совпали бы с ним.
+  System::Call 'kernel32::GetLongPathName(t "$INSTDIR", t .R9, i ${NSIS_MAX_STRLEN}) i .R8'
+  ${If} $R8 = 0
+  ${OrIf} $R8 >= ${NSIS_MAX_STRLEN}
+    StrCpy $R9 $INSTDIR
+  ${EndIf}
+  System::Call 'kernel32::SetEnvironmentVariable(t "CLOD_CLASH_INSTDIR", t "$R9")i'
 
   ; Служба общая с другой программой и держит ядро одной из них за раз:
   ; останавливается, только если держит наше. 10 — наше, 11 — нет, иначе
