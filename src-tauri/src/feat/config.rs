@@ -526,7 +526,10 @@ pub(crate) async fn patch_verge_locked(patch: &IVerge, not_save_file: bool) -> R
             Ok(()) => Err(err),
             // Обещание «настройки всё равно сохраняем» не выполнено — это
             // должно быть видно вызывающему, а не только в логе.
-            Err(save_error) => Err(err.context(format!("и настройки не сохранились: {save_error:#}"))),
+            Err(save_error) => Err(err.context(clash_verge_i18n::t!(
+                "errors.settingsNotSaved",
+                reason = format!("{save_error:#}")
+            ))),
         };
     }
     verge.apply();

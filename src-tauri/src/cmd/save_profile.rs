@@ -115,6 +115,15 @@ fn profile_affects_runtime(profiles: &IProfiles, index: &str) -> bool {
     .contains(&index)
 }
 
+/// Подпись файла для журнальных строк проверки.
+const fn file_label_for_the_log(target: ValidationNoticeTarget) -> &'static str {
+    match target {
+        ValidationNoticeTarget::Script => "файл скрипта",
+        ValidationNoticeTarget::Merge => "объединённый конфиг",
+        ValidationNoticeTarget::Runtime => "YAML-конфиг",
+    }
+}
+
 async fn handle_saved_profile_file(
     file_path_str: &str,
     file_path: &std::path::Path,
@@ -124,13 +133,14 @@ async fn handle_saved_profile_file(
     is_script_file: bool,
     affects_runtime: bool,
 ) -> CmdResult<ValidationOutcome> {
-    let (target, file_type) = if is_script_file {
-        (ValidationNoticeTarget::Script, "файл скрипта")
+    let target = if is_script_file {
+        ValidationNoticeTarget::Script
     } else if is_merge_file {
-        (ValidationNoticeTarget::Merge, "объединённый конфиг")
+        ValidationNoticeTarget::Merge
     } else {
-        (ValidationNoticeTarget::Runtime, "YAML-конфиг")
+        ValidationNoticeTarget::Runtime
     };
+    let file_type = file_label_for_the_log(target);
 
     logging!(
         info,

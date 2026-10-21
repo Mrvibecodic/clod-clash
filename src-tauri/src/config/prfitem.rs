@@ -521,8 +521,8 @@ impl std::fmt::Display for ChanRefused {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "clod-chan-refused: прослойка не приняла защищённый запрос ({})",
-            self.0
+            "clod-chan-refused: {}",
+            clash_verge_i18n::t!("errors.chanRefused", status = self.0.to_string())
         )
     }
 }

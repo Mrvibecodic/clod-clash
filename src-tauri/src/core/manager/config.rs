@@ -258,7 +258,7 @@ impl CoreManager {
         let Some(config) = build.config.as_ref() else {
             return Ok(Err(ValidationOutcome::invalid(
                 ValidationErrorKind::BuildFailed,
-                "собранный конфиг пуст",
+                clash_verge_i18n::t!("core.emptyBuild").into_owned(),
             )));
         };
         let verdict = if if_unchanged == IfUnchanged::Skip && self.same_as_running(&build).await {
@@ -380,7 +380,7 @@ impl CoreManager {
         let Some(config) = build.config.as_ref() else {
             return Ok(Err(ValidationOutcome::invalid(
                 ValidationErrorKind::BuildFailed,
-                "собранный конфиг пуст",
+                clash_verge_i18n::t!("core.emptyBuild").into_owned(),
             )));
         };
         // clod:port-ladder — порт мог приехать из подписки: системный
@@ -933,8 +933,8 @@ impl std::fmt::Display for CommitFailed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ядро приняло конфиг, но записать его источник не удалось: {:#}",
-            self.0
+            "{}",
+            clash_verge_i18n::t!("core.sourceNotSaved", reason = format!("{:#}", self.0))
         )
     }
 }

@@ -435,7 +435,7 @@ impl Config {
         logging!(info, Type::Config, "Runtime-конфиг сгенерирован успешно");
 
         let Some(config) = build.config.as_ref() else {
-            let error_msg: String = "собранный конфиг пуст".into();
+            let error_msg: String = clash_verge_i18n::t!("core.emptyBuild").into_owned().into();
             manager.refuse_to_start(error_msg.clone());
             return Ok(Some(("config_validate::boot_error", error_msg)));
         };
@@ -501,7 +501,7 @@ impl Config {
         let config = runtime
             .config
             .as_ref()
-            .ok_or_else(|| anyhow!("принятого конфига ядра нет — конфиг ещё не собран или отвергнут ядром"))?;
+            .ok_or_else(|| anyhow!("{}", clash_verge_i18n::t!("core.noAcceptedConfig")))?;
         Self::write_config_file(ConfigType::Run, config).await
     }
 

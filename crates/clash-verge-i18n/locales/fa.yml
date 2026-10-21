@@ -117,6 +117,10 @@ core:
   previousAlsoFailed: "and the previous core did not start either: {reason}"
   rollbackWriteFailed: "the previous core could not be put back ({reason}), but a core is running again"
   rollbackAndRestartFailed: "the previous core could not be put back ({reason}), and no core started: {restart}"
+  sourceNotSaved: "the core accepted the configuration, but its source could not be written: {reason}"
+  checkTimedOut: "The core did not finish checking the configuration in {secs} s (timeout)"
+  checkCrashed: "The check process crashed, exit code: {code}"
+  checkInterrupted: "The check process was interrupted"
 service:
   adminInstallPrompt: نصب سرویس سیستمی به دسترسی مدیر نیاز دارد.
   adminUninstallPrompt: حذف سرویس سیستمی به دسترسی مدیر نیاز دارد.
@@ -187,6 +191,10 @@ errors:
   chainNodesMissing: "The chain nodes are not among the subscription nodes"
   noCurrentSubscription: "No subscription is selected"
   emptyChain: "The chain is empty"
+  retryAlsoFailed: "{first}; retry: {again}"
+  chanRefused: "the relay did not accept the secure request ({status})"
+  tooManyRedirects: "Too many redirects"
+  settingsNotSaved: "and the settings were not saved: {reason}"
 tray:
   dashboard: داشبورد
   ruleMode: حالت قانون

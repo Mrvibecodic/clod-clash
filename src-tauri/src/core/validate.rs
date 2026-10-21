@@ -415,10 +415,7 @@ impl CoreConfigValidator {
             );
             return Ok(ValidationOutcome::invalid(
                 ValidationErrorKind::Timeout,
-                format!(
-                    "Проверка конфига ядром не уложилась в {} с (таймаут)",
-                    CHECK_TIMEOUT.as_secs()
-                ),
+                clash_verge_i18n::t!("core.checkTimedOut", secs = CHECK_TIMEOUT.as_secs().to_string()).into_owned(),
             ));
         };
         let (stdout, stderr) = (&stdout, &stderr);
@@ -440,9 +437,11 @@ impl CoreConfigValidator {
             } else if !stderr.is_empty() {
                 str::from_utf8(stderr).unwrap_or_default().into()
             } else if let Some(code) = code {
-                format!("Процесс проверки завершился аварийно, код выхода: {code}").into()
+                clash_verge_i18n::t!("core.checkCrashed", code = code.to_string())
+                    .into_owned()
+                    .into()
             } else {
-                "Процесс проверки был прерван".into()
+                clash_verge_i18n::t!("core.checkInterrupted").into_owned().into()
             };
 
             logging!(info, Type::Validate, "-------- Проверка завершена --------");

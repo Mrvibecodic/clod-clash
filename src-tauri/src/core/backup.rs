@@ -112,7 +112,7 @@ impl WebDavClient {
                     ))
                     .redirect(reqwest::redirect::Policy::custom(|attempt| {
                         if attempt.previous().len() >= 5 {
-                            attempt.error("Слишком много перенаправлений")
+                            attempt.error(clash_verge_i18n::t!("errors.tooManyRedirects").into_owned())
                         } else {
                             attempt.follow()
                         }

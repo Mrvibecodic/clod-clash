@@ -39,7 +39,7 @@ fn profile_import_error(err: &anyhow::Error) -> std::string::String {
         return crate::utils::network::LegacyTls.to_string();
     }
 
-    format!("не удалось импортировать подписку: {err:#}")
+    clash_verge_i18n::t!("errors.subscriptionNotImported", reason = format!("{err:#}")).into_owned()
 }
 
 #[tauri::command]
@@ -434,7 +434,11 @@ async fn deliver_without(index: &String) -> CmdResult<PendingProfileFiles> {
                     delivered
                 }
                 Err(err) => {
-                    let message: String = super::public_error_text(&format!("{e}; повтор: {err:#}"));
+                    let message: String = super::public_error_text(&clash_verge_i18n::t!(
+                        "errors.retryAlsoFailed",
+                        first = e.to_string(),
+                        again = format!("{err:#}")
+                    ));
                     logging!(error, Type::Cmd, "{message}");
                     return Err(message);
                 }
@@ -592,7 +596,11 @@ async fn perform_config_update(patch: IProfiles, current_value: Option<String>) 
                             match commit_current_profile(&Config::profiles().await, current_value.clone()).await {
                                 Ok(()) => handle_success(delivered, current_value.as_ref()).await,
                                 Err(err) => {
-                                    let message: String = super::public_error_text(&format!("{e}; повтор: {err:#}"));
+                                    let message: String = super::public_error_text(&clash_verge_i18n::t!(
+                                        "errors.retryAlsoFailed",
+                                        first = e.to_string(),
+                                        again = format!("{err:#}")
+                                    ));
                                     logging!(error, Type::Cmd, "{message}");
                                     handle::Handle::notice_message("update_failed", message.clone());
                                     Ok(ValidationOutcome::invalid(ValidationErrorKind::ApplyFailed, message))
