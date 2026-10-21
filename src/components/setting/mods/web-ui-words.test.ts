@@ -18,6 +18,12 @@ test('окно «Веб-интерфейс» называет себя и раз
       lang,
     )
     assert.match(noController, /Clash/, lang)
+    const target = noController
+      .split('→')
+      .pop()
+      .replace(/[«»".]/g, '')
+      .trim()
+    assert.equal(target, settings.sections.clash.form.fields.external, lang)
     assert.doesNotMatch(noController, /core settings|настройках ядра/, lang)
   }
 })
