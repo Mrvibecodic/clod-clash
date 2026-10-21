@@ -365,6 +365,7 @@ export interface TranslationResources {
           errors: {
             nameExists: string
             nameRequired: string
+            nameReserved: string
             nameTakenByProxy: string
           }
           fields: {
@@ -467,6 +468,7 @@ export interface TranslationResources {
             prepend: string
           }
           errors: {
+            namesReserved: string
             namesTaken: string
           }
           placeholders: {

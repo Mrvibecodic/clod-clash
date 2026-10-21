@@ -1,4 +1,5 @@
 import delayManager from '@/services/delay'
+import { CORE_POLICIES } from '@/utils/core-policies'
 import { selectionEnd } from '@/utils/server-behind'
 import { type ClashMode, trafficGroups } from '@/utils/server-row'
 
@@ -16,15 +17,6 @@ export interface ProxyGroup {
   hidden?: boolean
   all?: ProxyNode[]
 }
-
-const CORE_POLICIES = [
-  'DIRECT',
-  'REJECT',
-  'REJECT-DROP',
-  'PASS',
-  'PASS-RULE',
-  'COMPATIBLE',
-]
 
 /** Ядро зовёт тип встроенной политики её же именем без дефисов. */
 export const NON_NODE_TYPES = new Set([

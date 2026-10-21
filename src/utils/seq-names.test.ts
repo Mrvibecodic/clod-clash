@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { groupNameConflict, takenSeqNames } from './seq-names.ts'
+import { seqNameConflict, takenSeqNames } from './seq-names.ts'
 
 const named = (...names: string[]) => names.map((name) => ({ name }))
 
@@ -18,8 +18,26 @@ test('имя, добавленное в конец, занято и для до�
 })
 
 test('имя новой группы не может совпадать с именем прокси: у ядра одно пространство имён', () => {
-  const groups = [named(), named('Авто'), named()]
-  assert.equal(groupNameConflict('NL-01', groups, ['NL-01', 'DE-02']), 'proxy')
-  assert.equal(groupNameConflict('Авто', groups, ['NL-01']), 'group')
-  assert.equal(groupNameConflict('Видео', groups, ['NL-01']), null)
+  const taken = takenSeqNames(named(), named('Авто'), named())
+  assert.equal(seqNameConflict('NL-01', 'group', taken, ['NL-01']), 'proxy')
+  assert.equal(seqNameConflict('Авто', 'group', taken, ['NL-01']), 'taken')
+  assert.equal(seqNameConflict('Видео', 'group', taken, ['NL-01']), null)
+})
+
+test('встроенные имена ядра не даются ни группе, ни прокси', () => {
+  const taken = takenSeqNames(named())
+  for (const name of [
+    'DIRECT',
+    'REJECT',
+    'REJECT-DROP',
+    'PASS',
+    'PASS-RULE',
+    'COMPATIBLE',
+  ]) {
+    assert.equal(seqNameConflict(name, 'group', taken), 'builtin', name)
+    assert.equal(seqNameConflict(name, 'proxy', taken), 'builtin', name)
+  }
+  assert.equal(seqNameConflict('GLOBAL', 'proxy', taken), 'builtin')
+  assert.equal(seqNameConflict('GLOBAL', 'group', taken), null)
+  assert.equal(seqNameConflict('direct', 'proxy', taken), null)
 })

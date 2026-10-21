@@ -185,7 +185,8 @@
     "proxiesEditor": {
       "title": "Editar nodos",
       "errors": {
-        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}",
+        "namesReserved": "Built-in core policy names are reserved — these proxies were skipped: {{names}}"
       },
       "placeholders": {
         "multiUri": "Para múltiples URI, utilice saltos de línea (se admite la codificación Base64)"
@@ -200,7 +201,8 @@
       "errors": {
         "nameRequired": "El nombre del grupo de proxy no puede estar vacío",
         "nameExists": "El nombre del grupo de proxy ya existe",
-        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name",
+        "nameReserved": "This is a built-in core policy name (DIRECT, REJECT and others) — choose another one"
       },
       "fields": {
         "type": "Tipo de grupo de proxy",

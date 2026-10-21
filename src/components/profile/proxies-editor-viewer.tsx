@@ -48,7 +48,7 @@ import type { MonacoEditorInstance } from '@/types/monaco'
 import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
 import type { EditorReadFailure } from '@/utils/editor-save'
 import { readEachFile } from '@/utils/profile-files'
-import { takenSeqNames } from '@/utils/seq-names'
+import { seqNameConflict, takenSeqNames } from '@/utils/seq-names'
 import parseUri from '@/utils/uri-parser'
 import { parseYamlSafe } from '@/utils/yaml'
 
@@ -239,6 +239,7 @@ export const ProxiesEditorViewer = (props: Props) => {
     const proxies: IProxyConfig[] = []
     const taken = takenSeqNames(prependSeq, proxyList, appendSeq)
     const duplicates: string[] = []
+    const reserved: string[] = []
     let uris: string
     try {
       uris = atob(proxyUri)
@@ -260,7 +261,10 @@ export const ProxiesEditorViewer = (props: Props) => {
         }
         try {
           const proxy = parseUri(uri)
-          if (taken.has(proxy.name)) {
+          const conflict = seqNameConflict(proxy.name, 'proxy', taken)
+          if (conflict === 'builtin') {
+            reserved.push(proxy.name)
+          } else if (conflict) {
             duplicates.push(proxy.name)
           } else {
             proxies.push(proxy)
@@ -296,6 +300,12 @@ export const ProxiesEditorViewer = (props: Props) => {
                 .join(' · '),
             },
             6000,
+          )
+        }
+        if (reserved.length > 0) {
+          showNotice.error(
+            'profiles.modals.proxiesEditor.errors.namesReserved',
+            { names: reserved.join(', ') },
           )
         }
         if (duplicates.length > 0) {

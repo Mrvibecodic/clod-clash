@@ -185,7 +185,8 @@
     "proxiesEditor": {
       "title": "ویرایش پروکسی‌ها",
       "errors": {
-        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}"
+        "namesTaken": "Proxies with these names already exist and were skipped: {{names}}",
+        "namesReserved": "Built-in core policy names are reserved — these proxies were skipped: {{names}}"
       },
       "placeholders": {
         "multiUri": "استفاده از خطوط جدید برای چندین آدرس (پشتیبانی از رمزگذاری Base64)"
@@ -200,7 +201,8 @@
       "errors": {
         "nameRequired": "نام گروه مورد نیاز است",
         "nameExists": "نام گروه قبلا وجود دارد",
-        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name"
+        "nameTakenByProxy": "A proxy with this name already exists — the group needs a different name",
+        "nameReserved": "This is a built-in core policy name (DIRECT, REJECT and others) — choose another one"
       },
       "fields": {
         "type": "نوع گروه",

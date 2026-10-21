@@ -56,7 +56,7 @@ import type { EditorReadFailure } from '@/utils/editor-save'
 import { optionalInt } from '@/utils/optional-int'
 import { readEachFile } from '@/utils/profile-files'
 import { BUILTIN_GROUP_POLICIES } from '@/utils/proxy-groups'
-import { groupNameConflict } from '@/utils/seq-names'
+import { seqNameConflict, takenSeqNames } from '@/utils/seq-names'
 import { parseYamlSafe } from '@/utils/yaml'
 
 interface Props {
@@ -450,12 +450,16 @@ export const GroupsEditorViewer = (props: Props) => {
   }
 
   const checkNameFree = () => {
-    const conflict = groupNameConflict(
+    const conflict = seqNameConflict(
       formIns.getValues().name,
-      [prependSeq, groupList, appendSeq],
+      'group',
+      takenSeqNames(prependSeq, groupList, appendSeq),
       proxyNameList,
     )
-    if (conflict === 'group') {
+    if (conflict === 'builtin') {
+      throw new Error(t('profiles.modals.groupsEditor.errors.nameReserved'))
+    }
+    if (conflict === 'taken') {
       throw new Error(t('profiles.modals.groupsEditor.errors.nameExists'))
     }
     if (conflict === 'proxy') {
