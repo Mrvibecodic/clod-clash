@@ -39,10 +39,20 @@ pub enum ValidationErrorKind {
 }
 
 impl ValidationErrorKind {
-    /// Это слово о конфиге, а не о среде: прибитая проверка, таймаут и
-    /// несостоявшееся применение про сам конфиг ничего не говорят.
-    pub const fn is_the_cores_verdict(self) -> bool {
-        !matches!(self, Self::ProcessTerminated | Self::Timeout | Self::ApplyFailed)
+    /// Отказ говорит о самом конфиге — его отвергают: на нём не стартуют, такую
+    /// подписку не принимают, такую страницу DNS не пишут. Иначе проверка не
+    /// состоялась по вине среды, и конфиг идёт без её слова.
+    pub const fn judges_the_config(self) -> bool {
+        match self {
+            Self::FileMissing
+            | Self::FileRead
+            | Self::YamlSyntax
+            | Self::ScriptSyntax
+            | Self::ScriptMissingMain
+            | Self::CoreRejected
+            | Self::BuildFailed => true,
+            Self::ApplyFailed | Self::ProcessTerminated | Self::Timeout => false,
+        }
     }
 }
 
@@ -106,6 +116,15 @@ impl ValidationOutcome {
     /// — вердикт, какими бы словами ядро его ни назвало.
     pub fn rejected_by_core(message: impl Into<String>) -> Self {
         Self::invalid(ValidationErrorKind::CoreRejected, message)
+    }
+
+    /// Проверка сказала слово о конфиге: принят или отвергнут.
+    pub const fn judged_the_config(&self) -> bool {
+        match self {
+            Self::Valid => true,
+            Self::Invalid { kind, .. } => kind.judges_the_config(),
+            Self::Skipped { .. } | Self::Busy => false,
+        }
     }
 
     pub const fn is_valid(&self) -> bool {
@@ -559,9 +578,6 @@ mod verdict_tests {
                 "{said}"
             );
         }
-        assert!(!ValidationErrorKind::ProcessTerminated.is_the_cores_verdict());
-        assert!(!ValidationErrorKind::Timeout.is_the_cores_verdict());
-        assert!(!ValidationErrorKind::ApplyFailed.is_the_cores_verdict());
     }
 
     #[test]
@@ -586,6 +602,42 @@ mod verdict_tests {
             ValidationOutcome::of_a_failed_build(&unread),
             ValidationOutcome::invalid(ValidationErrorKind::FileRead, "failed to read current profile \"R1\"")
         );
-        assert!(ValidationErrorKind::BuildFailed.is_the_cores_verdict());
+    }
+
+    /// Одна таблица на все места, где решают, отвергнут ли конфиг: старт,
+    /// приём подписки и запись страницы DNS спрашивают одно и то же.
+    #[test]
+    fn every_kind_either_judges_the_config_or_says_the_check_did_not_happen() {
+        use ValidationErrorKind::{
+            ApplyFailed, BuildFailed, CoreRejected, FileMissing, FileRead, ProcessTerminated, ScriptMissingMain,
+            ScriptSyntax, Timeout, YamlSyntax,
+        };
+        for (kind, judges) in [
+            (FileMissing, true),
+            (FileRead, true),
+            (YamlSyntax, true),
+            (ScriptSyntax, true),
+            (ScriptMissingMain, true),
+            (CoreRejected, true),
+            (BuildFailed, true),
+            (ApplyFailed, false),
+            (ProcessTerminated, false),
+            (Timeout, false),
+        ] {
+            assert_eq!(kind.judges_the_config(), judges, "{kind:?}");
+            assert_eq!(
+                ValidationOutcome::invalid(kind, "why").judged_the_config(),
+                judges,
+                "{kind:?}"
+            );
+        }
+        assert!(ValidationOutcome::Valid.judged_the_config());
+        assert!(!ValidationOutcome::Busy.judged_the_config());
+        assert!(
+            !ValidationOutcome::Skipped {
+                reason: super::ValidationSkipReason::Exiting
+            }
+            .judged_the_config()
+        );
     }
 }

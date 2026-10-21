@@ -159,21 +159,6 @@ pub struct DnsSaveOutcome {
     delivery_error: Option<String>,
 }
 
-const fn reached_a_verdict(outcome: &ValidationOutcome) -> bool {
-    match outcome {
-        ValidationOutcome::Valid => true,
-        ValidationOutcome::Invalid { kind, .. } => matches!(
-            kind,
-            ValidationErrorKind::CoreRejected
-                | ValidationErrorKind::BuildFailed
-                | ValidationErrorKind::YamlSyntax
-                | ValidationErrorKind::ScriptSyntax
-                | ValidationErrorKind::ScriptMissingMain
-        ),
-        ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy => false,
-    }
-}
-
 /// Сколько ждать ответа ядра о его группах и наборах правил при сохранении
 /// страницы DNS. Не ответило — сверить ссылки нечем, страница сохраняется.
 const DNS_REFERENCES_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(1500);
@@ -288,7 +273,7 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
         .stringify_err()?;
     let staged = match staged {
         Ok(staged) => staged,
-        Err(validation) if reached_a_verdict(&validation) => {
+        Err(validation) if validation.judged_the_config() => {
             logging!(warn, Type::Config, "DNS page rejected, nothing written: {validation}");
             return Ok(DnsSaveOutcome {
                 saved: false,
@@ -445,8 +430,7 @@ pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{base_of_the_page, dns_reference_check, reached_a_verdict, read_ladder};
-    use crate::core::validate::{ValidationErrorKind, ValidationOutcome, ValidationSkipReason};
+    use super::{base_of_the_page, dns_reference_check, read_ladder};
     use crate::enhance::dns_page::References;
     use serde_yaml_ng::{Mapping, Value};
 
@@ -497,45 +481,6 @@ mod tests {
                 .as_deref()
                 .is_some_and(|text| text.contains("«rs-one»"))
         );
-    }
-
-    #[test]
-    fn the_core_judging_the_config_is_a_verdict() {
-        assert!(reached_a_verdict(&ValidationOutcome::Valid));
-
-        for kind in [
-            ValidationErrorKind::CoreRejected,
-            ValidationErrorKind::BuildFailed,
-            ValidationErrorKind::YamlSyntax,
-            ValidationErrorKind::ScriptSyntax,
-            ValidationErrorKind::ScriptMissingMain,
-        ] {
-            assert!(
-                reached_a_verdict(&ValidationOutcome::invalid(kind, "nope")),
-                "{kind:?} is the core rejecting the config"
-            );
-        }
-    }
-
-    #[test]
-    fn a_check_that_never_ran_is_not_a_verdict() {
-        for kind in [
-            ValidationErrorKind::FileMissing,
-            ValidationErrorKind::FileRead,
-            ValidationErrorKind::ApplyFailed,
-            ValidationErrorKind::ProcessTerminated,
-            ValidationErrorKind::Timeout,
-        ] {
-            assert!(
-                !reached_a_verdict(&ValidationOutcome::invalid(kind, "nope")),
-                "{kind:?} means the check produced no verdict"
-            );
-        }
-
-        assert!(!reached_a_verdict(&ValidationOutcome::Busy));
-        assert!(!reached_a_verdict(&ValidationOutcome::Skipped {
-            reason: ValidationSkipReason::Exiting
-        }));
     }
 
     fn clash_with(pairs: &[(&str, Value)]) -> Mapping {

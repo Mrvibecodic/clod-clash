@@ -289,7 +289,7 @@ async fn refused_before_the_disk(uid: &String, mut item: PrfItem, outcome: Valid
     match &outcome {
         // Метаданные панели — в реестр и здесь: замок панели, срок и лимит устройств
         // не должны стареть из-за того, что проверку прибили.
-        ValidationOutcome::Invalid { kind, .. } if !kind.is_the_cores_verdict() => {
+        ValidationOutcome::Invalid { kind, .. } if !kind.judges_the_config() => {
             if profiles_draft_update_item_safe(uid, &mut item, UpdateMarks::UNCHECKED).await? {
                 handle::Handle::refresh_profiles();
             }

@@ -604,7 +604,7 @@ enum BootVerdict {
 fn boot_verdict(checked: &Result<ValidationOutcome>) -> BootVerdict {
     match checked {
         Ok(ValidationOutcome::Valid) => BootVerdict::Accepted,
-        Ok(outcome @ ValidationOutcome::Invalid { kind, .. }) if kind.is_the_cores_verdict() => {
+        Ok(outcome @ ValidationOutcome::Invalid { kind, .. }) if kind.judges_the_config() => {
             BootVerdict::Rejected(outcome.to_string().into())
         }
         Ok(outcome @ ValidationOutcome::Invalid { .. }) => BootVerdict::Unchecked {
