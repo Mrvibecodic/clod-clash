@@ -946,6 +946,7 @@ export const translationKeys = [
   'settings.modals.dns.fields.listenHint',
   'settings.modals.dns.messages.saved',
   'settings.modals.dns.messages.notSaved',
+  'settings.modals.dns.messages.notSavedUnbuilt',
   'settings.modals.dns.messages.savedUnchecked',
   'settings.modals.dns.messages.savedNotApplied',
   'settings.modals.dns.errors.invalid',

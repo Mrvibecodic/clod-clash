@@ -665,6 +665,7 @@
       "messages": {
         "saved": "تنظیمات DNS ذخیره شد",
         "notSaved": "DNS settings did not pass the check and were not saved:",
+        "notSavedUnbuilt": "DNS settings were not saved:",
         "savedUnchecked": "DNS settings saved, but the check could not run:",
         "savedNotApplied": "تنظیمات DNS ذخیره شد، اما اعمال آن ممکن نبود:"
       },

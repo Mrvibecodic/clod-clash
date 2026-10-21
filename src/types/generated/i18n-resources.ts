@@ -1143,6 +1143,7 @@ export interface TranslationResources {
           }
           messages: {
             notSaved: string
+            notSavedUnbuilt: string
             saved: string
             savedNotApplied: string
             savedUnchecked: string

@@ -4,9 +4,29 @@ import { describe, it } from 'node:test'
 import {
   listenFieldFrom,
   mergeDnsConfig,
+  notSavedKey,
   readDnsBlock,
   summarizeValidation,
 } from './dns-config.ts'
+
+describe('notSavedKey', () => {
+  it('конфиг со страницей не собрался — без «не прошли проверку»', () => {
+    for (const kind of ['buildFailed', 'fileRead', 'fileMissing']) {
+      assert.equal(
+        notSavedKey({ status: 'invalid', kind }),
+        'settings.modals.dns.messages.notSavedUnbuilt',
+        kind,
+      )
+    }
+  })
+
+  it('ядро отвергло страницу — «не прошли проверку»', () => {
+    assert.equal(
+      notSavedKey({ status: 'invalid', kind: 'coreRejected' }),
+      'settings.modals.dns.messages.notSaved',
+    )
+  })
+})
 
 describe('readDnsBlock', () => {
   it('обёрнутый блок берётся из ключа dns', () => {

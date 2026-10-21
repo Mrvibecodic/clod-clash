@@ -91,6 +91,16 @@ export function mergeDnsConfig(
   return merged
 }
 
+// Конфиг со страницей даже не собрался (сменилась подписка, не прочитался её
+// файл) — проверять было нечего, и «не прошли проверку» было бы неправдой.
+const NOT_BUILT = new Set(['buildFailed', 'fileRead', 'fileMissing'])
+
+export function notSavedKey(outcome: { status: string; kind?: string }) {
+  return outcome.status === 'invalid' && NOT_BUILT.has(outcome.kind ?? '')
+    ? 'settings.modals.dns.messages.notSavedUnbuilt'
+    : 'settings.modals.dns.messages.notSaved'
+}
+
 export function summarizeValidation(outcome: {
   status: string
   message?: string

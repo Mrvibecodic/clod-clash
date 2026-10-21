@@ -46,6 +46,7 @@ import {
   listenFieldFrom,
   mergeDnsConfig,
   readDnsBlock,
+  notSavedKey,
   summarizeValidation,
 } from '@/utils/dns-config'
 
@@ -781,7 +782,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
       if (!outcome.saved) {
         showNotice.error(
-          'settings.modals.dns.messages.notSaved',
+          notSavedKey(outcome.validation),
           summarizeValidation(outcome.validation),
         )
         return
