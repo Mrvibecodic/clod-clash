@@ -743,7 +743,10 @@ Section Install
     !insertmacro NSIS_HOOK_PREINSTALL
   !endif
 
-  nsExec::Exec 'netsh int tcp res'
+  ; BBR2 на Windows 11 24H2 рвёт соединения через 127.0.0.1, на котором слушает
+  ; ядро: стоит он — только он и меняется на CUBIC, прочие настройки TCP не трогаются.
+  nsExec::ExecToLog /TIMEOUT=30000 `powershell.exe -NoProfile -NonInteractive -Command "Get-NetTCPSetting -ErrorAction SilentlyContinue | Where-Object { $$_.CongestionProvider -eq 'BBR2' } | ForEach-Object { netsh int tcp set supplemental template=$$($$_.SettingName.ToLower()) congestionprovider=cubic }"`
+  Pop $0
 
   nsExec::Exec 'netsh advfirewall firewall delete rule name=all dir=in program="$INSTDIR\verge-mihomo.exe"'
   nsExec::Exec 'netsh advfirewall firewall add rule name="Clod Clash core (verge-mihomo.exe)" dir=in action=allow program="$INSTDIR\verge-mihomo.exe" enable=yes'
