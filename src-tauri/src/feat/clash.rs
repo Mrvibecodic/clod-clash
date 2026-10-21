@@ -183,7 +183,12 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         logging_error!(Type::Tray, tray::Tray::global().update_menu().await);
         return Ok(());
     }
-    switch_clash_mode(mode, owner).await
+    let switched = switch_clash_mode(mode.clone(), owner).await;
+    drop(turn);
+    if switched.is_ok() {
+        super::the_mode_changed(&mode).await;
+    }
+    switched
 }
 
 async fn remember_mode_choice<'a>(

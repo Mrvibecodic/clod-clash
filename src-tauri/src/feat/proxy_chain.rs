@@ -149,52 +149,95 @@ fn current_item(registry: &mut IProfiles) -> Result<&mut PrfItem> {
     registry.item_mut(&current)
 }
 
-fn release(item: &mut PrfItem, chain: &PrfProxyChain) {
-    let chosen = chosen_in(item, &chain.group);
-    if let Some(back) = choice_after_the_chain(chain, chosen.as_deref()) {
-        item.choose_node(&chain.group, &back);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Off {
+    GiveTheChoiceBack,
+    KeepTheChoice,
+}
+
+fn take_off(item: &mut PrfItem, which: impl FnOnce(&PrfProxyChain) -> bool, off: Off) -> bool {
+    let Some(chain) = item.proxy_chain.take_if(|chain| which(chain)) else {
+        return false;
+    };
+    if off == Off::GiveTheChoiceBack {
+        let chosen = chosen_in(item, &chain.group);
+        if let Some(back) = choice_after_the_chain(&chain, chosen.as_deref()) {
+            item.choose_node(&chain.group, &back);
+        }
     }
+    true
+}
+
+fn left_by_hand(chain: &PrfProxyChain, group: &str, node: &str) -> bool {
+    chain.group == group && chain.nodes.last().is_some_and(|exit| exit != node)
+}
+
+fn left_by_the_mode(chain: &PrfProxyChain, mode: &str) -> bool {
+    !crate::core::tray::group_decides_traffic(mode, &chain.group)
 }
 
 fn connect_in(registry: &mut IProfiles, group: &str, nodes: &[String], own_entry: bool) -> Result<()> {
     let exit = nodes.last().context(clash_verge_i18n::t!("errors.emptyChain"))?.clone();
     let item = current_item(registry)?;
     let chosen = chosen_in(item, group);
-    let old = item.proxy_chain.take();
-    let previous = match &old {
-        Some(old) if old.group == group => old.previous.clone(),
+    let previous = match item.proxy_chain.as_deref() {
+        Some(old) if old.group == group && old.nodes.last() == chosen.as_ref() => old.previous.clone(),
         _ => chosen.filter(|chosen| chosen != "DIRECT"),
     };
+    take_off(item, |old| old.group != group, Off::GiveTheChoiceBack);
     item.proxy_chain = Some(Box::new(PrfProxyChain {
         group: group.into(),
         nodes: nodes.to_vec(),
         previous,
         own_entry,
     }));
-    if let Some(old) = old.filter(|old| old.group != group) {
-        release(item, &old);
-    }
     item.choose_node(group, &exit);
     Ok(())
 }
 
 fn disconnect_in(registry: &mut IProfiles) -> Result<()> {
-    let item = current_item(registry)?;
-    if let Some(chain) = item.proxy_chain.take() {
-        release(item, &chain);
-    }
+    take_off(current_item(registry)?, |_| true, Off::GiveTheChoiceBack);
     Ok(())
 }
 
 fn drop_in(registry: &mut IProfiles, uid: &str, nodes: &[String]) -> bool {
-    let Ok(item) = registry.item_mut(uid) else {
-        return false;
+    registry
+        .item_mut(uid)
+        .is_ok_and(|item| take_off(item, |chain| chain.nodes == nodes, Off::GiveTheChoiceBack))
+}
+
+fn left_in(registry: &mut IProfiles, left: impl FnOnce(&PrfProxyChain) -> bool) -> Result<()> {
+    take_off(current_item(registry)?, left, Off::KeepTheChoice);
+    Ok(())
+}
+
+async fn the_chain_is_left(left: impl Fn(&PrfProxyChain) -> bool + Clone + Send + Sync + 'static) {
+    let leaves = {
+        let profiles = Config::profiles().await.data_arc();
+        profiles
+            .get_current()
+            .and_then(|current| profiles.get_item(current).ok())
+            .and_then(|item| item.proxy_chain.as_deref())
+            .is_some_and(&left)
     };
-    let Some(chain) = item.proxy_chain.take_if(|chain| chain.nodes == nodes) else {
-        return false;
-    };
-    release(item, &chain);
-    true
+    if !leaves {
+        return;
+    }
+    if let Err(err) = rebuild_with(move |registry| left_in(registry, left.clone())).await {
+        logging!(warn, Type::Config, "цепочка прокси не снята: {err:#}");
+    }
+}
+
+pub async fn remember_a_choice(group: &str, node: &str) -> Result<()> {
+    crate::config::profiles::profiles_set_selected_node_safe(group, node).await?;
+    let (group, node) = (String::from(group), String::from(node));
+    the_chain_is_left(move |chain| left_by_hand(chain, &group, &node)).await;
+    Ok(())
+}
+
+pub async fn the_mode_changed(mode: &str) {
+    let mode = String::from(mode);
+    the_chain_is_left(move |chain| left_by_the_mode(chain, &mode)).await;
 }
 
 pub async fn forget_a_dropped_chain(build: &IRuntime) {
@@ -232,7 +275,11 @@ fn adopt_in(registry: &mut IProfiles, chain: &AdoptedChain, own_entry: bool) {
     let Ok(item) = registry.item_mut(&chain.uid) else {
         return;
     };
-    if item.proxy_chain.is_none() && chain.nodes.len() >= 2 {
+    let on_the_exit = chain
+        .nodes
+        .last()
+        .is_some_and(|exit| chosen_in(item, &chain.group).as_ref() == Some(exit));
+    if item.proxy_chain.is_none() && chain.nodes.len() >= 2 && on_the_exit {
         item.proxy_chain = Some(Box::new(PrfProxyChain {
             group: chain.group.clone(),
             nodes: chain.nodes.clone(),
@@ -245,7 +292,9 @@ fn adopt_in(registry: &mut IProfiles, chain: &AdoptedChain, own_entry: bool) {
 #[allow(clippy::expect_used)]
 #[cfg(test)]
 mod tests {
-    use super::{AdoptedChain, adopt_in, chosen_in, connect_in, disconnect_in, drop_in};
+    use super::{
+        AdoptedChain, adopt_in, chosen_in, connect_in, disconnect_in, drop_in, left_by_hand, left_by_the_mode, left_in,
+    };
     use crate::config::{IProfiles, PrfItem, PrfProxyChain, PrfSelected};
     use smartstring::alias::String;
 
@@ -312,6 +361,76 @@ mod tests {
             let body = crate::utils::source_scan::fn_body(config, signature).expect("the function is in config.rs");
             assert!(body.contains("forget_a_dropped_chain("), "{signature}");
         }
+    }
+
+    #[test]
+    fn a_group_moved_off_the_exit_by_hand_takes_the_chain_off_and_keeps_the_choice() {
+        let mut registry = registry(&[("Proxy", "Berlin")]);
+        connect_in(&mut registry, "Proxy", &names(&["a", "b"]), false).expect("connects");
+        let chain = item(&registry, "A").proxy_chain.as_deref().cloned().expect("connected");
+        assert!(!left_by_hand(&chain, "Proxy", "b"), "выбран сам выход");
+        assert!(!left_by_hand(&chain, "Auto", "Paris"), "другая группа");
+        assert!(left_by_hand(&chain, "Proxy", "Paris"));
+        registry.set_selected_node("Proxy", "Paris");
+        left_in(&mut registry, |chain| left_by_hand(chain, "Proxy", "Paris")).expect("leaves");
+        assert!(item(&registry, "A").proxy_chain.is_none());
+        assert_eq!(chosen(&registry, "Proxy").as_deref(), Some("Paris"));
+    }
+
+    #[test]
+    fn a_mode_where_the_group_does_not_decide_takes_the_chain_off() {
+        let chain = |group: &str| crate::config::PrfProxyChain {
+            group: group.into(),
+            nodes: names(&["a", "b"]),
+            previous: None,
+            own_entry: false,
+        };
+        assert!(!left_by_the_mode(&chain("Proxy"), "rule"));
+        assert!(left_by_the_mode(&chain("Proxy"), "global"));
+        assert!(left_by_the_mode(&chain("Proxy"), "direct"));
+        assert!(!left_by_the_mode(&chain("GLOBAL"), "global"));
+        assert!(left_by_the_mode(&chain("GLOBAL"), "rule"));
+    }
+
+    #[test]
+    fn every_choice_by_hand_and_every_mode_change_go_through_the_chain_check() {
+        let selected =
+            crate::utils::source_scan::fn_body(include_str!("../cmd/profile.rs"), "pub async fn patch_selected_node(")
+                .expect("the command is in cmd/profile.rs");
+        assert!(selected.contains("remember_a_choice("), "{selected}");
+        let tray = include_str!("profile.rs");
+        assert!(tray.contains("super::remember_a_choice(group_name, proxy_name)"));
+        assert!(!tray.contains("profiles_set_selected_node_safe"));
+        let mode = crate::utils::source_scan::fn_body(include_str!("clash.rs"), "pub async fn change_clash_mode(")
+            .expect("change_clash_mode() is in clash.rs");
+        let freed = mode.find("drop(turn);\n    if switched").unwrap_or(usize::MAX);
+        let told = mode.find("the_mode_changed(&mode)").unwrap_or(0);
+        assert!(freed < told, "{mode}");
+    }
+
+    #[test]
+    fn reconnecting_after_a_choice_by_hand_remembers_that_choice() {
+        let mut registry = registry(&[("Proxy", "Berlin")]);
+        connect_in(&mut registry, "Proxy", &names(&["a", "b"]), false).expect("connects");
+        registry.set_selected_node("Proxy", "Paris");
+        connect_in(&mut registry, "Proxy", &names(&["a", "c"]), false).expect("reconnects");
+        disconnect_in(&mut registry).expect("disconnects");
+        assert_eq!(chosen(&registry, "Proxy").as_deref(), Some("Paris"));
+    }
+
+    #[test]
+    fn an_old_chain_is_adopted_only_while_its_group_stands_on_the_exit() {
+        let mut registry = registry(&[("Proxy", "Paris")]);
+        let old = AdoptedChain {
+            uid: "A".into(),
+            group: "Proxy".into(),
+            nodes: names(&["a", "b"]),
+        };
+        adopt_in(&mut registry, &old, false);
+        assert!(item(&registry, "A").proxy_chain.is_none());
+        registry.set_selected_node("Proxy", "b");
+        adopt_in(&mut registry, &old, false);
+        assert!(item(&registry, "A").proxy_chain.is_some());
     }
 
     #[test]
@@ -391,8 +510,9 @@ mod tests {
 
     #[test]
     fn adopting_does_not_override_a_chain_the_subscription_already_keeps() {
-        let mut registry = registry(&[]);
+        let mut registry = registry(&[("Proxy", "b")]);
         connect_in(&mut registry, "Proxy", &names(&["a", "b"]), false).expect("connects");
+        registry.item_mut("B").expect("B is there").choose_node("GLOBAL", "y");
         for chain in [
             AdoptedChain {
                 uid: "A".into(),

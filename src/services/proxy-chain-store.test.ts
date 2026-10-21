@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { beforeEach, describe, it } from 'node:test'
 
 const store = new Map<string, string>()
@@ -191,19 +192,31 @@ describe('chains connected by earlier versions', () => {
 describe('chainIsConnected', () => {
   const chain = { group: 'Proxy', nodes: ['a', 'b'], applied: true }
 
-  it('is connected only when the accepted config carries the chain', () => {
-    assert.equal(chainIsConnected(chain, ['a', 'b'], 'Proxy', 'b'), true)
+  it('is connected exactly when the accepted config carries the chain', () => {
+    assert.equal(chainIsConnected(chain, ['a', 'b'], 'Proxy'), true)
     assert.equal(
-      chainIsConnected({ ...chain, applied: false }, ['a', 'b'], 'Proxy', 'b'),
+      chainIsConnected({ ...chain, applied: false }, ['a', 'b'], 'Proxy'),
       false,
     )
-    assert.equal(chainIsConnected(null, ['a', 'b'], 'Proxy', 'b'), false)
+    assert.equal(chainIsConnected(null, ['a', 'b'], 'Proxy'), false)
   })
 
-  it('is not connected for another group, another list or a group moved away', () => {
-    assert.equal(chainIsConnected(chain, ['a', 'b'], 'Auto', 'b'), false)
-    assert.equal(chainIsConnected(chain, ['a', 'c'], 'Proxy', 'b'), false)
-    assert.equal(chainIsConnected(chain, ['a', 'b', 'c'], 'Proxy', 'b'), false)
-    assert.equal(chainIsConnected(chain, ['a', 'b'], 'Proxy', 'x'), false)
+  it('is not connected for another group or another list', () => {
+    assert.equal(chainIsConnected(chain, ['a', 'b'], 'Auto'), false)
+    assert.equal(chainIsConnected(chain, ['a', 'c'], 'Proxy'), false)
+    assert.equal(chainIsConnected(chain, ['a', 'b', 'c'], 'Proxy'), false)
+  })
+})
+
+describe('leaving the chain mode', () => {
+  it('keeps the mode on and tells why when the chain did not come off', () => {
+    const page = readFileSync(
+      new URL('../pages/proxies.tsx', import.meta.url),
+      'utf8',
+    )
+    const off = page.indexOf('await disconnectProxyChain()')
+    const failed = page.indexOf('showNotice.error(error)', off)
+    const left = page.indexOf('setIsChainMode(newChainMode)')
+    assert.ok(off > 0 && failed > off && left > failed)
   })
 })

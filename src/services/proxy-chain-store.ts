@@ -149,12 +149,10 @@ export const chainIsConnected = (
   chain: ConnectedChain | null | undefined,
   draft: readonly string[],
   group: string | null | undefined,
-  now: string | undefined,
 ) =>
   !!chain &&
   chain.applied &&
   chain.group === group &&
   draft.length >= 2 &&
   chain.nodes.length === draft.length &&
-  chain.nodes.every((name, index) => name === draft[index]) &&
-  now === chain.nodes[chain.nodes.length - 1]
+  chain.nodes.every((name, index) => name === draft[index])

@@ -632,7 +632,7 @@ fn node_title(name: &str) -> std::string::String {
     }
 }
 
-fn group_decides_traffic(proxy_mode: &str, group_name: &str) -> bool {
+pub(crate) fn group_decides_traffic(proxy_mode: &str, group_name: &str) -> bool {
     match proxy_mode {
         "global" => group_name == "GLOBAL",
         "direct" => false,

@@ -262,22 +262,15 @@ export const ProxyChain = ({
   const [isConnecting, setIsConnecting] = useState(false)
 
   const targetGroup = mode === 'global' ? 'GLOBAL' : selectedGroup
-  const isConnected = useMemo(() => {
-    const group =
-      mode === 'global'
-        ? proxies?.global
-        : Array.isArray(proxies?.groups)
-          ? proxies.groups.find(
-              (item: { name: string }) => item.name === targetGroup,
-            )
-          : undefined
-    return chainIsConnected(
-      chain,
-      proxyChain.map((item) => item.name),
-      targetGroup,
-      group?.now,
-    )
-  }, [proxies, proxyChain, mode, targetGroup, chain])
+  const isConnected = useMemo(
+    () =>
+      chainIsConnected(
+        chain,
+        proxyChain.map((item) => item.name),
+        targetGroup,
+      ),
+    [proxyChain, targetGroup, chain],
+  )
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

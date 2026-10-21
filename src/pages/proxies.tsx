@@ -65,10 +65,6 @@ const ProxyPage = () => {
   const onToggleChainMode = useLockFn(async () => {
     const newChainMode = !isChainMode
 
-    setIsChainMode(newChainMode)
-    // Сохраняем состояние кнопки цепочки прокси в localStorage
-    localStorage.setItem('proxy-chain-mode-enabled', newChainMode.toString())
-
     if (!newChainMode) {
       // При выходе из режима цепочки прокси очищаем конфигурацию цепочки
       try {
@@ -76,9 +72,14 @@ const ProxyPage = () => {
         await disconnectProxyChain()
         debugLog('Chain disconnected successfully')
       } catch (error) {
-        console.error('Failed to clear chain configuration:', error)
+        showNotice.error(error)
+        return
       }
     }
+
+    setIsChainMode(newChainMode)
+    // Сохраняем состояние кнопки цепочки прокси в localStorage
+    localStorage.setItem('proxy-chain-mode-enabled', newChainMode.toString())
   })
 
   const { data: chain } = useQuery({

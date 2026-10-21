@@ -1,7 +1,6 @@
 use super::CmdResult;
 use super::StringifyErr as _;
 use crate::cmd::validate::{ValidationNoticeTarget, handle_validation_notice};
-use crate::config::profiles;
 use crate::utils::window_manager::WindowManager;
 use crate::{
     config::{
@@ -675,9 +674,7 @@ pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> Cm
 /// трей, с какого бы экрана ни выбирали.
 #[tauri::command]
 pub async fn patch_selected_node(group: String, node: String) -> CmdResult {
-    let saved = profiles::profiles_set_selected_node_safe(&group, &node)
-        .await
-        .stringify_err();
+    let saved = crate::feat::remember_a_choice(&group, &node).await.stringify_err();
     super::proxy::sync_tray_proxy_selection();
     saved
 }

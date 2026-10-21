@@ -99,7 +99,7 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
             crate::feat::close_connections_via(&previous).await;
         });
     }
-    if let Err(err) = crate::config::profiles::profiles_set_selected_node_safe(group_name, proxy_name).await {
+    if let Err(err) = super::remember_a_choice(group_name, proxy_name).await {
         logging!(
             warn,
             Type::Tray,
