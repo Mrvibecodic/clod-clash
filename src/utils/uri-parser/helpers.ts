@@ -200,7 +200,6 @@ const SCHEME_PORTS: Record<string, number> = {
   wg: 51820,
 }
 
-/** Порт для ссылки без порта — принятый для её схемы. */
 export function schemeDefaultPort(uri: string): number {
   const scheme = URI_SCHEME_RE.exec(uri.trim())?.[1].toLowerCase() ?? ''
   const port = SCHEME_PORTS[scheme]

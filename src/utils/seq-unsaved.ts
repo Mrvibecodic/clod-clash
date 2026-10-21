@@ -10,11 +10,6 @@ export const EMPTY_SEQ_LISTS: SeqLists<never> = {
   delete: [],
 }
 
-/**
- * Есть ли в наглядном виде несохранённое. Если файл на диске не разложился
- * по спискам (открыт текстом), наглядный вид после починки текста — уже
- * отличие от диска.
- */
 export const seqUnsaved = <T>(
   ready: boolean,
   baseline: SeqLists<T> | null,

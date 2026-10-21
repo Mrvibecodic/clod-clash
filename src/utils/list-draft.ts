@@ -4,7 +4,6 @@ export const splitList = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean)
 
-/** Список вместе с набранной, но ещё не «Добавленной» строкой. */
 export const withListDraft = <T extends string | undefined>(
   value: T,
   draft: string,

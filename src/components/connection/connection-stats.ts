@@ -72,7 +72,6 @@ export const connectionGroupKey = (
   }
 }
 
-/** Подпись группы без ключа — тем же словом, что в сводке. */
 export const groupFallbackKey = (groupBy: IConnectionGroupBy) =>
   groupBy === 'process'
     ? 'connections.components.summary.noProcess'

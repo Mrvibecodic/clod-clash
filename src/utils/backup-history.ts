@@ -1,4 +1,3 @@
-/** Что сказать под вкладкой истории: одно сообщение, и только правдивое. */
 export const backupHistoryNote = ({
   notConfigured,
   serverFailed,

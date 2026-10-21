@@ -101,8 +101,6 @@ export const TUN_RESET: Readonly<Record<string, unknown>> = {
   'auto-detect-interface': true,
 }
 
-/** Что записать по «Сохранить»: после «Сбросить настройки» — как на свежей
- * установке и поверх то, что поменяли в форме уже после сброса. */
 export function tunSavePatch(
   initial: TunFields,
   current: TunFields,
@@ -120,7 +118,6 @@ export interface TunOverrideFields {
   dnsHijack: string
 }
 
-/** Поля окна, которые хранятся в настройках приложения, а не в `tun`. */
 export const tunOverrides = (fields: TunOverrideFields) => ({
   tun_stack: fields.stack,
   tun_strict_route: fields.strictRoute,

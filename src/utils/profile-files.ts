@@ -1,9 +1,5 @@
 import type { EditorReadFailure } from './editor-save.ts'
 
-/**
- * Читает файлы подписки каждый сам по себе: не прочитавшийся отдаёт пустой
- * текст и причину, остальные доходят до окна.
- */
 export const readEachFile = async (
   uids: string[],
   read: (uid: string) => Promise<string>,

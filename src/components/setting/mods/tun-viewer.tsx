@@ -66,7 +66,6 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const [initial, setInitial] = useState(FRESH)
   const [routeExcludeDraft, setRouteExcludeDraft] = useState('')
   const [resetPending, setResetPending] = useState(false)
-  // Что лежит в `tun` файла при открытии: от него считается несохранённое.
   const [pinned, setPinned] = useState<ICoreLadder['tun']>(null)
 
   const effectiveStack = (

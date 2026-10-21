@@ -8,7 +8,6 @@ const isPortRange = (part: string) => {
 
 export const isPortList = (value: string) => value.split('/').every(isPortRange)
 
-/** Ядро не различает регистр сети; в правило она пишется строчными. */
 export const normalizeNetwork = (value: string) => value.toLowerCase()
 
 export const isNetwork = (value: string) =>
