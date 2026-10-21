@@ -1465,6 +1465,18 @@ pub async fn init_startup_setup() {
     if startup_owes_the_rights_notice(outcome, last_failure()) {
         announce_once(FAILURE_NO_RIGHTS, "tun::no_rights");
     }
+    if let Some(status) = startup_notice(outcome) {
+        Handle::notice_message(status, "");
+    }
+}
+
+/// Отказ подготовки, о котором старт говорит сам, тем же сообщением, что при
+/// включении TUN руками: копия на томе без прав доступа.
+fn startup_notice(outcome: SetupOutcome) -> Option<&'static str> {
+    match outcome.answer() {
+        SetupAnswer::Refused(status) if outcome == SetupOutcome::Unserviceable => Some(status),
+        _ => None,
+    }
 }
 
 /// Старт без службы отложил совет «нет прав» до итога подготовки; итог «окно
@@ -1476,6 +1488,22 @@ fn startup_owes_the_rights_notice(outcome: SetupOutcome, failure: Option<&'stati
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// TUN включён, а копия на томе без прав доступа: старт говорит об этом,
+    /// а не молчит; прочие исходы о себе говорят сами или не говорят вовсе.
+    #[test]
+    fn the_startup_tells_a_copy_on_a_volume_without_rights() {
+        assert_eq!(
+            startup_notice(SetupOutcome::Unserviceable),
+            Some("tun::volume_without_rights")
+        );
+        for outcome in EVERY_OUTCOME
+            .into_iter()
+            .filter(|outcome| *outcome != SetupOutcome::Unserviceable)
+        {
+            assert_eq!(startup_notice(outcome), None, "{outcome:?}");
+        }
+    }
 
     #[test]
     fn capability_follows_one_probe_of_the_service() {
