@@ -389,6 +389,35 @@ async function resolveSidecar(binInfo) {
   }
 }
 
+async function holdsTextInsteadOfData(filePath) {
+  const handle = await fsp.open(filePath, 'r')
+  try {
+    const { buffer, bytesRead } = await handle.read(
+      Buffer.alloc(4096),
+      0,
+      4096,
+      0,
+    )
+    const head = buffer.subarray(0, bytesRead)
+    if (
+      head.some(
+        (byte) =>
+          (byte < 0x20 && ![0x09, 0x0a, 0x0d].includes(byte)) || byte === 0x7f,
+      )
+    ) {
+      return false
+    }
+    try {
+      new TextDecoder('utf-8', { fatal: true }).decode(head, { stream: true })
+    } catch {
+      return false
+    }
+    return true
+  } finally {
+    await handle.close()
+  }
+}
+
 async function resolveResource(binInfo) {
   const { file, downloadURL, localPath, dir } = binInfo
   const baseDir = dir ?? RESOURCES_DIR
@@ -396,8 +425,13 @@ async function resolveResource(binInfo) {
 
   if (downloadURL) {
     if (!FORCE && fs.existsSync(targetPath)) {
-      log_success(`"${file}" already exists, skipping download`)
-      return
+      if (!(await holdsTextInsteadOfData(targetPath))) {
+        log_success(`"${file}" already exists, skipping download`)
+        return
+      }
+      log_error(
+        `"${file}" holds a server response instead of the file, downloading again`,
+      )
     }
     await fsp.mkdir(baseDir, { recursive: true })
     await downloadFile(downloadURL, targetPath)
