@@ -349,14 +349,45 @@ fn refused_by_the_system(wanted: &WantedProxy, after: Option<&ObservedProxy>) ->
 }
 
 fn the_system_refused(wanted: &WantedProxy, after: Option<&ObservedProxy>) -> anyhow::Error {
-    anyhow::anyhow!(
-        "{}",
+    ProxyNotAccepted {
+        wanted: wanted.describe(),
+        actual: after.map_or_else(ObservedProxy::unreadable, ObservedProxy::describe),
+    }
+    .into()
+}
+
+/// Система не приняла записанные настройки прокси.
+#[derive(Debug)]
+pub struct ProxyNotAccepted {
+    wanted: std::string::String,
+    actual: std::string::String,
+}
+
+impl ProxyNotAccepted {
+    fn detail(&self) -> std::string::String {
         clash_verge_i18n::t!(
-            "errors.proxyNotAccepted",
-            wanted = wanted.describe(),
-            actual = after.map_or_else(ObservedProxy::unreadable, ObservedProxy::describe)
+            "errors.proxyNotAcceptedDetail",
+            wanted = self.wanted,
+            actual = self.actual
         )
-    )
+        .into_owned()
+    }
+}
+
+impl std::fmt::Display for ProxyNotAccepted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&clash_verge_i18n::t!("errors.proxyNotAccepted", detail = self.detail()))
+    }
+}
+
+impl std::error::Error for ProxyNotAccepted {}
+
+/// Текст ошибки записи под заголовком «Система не приняла настройки прокси»:
+/// отказ самой системы — только его подробности, заголовок уже сказан.
+pub fn under_the_write_failed_title(error: &anyhow::Error) -> std::string::String {
+    error
+        .downcast_ref::<ProxyNotAccepted>()
+        .map_or_else(|| error.to_string(), ProxyNotAccepted::detail)
 }
 
 fn report_applied(
@@ -1121,6 +1152,32 @@ fn with_system_call_retry(mut apply: impl FnMut() -> sysproxy::Result<()>) -> sy
 
 #[cfg(test)]
 mod tests {
+    /// Под заголовком «Система не приняла настройки прокси» (тост и
+    /// системное уведомление) отказ системы не повторяет его второй раз.
+    #[test]
+    fn the_refusal_does_not_repeat_its_title() {
+        let refusal = anyhow::Error::from(super::ProxyNotAccepted {
+            wanted: "127.0.0.1:7897".into(),
+            actual: "off".into(),
+        });
+        let full = refusal.to_string();
+        let shown = super::under_the_write_failed_title(&refusal);
+        assert!(full.ends_with(&shown) && full != shown, "{full} / {shown}");
+        assert!(shown.contains("127.0.0.1:7897") && shown.contains("off"), "{shown}");
+        let other = anyhow::anyhow!("access is denied");
+        assert_eq!(super::under_the_write_failed_title(&other), "access is denied");
+        for (source, signature) in [
+            (include_str!("../feat/proxy.rs"), "pub async fn toggle_system_proxy"),
+            (
+                include_str!("manager/config.rs"),
+                "async fn point_system_proxy_at_the_core",
+            ),
+        ] {
+            let body = crate::utils::source_scan::fn_body(source, signature).unwrap_or_default();
+            assert!(body.contains("under_the_write_failed_title("), "{signature}: {body}");
+        }
+    }
+
     use super::{
         BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, OurListener, ProxyApplyStep, ProxyPass, Sysopt,
         SysproxyTakeDown, SystemProxyOwnership, WantedProxy, everything_that_might_be_ours, format_bypass,

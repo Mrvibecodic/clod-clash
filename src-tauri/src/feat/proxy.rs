@@ -169,7 +169,11 @@ pub async fn toggle_system_proxy() -> Toggled {
         Err(err) => {
             logging!(error, Type::ProxyMode, "{err}");
             let system_refused = crate::core::sysopt::Sysopt::global().write_failed();
-            let reason = crate::cmd::public_error_text(&err);
+            let reason = if system_refused {
+                crate::cmd::public_error_text(&crate::core::sysopt::under_the_write_failed_title(&err))
+            } else {
+                crate::cmd::public_error_text(&err)
+            };
             crate::core::notification::tell_the_outcome(
                 system_proxy_failure_status(system_refused),
                 reason.to_string(),

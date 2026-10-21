@@ -1002,7 +1002,10 @@ pub(super) async fn point_system_proxy_at_the_core() {
             "[clod] failed to point the system proxy at the core's port: {err}"
         );
         if !was_failing {
-            handle::Handle::notice_message("sysproxy::write_failed", err.to_string());
+            handle::Handle::notice_message(
+                "sysproxy::write_failed",
+                crate::core::sysopt::under_the_write_failed_title(&err),
+            );
         }
     }
 }
