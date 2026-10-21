@@ -17,7 +17,7 @@ use self::{
 };
 use crate::utils::dirs;
 use crate::{
-    config::{Config, IClashTemp, IProfiles, IVerge, PrfItem, runtime::IRuntime},
+    config::{Config, IClashTemp, IProfiles, IVerge, PrfItem, PrfProxyChain, runtime::IRuntime},
     constants,
     core::validate::{Refusal, ValidationErrorKind},
     utils::{help, tmpl},
@@ -252,7 +252,7 @@ struct ProfileItems {
     mode_choice: Option<String>,
     /// Сборка идёт с кандидата подписки (`*.new`), а не с файла на диске.
     profile_is_a_candidate: bool,
-    proxy_chain: Option<Vec<String>>,
+    proxy_chain: Option<PrfProxyChain>,
 }
 
 /// Пустые звенья цепочки — когда у подписки своего звена нет.
@@ -458,7 +458,7 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
         profile_shows_zero_hosts,
         mode_choice,
         profile_is_a_candidate: current_item.file.as_deref().is_some_and(|file| file.ends_with(".new")),
-        proxy_chain: current_item.proxy_chain.as_ref().map(|chain| chain.nodes.clone()),
+        proxy_chain: current_item.proxy_chain.as_deref().cloned(),
     })
 }
 
@@ -2319,15 +2319,15 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
 
 fn with_the_chain(
     config: &mut Mapping,
-    chain: Option<Vec<String>>,
+    chain: Option<PrfProxyChain>,
 ) -> (Option<Vec<String>>, Option<proxy_chain::Dropped>) {
-    let Some(nodes) = chain else {
+    let Some(PrfProxyChain { nodes, own_entry, .. }) = chain else {
         return (None, None);
     };
-    if proxy_chain::apply(config, &nodes) {
+    if proxy_chain::apply(config, &nodes, own_entry) {
         return (Some(nodes), None);
     }
-    let Some(missing) = proxy_chain::missing(config, &nodes).cloned() else {
+    let Some(missing) = proxy_chain::missing(config, &nodes, own_entry).cloned() else {
         return (None, None);
     };
     logging!(
@@ -2390,13 +2390,21 @@ mod tests {
         assert!(body.contains("= with_the_chain(&mut config, proxy_chain);"), "{body}");
         let chain =
             |names: &[&str]| -> Vec<smartstring::alias::String> { names.iter().map(|name| (*name).into()).collect() };
+        let record = |names: &[&str], own_entry: bool| {
+            Some(crate::config::PrfProxyChain {
+                group: "Proxy".into(),
+                nodes: chain(names),
+                previous: None,
+                own_entry,
+            })
+        };
         let mut config = mapping("proxies: [{name: A, type: ss}, {name: B, type: ss}]");
         assert_eq!(
-            super::with_the_chain(&mut config, Some(chain(&["A", "B"]))),
+            super::with_the_chain(&mut config, record(&["A", "B"], true)),
             (Some(chain(&["A", "B"])), None)
         );
         assert_eq!(
-            super::with_the_chain(&mut config, Some(chain(&["A", "gone", "B"]))),
+            super::with_the_chain(&mut config, record(&["A", "gone", "B"], true)),
             (
                 None,
                 Some(super::proxy_chain::Dropped {
@@ -2404,6 +2412,21 @@ mod tests {
                     missing: "gone".into(),
                 })
             )
+        );
+        assert_eq!(
+            super::with_the_chain(&mut config, record(&["gone", "B"], true)),
+            (
+                None,
+                Some(super::proxy_chain::Dropped {
+                    nodes: chain(&["gone", "B"]),
+                    missing: "gone".into(),
+                })
+            ),
+            "свой вход пропал"
+        );
+        assert_eq!(
+            super::with_the_chain(&mut config, record(&["from-a-provider", "B"], false)),
+            (Some(chain(&["from-a-provider", "B"])), None)
         );
         assert_eq!(super::with_the_chain(&mut config, None), (None, None));
     }

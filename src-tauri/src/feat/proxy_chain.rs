@@ -37,16 +37,16 @@ pub async fn proxy_chain_view() -> Option<ProxyChainView> {
 
 pub async fn connect_proxy_chain(group: String, nodes: Vec<String>) -> Result<()> {
     super::refuse_while_exiting()?;
-    let fits = Config::runtime()
-        .await
-        .data_arc()
-        .config
-        .as_ref()
-        .is_some_and(|config| proxy_chain::fits(config, &nodes));
-    if !fits {
+    let runtime = Config::runtime().await.data_arc();
+    let Some(config) = runtime.config.as_ref() else {
+        bail!("{}", clash_verge_i18n::t!("errors.chainNodesMissing"));
+    };
+    let own_entry = nodes.first().is_some_and(|entry| proxy_chain::is_own(config, entry));
+    if !proxy_chain::fits(config, &nodes, own_entry) {
         bail!("{}", clash_verge_i18n::t!("errors.chainNodesMissing"));
     }
-    rebuild_with(move |registry| connect_in(registry, &group, &nodes)).await
+    drop(runtime);
+    rebuild_with(move |registry| connect_in(registry, &group, &nodes, own_entry)).await
 }
 
 pub async fn disconnect_proxy_chain() -> Result<()> {
@@ -66,9 +66,25 @@ pub async fn disconnect_proxy_chain() -> Result<()> {
 
 pub async fn adopt_proxy_chains(chains: Vec<AdoptedChain>) -> Result<()> {
     super::refuse_while_exiting()?;
+    let own_entries: Vec<bool> = {
+        let current = Config::profiles().await.data_arc().get_current().cloned();
+        let runtime = Config::runtime().await.data_arc();
+        chains
+            .iter()
+            .map(|chain| {
+                current.as_ref() == Some(&chain.uid)
+                    && runtime.config.as_ref().is_some_and(|config| {
+                        chain
+                            .nodes
+                            .first()
+                            .is_some_and(|entry| proxy_chain::is_own(config, entry))
+                    })
+            })
+            .collect()
+    };
     rebuild_with(move |registry| {
-        for chain in &chains {
-            adopt_in(registry, chain);
+        for (chain, own_entry) in chains.iter().zip(&own_entries) {
+            adopt_in(registry, chain, *own_entry);
         }
         Ok(())
     })
@@ -140,7 +156,7 @@ fn release(item: &mut PrfItem, chain: &PrfProxyChain) {
     }
 }
 
-fn connect_in(registry: &mut IProfiles, group: &str, nodes: &[String]) -> Result<()> {
+fn connect_in(registry: &mut IProfiles, group: &str, nodes: &[String], own_entry: bool) -> Result<()> {
     let exit = nodes.last().context(clash_verge_i18n::t!("errors.emptyChain"))?.clone();
     let item = current_item(registry)?;
     let chosen = chosen_in(item, group);
@@ -153,6 +169,7 @@ fn connect_in(registry: &mut IProfiles, group: &str, nodes: &[String]) -> Result
         group: group.into(),
         nodes: nodes.to_vec(),
         previous,
+        own_entry,
     }));
     if let Some(old) = old.filter(|old| old.group != group) {
         release(item, &old);
@@ -211,7 +228,7 @@ pub async fn forget_a_dropped_chain(build: &IRuntime) {
     }
 }
 
-fn adopt_in(registry: &mut IProfiles, chain: &AdoptedChain) {
+fn adopt_in(registry: &mut IProfiles, chain: &AdoptedChain, own_entry: bool) {
     let Ok(item) = registry.item_mut(&chain.uid) else {
         return;
     };
@@ -220,6 +237,7 @@ fn adopt_in(registry: &mut IProfiles, chain: &AdoptedChain) {
             group: chain.group.clone(),
             nodes: chain.nodes.clone(),
             previous: None,
+            own_entry,
         }));
     }
 }
@@ -279,7 +297,7 @@ mod tests {
     #[test]
     fn a_chain_that_no_longer_fits_gives_the_group_back_its_choice() {
         let mut registry = registry(&[("Proxy", "Berlin")]);
-        connect_in(&mut registry, "Proxy", &names(&["a", "b"])).expect("connects");
+        connect_in(&mut registry, "Proxy", &names(&["a", "b"]), false).expect("connects");
         assert!(!drop_in(&mut registry, "A", &names(&["a", "x"])), "другая цепочка");
         assert!(drop_in(&mut registry, "A", &names(&["a", "b"])));
         assert!(item(&registry, "A").proxy_chain.is_none());
@@ -299,7 +317,7 @@ mod tests {
     #[test]
     fn disconnecting_gives_the_group_back_the_choice_it_had_before_the_chain() {
         let mut registry = registry(&[("Proxy", "Berlin")]);
-        connect_in(&mut registry, "Proxy", &names(&["a", "b"])).expect("connects");
+        connect_in(&mut registry, "Proxy", &names(&["a", "b"]), false).expect("connects");
         assert_eq!(chosen(&registry, "Proxy").as_deref(), Some("b"));
         assert_eq!(
             item(&registry, "A")
@@ -316,7 +334,7 @@ mod tests {
     #[test]
     fn disconnecting_never_turns_the_group_to_direct() {
         let mut registry = registry(&[("Proxy", "DIRECT")]);
-        connect_in(&mut registry, "Proxy", &names(&["a", "b"])).expect("connects");
+        connect_in(&mut registry, "Proxy", &names(&["a", "b"]), false).expect("connects");
         disconnect_in(&mut registry).expect("disconnects");
         assert_eq!(chosen(&registry, "Proxy").as_deref(), Some("b"));
     }
@@ -331,6 +349,7 @@ mod tests {
                 group: "Proxy".into(),
                 nodes: names(&["a", "b"]),
             },
+            false,
         );
         disconnect_in(&mut registry).expect("disconnects");
         assert_eq!(chosen(&registry, "Proxy").as_deref(), Some("b"));
@@ -339,8 +358,8 @@ mod tests {
     #[test]
     fn reconnecting_keeps_the_choice_from_before_the_first_chain() {
         let mut registry = registry(&[("Proxy", "Berlin")]);
-        connect_in(&mut registry, "Proxy", &names(&["a", "b"])).expect("connects");
-        connect_in(&mut registry, "Proxy", &names(&["a", "c"])).expect("reconnects");
+        connect_in(&mut registry, "Proxy", &names(&["a", "b"]), false).expect("connects");
+        connect_in(&mut registry, "Proxy", &names(&["a", "c"]), false).expect("reconnects");
         disconnect_in(&mut registry).expect("disconnects");
         assert_eq!(chosen(&registry, "Proxy").as_deref(), Some("Berlin"));
     }
@@ -348,7 +367,7 @@ mod tests {
     #[test]
     fn a_group_moved_away_from_the_chain_by_hand_is_left_alone() {
         let mut registry = registry(&[("Proxy", "Berlin")]);
-        connect_in(&mut registry, "Proxy", &names(&["a", "b"])).expect("connects");
+        connect_in(&mut registry, "Proxy", &names(&["a", "b"]), false).expect("connects");
         registry.set_selected_node("Proxy", "Paris");
         disconnect_in(&mut registry).expect("disconnects");
         assert_eq!(chosen(&registry, "Proxy").as_deref(), Some("Paris"));
@@ -357,8 +376,8 @@ mod tests {
     #[test]
     fn a_chain_moved_to_another_group_releases_the_first_one() {
         let mut registry = registry(&[("Proxy", "Berlin"), ("GLOBAL", "Auto")]);
-        connect_in(&mut registry, "Proxy", &names(&["a", "b"])).expect("connects");
-        connect_in(&mut registry, "GLOBAL", &names(&["a", "c"])).expect("moves");
+        connect_in(&mut registry, "Proxy", &names(&["a", "b"]), false).expect("connects");
+        connect_in(&mut registry, "GLOBAL", &names(&["a", "c"]), false).expect("moves");
         assert_eq!(chosen(&registry, "Proxy").as_deref(), Some("Berlin"));
         assert_eq!(chosen(&registry, "GLOBAL").as_deref(), Some("c"));
         assert_eq!(
@@ -373,7 +392,7 @@ mod tests {
     #[test]
     fn adopting_does_not_override_a_chain_the_subscription_already_keeps() {
         let mut registry = registry(&[]);
-        connect_in(&mut registry, "Proxy", &names(&["a", "b"])).expect("connects");
+        connect_in(&mut registry, "Proxy", &names(&["a", "b"]), false).expect("connects");
         for chain in [
             AdoptedChain {
                 uid: "A".into(),
@@ -391,7 +410,7 @@ mod tests {
                 nodes: names(&["x", "y"]),
             },
         ] {
-            adopt_in(&mut registry, &chain);
+            adopt_in(&mut registry, &chain, false);
         }
         assert_eq!(
             item(&registry, "A")
@@ -406,6 +425,7 @@ mod tests {
                 group: "GLOBAL".into(),
                 nodes: names(&["x", "y"]),
                 previous: None,
+                own_entry: false,
             }))
         );
     }
