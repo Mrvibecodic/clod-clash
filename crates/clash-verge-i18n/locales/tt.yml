@@ -79,6 +79,7 @@ common:
   configApplying: The configuration is being applied right now — try again in a couple of seconds.
   exitInProgress: "Кушымта эшен тәмамлый: чыгу барганда гамәл кире кагылды."
   restoreNotApplied: "The backup was restored, but its settings could not be applied. Restart the app. Reason: {reason}"
+  webdavCertificate: "The WebDAV server certificate failed verification. If this is your own server with a self-signed certificate (such as a NAS), turn on \"Trust a self-signed certificate\" in the WebDAV settings."
 core:
   updateAlreadyRunning: "a core update is already running"
   switchInProgress: "the core is being switched — update it once the switch is done"

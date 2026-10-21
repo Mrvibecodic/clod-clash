@@ -414,7 +414,9 @@
       },
       "fields": {
         "webdavUrl": "WebDAV сервер URL-ы (http(s)://)",
-        "username": "Кулланучы исеме"
+        "username": "Кулланучы исеме",
+        "trustSelfSigned": "Trust a self-signed certificate",
+        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
       },
       "messages": {
         "webdavUrlRequired": "WebDAV адресы буш булырга тиеш түгел",

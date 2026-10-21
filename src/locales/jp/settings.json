@@ -414,7 +414,9 @@
       },
       "fields": {
         "webdavUrl": "WebDAVサーバーのURL http(s)://",
-        "username": "ユーザー名"
+        "username": "ユーザー名",
+        "trustSelfSigned": "Trust a self-signed certificate",
+        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
       },
       "messages": {
         "webdavUrlRequired": "WebDAVサーバーのURLは必須です。",

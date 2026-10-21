@@ -416,7 +416,9 @@
       },
       "fields": {
         "webdavUrl": "URL-адрес сервера WebDAV http(s)://",
-        "username": "Имя пользователя"
+        "username": "Имя пользователя",
+        "trustSelfSigned": "Доверять самоподписанному сертификату",
+        "trustSelfSignedHelper": "Только для своего сервера, например NAS"
       },
       "messages": {
         "webdavUrlRequired": "URL-адрес WebDAV не может быть пустым",

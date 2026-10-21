@@ -414,7 +414,9 @@
       },
       "fields": {
         "webdavUrl": "WebDAV Sunucu URL'si",
-        "username": "Kullanıcı Adı"
+        "username": "Kullanıcı Adı",
+        "trustSelfSigned": "Trust a self-signed certificate",
+        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
       },
       "messages": {
         "webdavUrlRequired": "WebDAV URL'si boş olamaz",

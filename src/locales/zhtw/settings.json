@@ -414,7 +414,9 @@
       },
       "fields": {
         "webdavUrl": "WebDAV 伺服器位址 http(s)://",
-        "username": "使用者名稱"
+        "username": "使用者名稱",
+        "trustSelfSigned": "Trust a self-signed certificate",
+        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
       },
       "messages": {
         "webdavUrlRequired": "WebDAV 伺服器位址不能為空",

@@ -1,4 +1,11 @@
-use crate::{config::Config, process::AsyncHandler, utils::dirs};
+use crate::{
+    config::Config,
+    process::AsyncHandler,
+    utils::{
+        dirs,
+        network::{DOWNGRADE_REFUSED, redirect_is_a_downgrade, tls_failure},
+    },
+};
 use anyhow::Error;
 use arc_swap::{ArcSwap, ArcSwapOption};
 use backon::{ConstantBuilder, Retryable as _};
@@ -28,6 +35,7 @@ struct WebDavConfig {
     url: String,
     username: String,
     password: String,
+    trust_self_signed: bool,
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -93,6 +101,7 @@ impl WebDavClient {
                         .into(),
                     username: verge.webdav_username.clone().unwrap_or_default(),
                     password: verge.webdav_password.clone().unwrap_or_default(),
+                    trust_self_signed: verge.webdav_trust_self_signed.unwrap_or(false),
                 };
 
                 self.config.store(Some(Arc::new(config.clone())));
@@ -101,24 +110,7 @@ impl WebDavClient {
         };
 
         let client = reqwest_dav::ClientBuilder::new()
-            .set_agent(
-                reqwest::Client::builder()
-                    .use_rustls_tls()
-                    .danger_accept_invalid_certs(true)
-                    .timeout(Duration::from_secs(op.timeout()))
-                    .user_agent(format!(
-                        "{}/{APP_VERSION} ({OS} WebDAV-Client)",
-                        crate::constants::branding::UA_TOKEN
-                    ))
-                    .redirect(reqwest::redirect::Policy::custom(|attempt| {
-                        if attempt.previous().len() >= 5 {
-                            attempt.error(clash_verge_i18n::t!("errors.tooManyRedirects").into_owned())
-                        } else {
-                            attempt.follow()
-                        }
-                    }))
-                    .build()?,
-            )
+            .set_agent(agent(op.timeout(), config.trust_self_signed)?)
             .set_host(config.url.into())
             .set_auth(reqwest_dav::Auth::Basic(config.username.into(), config.password.into()))
             .build()?;
@@ -164,7 +156,8 @@ impl WebDavClient {
             } else {
                 logging!(warn, Type::Backup, "Failed to create backup directory: {}", e);
                 self.reset();
-                return Err(anyhow::Error::msg(format!("Failed to create backup directory: {}", e)));
+                let text = format!("Failed to create backup directory: {}", e);
+                return Err(Error::from(e).context(text));
             }
         } else {
             logging!(info, Type::Backup, "Successfully created backup directory");
@@ -266,6 +259,52 @@ impl WebDavClient {
     }
 }
 
+/// Клиент запросов к WebDAV. Сертификат сервера проверяется, если человек не
+/// сказал доверять самоподписанному; переадресация с https на http — отказ.
+fn agent(timeout_secs: u64, trust_self_signed: bool) -> reqwest::Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .use_rustls_tls()
+        .danger_accept_invalid_certs(trust_self_signed)
+        .timeout(Duration::from_secs(timeout_secs))
+        .user_agent(format!(
+            "{}/{APP_VERSION} ({OS} WebDAV-Client)",
+            crate::constants::branding::UA_TOKEN
+        ))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if redirect_is_a_downgrade(attempt.previous().first(), attempt.url()) {
+                attempt.error(DOWNGRADE_REFUSED)
+            } else if attempt.previous().len() >= 5 {
+                attempt.error(clash_verge_i18n::t!("errors.tooManyRedirects").into_owned())
+            } else {
+                attempt.follow()
+            }
+        }))
+        .build()
+}
+
+/// Отказ в сертификате сервера — понятным текстом с советом.
+pub fn with_certificate_hint(err: Error) -> Error {
+    if refused_certificate(&err) {
+        err.context(clash_verge_i18n::t!("common.webdavCertificate").into_owned())
+    } else {
+        err
+    }
+}
+
+/// Ошибка запроса лежит и внутри ошибки WebDAV, а та свою причину не называет.
+fn refused_certificate(err: &Error) -> bool {
+    err.chain().any(|e| match e.downcast_ref::<reqwest_dav::Error>() {
+        Some(reqwest_dav::Error::Reqwest(inner)) => certificate_in(inner),
+        _ => certificate_in(e),
+    })
+}
+
+fn certificate_in(err: &(dyn std::error::Error + 'static)) -> bool {
+    std::iter::successors(Some(err), |e| e.source())
+        .filter_map(tls_failure)
+        .any(|tls| matches!(tls, rustls::Error::InvalidCertificate(_)))
+}
+
 fn parse_webdav_list(xml: &str) -> Result<Vec<ListEntity>, reqwest_dav::Error> {
     // Some WebDAV servers emit RFC 2822's numeric UTC offset instead of HTTP-date's `GMT`.
     let normalized_xml = xml.replace(" +0000</", " GMT</");
@@ -333,6 +372,54 @@ fn kept_out_of_backup(file_name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::kept_out_of_backup;
+
+    #[cfg(not(windows))]
+    mod certificate {
+        use super::super::{agent, with_certificate_hint};
+        use crate::utils::network::transport_tests::self_signed_once;
+
+        const OK: &str = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+
+        async fn get(trust_self_signed: bool, addr: &str) -> Result<reqwest::Response, reqwest::Error> {
+            let agent = agent(5, trust_self_signed);
+            assert!(agent.is_ok(), "{agent:?}");
+            agent
+                .unwrap_or_default()
+                .get(format!("https://{addr}/dav/"))
+                .send()
+                .await
+        }
+
+        #[tokio::test]
+        async fn a_self_signed_server_is_refused_with_a_hint() {
+            let refused = get(false, &self_signed_once(OK)).await;
+            assert!(refused.is_err(), "самоподписанный сертификат принят без галочки");
+            let Err(err) = refused else { return };
+            let explained = with_certificate_hint(reqwest_dav::Error::Reqwest(err).into());
+            assert_eq!(explained.to_string(), clash_verge_i18n::t!("common.webdavCertificate"));
+        }
+
+        #[tokio::test]
+        async fn a_trusted_self_signed_server_is_reached() {
+            let reached = get(true, &self_signed_once(OK)).await;
+            assert!(reached.is_ok_and(|response| response.status().is_success()));
+        }
+
+        #[tokio::test]
+        async fn webdav_is_not_led_from_https_to_http() {
+            let plain = tokio::net::TcpListener::bind("127.0.0.1:0").await;
+            assert!(plain.is_ok());
+            let Ok(plain) = plain else { return };
+            let port = plain.local_addr().map(|addr| addr.port()).unwrap_or_default();
+            let head = format!(
+                "HTTP/1.1 307 Temporary Redirect\r\nLocation: http://127.0.0.1:{port}/dav/\r\nContent-Length: 0\r\n\r\n"
+            );
+            let led = get(true, &self_signed_once(head)).await;
+            assert!(led.is_err(), "{led:?}");
+            let reached = tokio::time::timeout(std::time::Duration::from_millis(200), plain.accept()).await;
+            assert!(reached.is_err(), "запрос ушёл по http");
+        }
+    }
 
     #[test]
     fn report_measurements_and_leftovers_stay_out_of_the_backup() {

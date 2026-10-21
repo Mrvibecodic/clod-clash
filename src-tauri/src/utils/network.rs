@@ -105,7 +105,7 @@ fn closed_unanswered(err: &(dyn std::error::Error + 'static)) -> bool {
 /// Смотрим на самый первый адрес цепочки, а не на предыдущий шаг: важно, что обещал
 /// пользователю его собственный адрес подписки. Если он изначально был `http://`,
 /// понижать нечего и цепочка идёт как раньше.
-fn redirect_is_a_downgrade(first: Option<&Url>, next: &Url) -> bool {
+pub(crate) fn redirect_is_a_downgrade(first: Option<&Url>, next: &Url) -> bool {
     first.is_some_and(|first| first.scheme() == "https") && next.scheme() != "https"
 }
 
@@ -800,7 +800,7 @@ pub(crate) mod transport_tests {
 
     /// Сервер TLS с самоподписанным сертификатом: принимает одно соединение,
     /// дочитывает запрос и отвечает `head`. Адрес — `127.0.0.1:порт`.
-    pub(crate) fn self_signed_once(head: &'static str) -> String {
+    pub(crate) fn self_signed_once(head: impl Into<String>) -> String {
         use base64::Engine as _;
         use std::io::{Read as _, Write as _};
 
@@ -821,6 +821,7 @@ pub(crate) mod transport_tests {
                 .expect("сертификат сервера");
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("порт для теста");
         let addr = listener.local_addr().expect("адрес слушателя").to_string();
+        let head = head.into();
         std::thread::spawn(move || {
             let Ok((socket, _)) = listener.accept() else {
                 return;

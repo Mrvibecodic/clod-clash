@@ -414,7 +414,9 @@
       },
       "fields": {
         "webdavUrl": "URL Server WebDAV",
-        "username": "Nama Pengguna"
+        "username": "Nama Pengguna",
+        "trustSelfSigned": "Trust a self-signed certificate",
+        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
       },
       "messages": {
         "webdavUrlRequired": "URL WebDAV tidak boleh kosong",

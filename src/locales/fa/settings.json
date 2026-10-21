@@ -414,7 +414,9 @@
       },
       "fields": {
         "webdavUrl": "http(s):// URL سرور WebDAV",
-        "username": "نام کاربری"
+        "username": "نام کاربری",
+        "trustSelfSigned": "Trust a self-signed certificate",
+        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
       },
       "messages": {
         "webdavUrlRequired": "آدرس WebDAV نمی‌تواند خالی باشد",

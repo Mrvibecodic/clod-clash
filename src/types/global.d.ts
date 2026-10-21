@@ -956,6 +956,7 @@ interface IVergeConfig {
   webdav_url?: string
   webdav_username?: string
   webdav_password?: string
+  webdav_trust_self_signed?: boolean
   enable_external_controller?: boolean
   enable_hwid?: boolean
   hwid?: string
@@ -988,4 +989,5 @@ interface IWebDavConfig {
   url: string
   username: string
   password: string
+  trustSelfSigned: boolean
 }

@@ -607,11 +607,13 @@ export async function saveWebdavConfig(
   url: string,
   username: string,
   password: string,
+  trustSelfSigned: boolean,
 ) {
   return invoke<void>('save_webdav_config', {
     url,
     username,
     password,
+    trustSelfSigned,
   })
 }
 

@@ -168,6 +168,12 @@ pub struct IVerge {
     )]
     pub webdav_password: Option<String>,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webdav_trust_self_signed: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webdav_trust_settled: Option<bool>,
+
     #[cfg(target_os = "macos")]
     pub enable_tray_speed: Option<bool>,
 
@@ -575,6 +581,7 @@ impl IVerge {
         patch!(webdav_url);
         patch!(webdav_username);
         patch!(webdav_password);
+        patch!(webdav_trust_self_signed);
         #[cfg(target_os = "macos")]
         patch!(enable_tray_speed);
         #[cfg(target_os = "macos")]

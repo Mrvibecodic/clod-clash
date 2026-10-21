@@ -988,6 +988,8 @@ export interface TranslationResources {
             title: string
           }
           fields: {
+            trustSelfSigned: string
+            trustSelfSignedHelper: string
             username: string
             webdavUrl: string
           }

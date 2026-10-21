@@ -12,7 +12,7 @@ import { useState, useRef, memo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { FormField } from '@/components/base'
+import { FormField, FormRow, Switch } from '@/components/base'
 import { MONO_INPUT } from '@/components/base/base-mono'
 import { useVerge } from '@/hooks/use-verge'
 import { saveWebdavConfig, createWebdavBackup } from '@/services/cmds'
@@ -48,27 +48,35 @@ export const BackupConfigViewer = memo(
   }: BackupConfigViewerProps) => {
     const { t } = useTranslation()
     const { verge, mutateVerge } = useVerge()
-    const { webdav_url, webdav_username, webdav_password } = verge || {}
+    const {
+      webdav_url,
+      webdav_username,
+      webdav_password,
+      webdav_trust_self_signed,
+    } = verge || {}
     const [showPassword, setShowPassword] = useState(false)
     const usernameRef = useRef<HTMLInputElement>(null)
     const passwordRef = useRef<HTMLInputElement>(null)
     const urlRef = useRef<HTMLInputElement>(null)
 
-    const { register, handleSubmit, watch } = useForm<IWebDavConfig>({
+    const { register, handleSubmit, watch, setValue } = useForm<IWebDavConfig>({
       defaultValues: {
         url: webdav_url,
         username: webdav_username,
         password: webdav_password,
+        trustSelfSigned: webdav_trust_self_signed ?? false,
       },
     })
     const url = watch('url')
     const username = watch('username')
     const password = watch('password')
+    const trustSelfSigned = watch('trustSelfSigned')
 
     const webdavChanged =
       webdav_url !== url ||
       webdav_username !== username ||
-      webdav_password !== password
+      webdav_password !== password ||
+      (webdav_trust_self_signed ?? false) !== trustSelfSigned
 
     const webdavSignature = buildWebdavSignature(verge)
     const webdavStatus = getWebdavStatus(webdavSignature)
@@ -125,7 +133,12 @@ export const BackupConfigViewer = memo(
 
       try {
         setLoading(true)
-        await saveWebdavConfig(trimmedUrl, trimmedUsername, data.password)
+        await saveWebdavConfig(
+          trimmedUrl,
+          trimmedUsername,
+          data.password,
+          data.trustSelfSigned,
+        )
         // До обновления настроек: в подписи нет пароля, и отрисовка с новым
         // паролем не должна застать прежний «не отвечает».
         setWebdavStatus(signature, 'unknown')
@@ -136,6 +149,7 @@ export const BackupConfigViewer = memo(
                 webdav_url: trimmedUrl,
                 webdav_username: trimmedUsername,
                 webdav_password: data.password,
+                webdav_trust_self_signed: data.trustSelfSigned,
               }
             : current,
         )
@@ -230,6 +244,18 @@ export const BackupConfigViewer = memo(
             />
           </FormField>
         </Box>
+        <FormRow
+          label={t('settings.modals.backup.fields.trustSelfSigned')}
+          help={t('settings.modals.backup.fields.trustSelfSignedHelper')}
+        >
+          <Switch
+            edge="end"
+            checked={trustSelfSigned}
+            onChange={(_, checked) =>
+              setValue('trustSelfSigned', checked, { shouldDirty: true })
+            }
+          />
+        </FormRow>
         <Box
           sx={{
             display: 'flex',

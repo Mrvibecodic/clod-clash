@@ -414,7 +414,9 @@
       },
       "fields": {
         "webdavUrl": "Dirección del servidor WebDAV http(s)://",
-        "username": "Nombre de usuario"
+        "username": "Nombre de usuario",
+        "trustSelfSigned": "Trust a self-signed certificate",
+        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
       },
       "messages": {
         "webdavUrlRequired": "La dirección del servidor WebDAV no puede estar vacía",

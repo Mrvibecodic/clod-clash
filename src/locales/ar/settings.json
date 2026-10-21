@@ -414,7 +414,9 @@
       },
       "fields": {
         "webdavUrl": "عنوان خادم WebDAV",
-        "username": "اسم المستخدم"
+        "username": "اسم المستخدم",
+        "trustSelfSigned": "Trust a self-signed certificate",
+        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
       },
       "messages": {
         "webdavUrlRequired": "لا يمكن ترك رابط WebDAV فارغًا",

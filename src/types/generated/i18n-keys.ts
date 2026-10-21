@@ -788,6 +788,8 @@ export const translationKeys = [
   'settings.modals.backup.actions.checkConnection',
   'settings.modals.backup.fields.webdavUrl',
   'settings.modals.backup.fields.username',
+  'settings.modals.backup.fields.trustSelfSigned',
+  'settings.modals.backup.fields.trustSelfSignedHelper',
   'settings.modals.backup.messages.webdavUrlRequired',
   'settings.modals.backup.messages.invalidWebdavUrl',
   'settings.modals.backup.messages.usernameRequired',
