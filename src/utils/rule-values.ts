@@ -6,9 +6,7 @@ const isPortRange = (part: string) => {
   return ends.length <= 2 && ends.every((end) => PORT.test(end.trim()))
 }
 
-/** Порт, диапазон `N-M` и их список через `,` или `/` — как в правилах ядра. */
-export const isPortList = (value: string) =>
-  (value.includes(',') ? value.split(',') : value.split('/')).every(isPortRange)
+export const isPortList = (value: string) => value.split('/').every(isPortRange)
 
 /** Ядро не различает регистр сети; в правило она пишется строчными. */
 export const normalizeNetwork = (value: string) => value.toLowerCase()

@@ -40,6 +40,7 @@
         "validation": {
           "conditionRequired": "Rule Condition Required",
           "invalidRule": "Invalid Rule",
+          "invalidPort": "A port, a range (8000-9000) or several separated by “/” (80/443)",
           "duplicate": "This rule is already in your rules"
         },
         "position": {

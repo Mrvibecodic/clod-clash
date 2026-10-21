@@ -40,6 +40,7 @@
         "validation": {
           "conditionRequired": "Kondisi Aturan Diperlukan",
           "invalidRule": "Aturan Tidak Valid",
+          "invalidPort": "A port, a range (8000-9000) or several separated by “/” (80/443)",
           "duplicate": "Aturan ini sudah ada di aturan Anda"
         },
         "position": {

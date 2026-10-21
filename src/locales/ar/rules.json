@@ -40,6 +40,7 @@
         "validation": {
           "conditionRequired": "شرط القاعدة مطلوب",
           "invalidRule": "قاعدة غير صالحة",
+          "invalidPort": "A port, a range (8000-9000) or several separated by “/” (80/443)",
           "duplicate": "هذه القاعدة موجودة بالفعل في قواعدك"
         },
         "position": {

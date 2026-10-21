@@ -91,6 +91,7 @@ const rules: {
   example?: string
   noResolve?: boolean
   validator?: (value: string) => boolean
+  invalidKey?: TranslationKey
   normalize?: (value: string) => string
 }[] = [
   {
@@ -180,18 +181,21 @@ const rules: {
     group: 'source',
     example: '7777',
     validator: isPortList,
+    invalidKey: 'rules.modals.editor.form.validation.invalidPort',
   },
   {
     name: 'DST-PORT',
     group: 'port',
     example: '80',
     validator: isPortList,
+    invalidKey: 'rules.modals.editor.form.validation.invalidPort',
   },
   {
     name: 'IN-PORT',
     group: 'port',
     example: '7897',
     validator: isPortList,
+    invalidKey: 'rules.modals.editor.form.validation.invalidPort',
   },
   {
     name: 'NETWORK',
@@ -639,7 +643,10 @@ export const RulesEditorViewer = (props: Props) => {
     required && !value
       ? t('rules.modals.editor.form.validation.conditionRequired')
       : ruleType.validator && !ruleType.validator(value)
-        ? t('rules.modals.editor.form.validation.invalidRule')
+        ? t(
+            ruleType.invalidKey ??
+              'rules.modals.editor.form.validation.invalidRule',
+          )
         : prependSeq.includes(rawRule) || appendSeq.includes(rawRule)
           ? t('rules.modals.editor.form.validation.duplicate')
           : null

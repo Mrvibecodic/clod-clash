@@ -677,6 +677,7 @@ export interface TranslationResources {
             validation: {
               conditionRequired: string
               duplicate: string
+              invalidPort: string
               invalidRule: string
             }
           }

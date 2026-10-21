@@ -40,6 +40,7 @@
         "validation": {
           "conditionRequired": "Кагыйдә шарты кирәк",
           "invalidRule": "Яраксыз кагыйдә",
+          "invalidPort": "A port, a range (8000-9000) or several separated by “/” (80/443)",
           "duplicate": "Мондый кагыйдә сезнең кагыйдәләрдә бар инде"
         },
         "position": {

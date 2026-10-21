@@ -419,6 +419,7 @@ export const translationKeys = [
   'rules.modals.editor.form.actions.add',
   'rules.modals.editor.form.validation.conditionRequired',
   'rules.modals.editor.form.validation.invalidRule',
+  'rules.modals.editor.form.validation.invalidPort',
   'rules.modals.editor.form.validation.duplicate',
   'rules.modals.editor.form.position.prepend',
   'rules.modals.editor.form.position.append',

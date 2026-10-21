@@ -40,6 +40,7 @@
         "validation": {
           "conditionRequired": "Kural Koşulu Gerekli",
           "invalidRule": "Geçersiz Kural",
+          "invalidPort": "A port, a range (8000-9000) or several separated by “/” (80/443)",
           "duplicate": "Bu kural zaten kurallarınızda var"
         },
         "position": {

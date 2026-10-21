@@ -40,6 +40,7 @@
         "validation": {
           "conditionRequired": "Regelbedingung fehlt",
           "invalidRule": "Ungültige Regel",
+          "invalidPort": "A port, a range (8000-9000) or several separated by “/” (80/443)",
           "duplicate": "Diese Regel ist bereits vorhanden"
         },
         "position": {

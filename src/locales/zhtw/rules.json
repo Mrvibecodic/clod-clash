@@ -40,6 +40,7 @@
         "validation": {
           "conditionRequired": "規則條件為必填",
           "invalidRule": "無效規則",
+          "invalidPort": "A port, a range (8000-9000) or several separated by “/” (80/443)",
           "duplicate": "你的規則中已有此規則"
         },
         "position": {

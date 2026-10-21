@@ -40,6 +40,7 @@
         "validation": {
           "conditionRequired": "규칙 조건 필요",
           "invalidRule": "잘못된 규칙",
+          "invalidPort": "A port, a range (8000-9000) or several separated by “/” (80/443)",
           "duplicate": "이미 추가된 규칙입니다"
         },
         "position": {
