@@ -44,7 +44,7 @@ pub async fn connect_proxy_chain(group: String, nodes: Vec<String>) -> Result<()
         .as_ref()
         .is_some_and(|config| proxy_chain::fits(config, &nodes));
     if !fits {
-        bail!("узлов цепочки нет среди узлов подписки");
+        bail!("{}", clash_verge_i18n::t!("errors.chainNodesMissing"));
     }
     rebuild_with(move |registry| connect_in(registry, &group, &nodes)).await
 }
@@ -126,7 +126,10 @@ fn choice_after_the_chain(chain: &PrfProxyChain, chosen: Option<&str>) -> Option
 }
 
 fn current_item(registry: &mut IProfiles) -> Result<&mut PrfItem> {
-    let current = registry.get_current().cloned().context("нет текущей подписки")?;
+    let current = registry
+        .get_current()
+        .cloned()
+        .context(clash_verge_i18n::t!("errors.noCurrentSubscription"))?;
     registry.item_mut(&current)
 }
 
@@ -138,7 +141,7 @@ fn release(item: &mut PrfItem, chain: &PrfProxyChain) {
 }
 
 fn connect_in(registry: &mut IProfiles, group: &str, nodes: &[String]) -> Result<()> {
-    let exit = nodes.last().context("пустая цепочка")?.clone();
+    let exit = nodes.last().context(clash_verge_i18n::t!("errors.emptyChain"))?.clone();
     let item = current_item(registry)?;
     let chosen = chosen_in(item, group);
     let old = item.proxy_chain.take();

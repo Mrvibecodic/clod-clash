@@ -155,6 +155,9 @@ errors:
   backupNotImported: "Could not add the backup: {reason}"
   backupNotExported: "Could not save the backup: {reason}"
   backupNotMoved: "Could not move the backup: {reason}"
+  chainNodesMissing: "The chain nodes are not among the subscription nodes"
+  noCurrentSubscription: "No subscription is selected"
+  emptyChain: "The chain is empty"
 tray:
   dashboard: Übersicht
   ruleMode: Regel-Modus
