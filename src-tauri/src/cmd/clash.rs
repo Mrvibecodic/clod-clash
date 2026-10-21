@@ -253,10 +253,30 @@ fn dns_reference_check(
 /// Проверка не состоялась (занято, не запустилась) — файл всё равно пишется:
 /// её отсутствие не приговор, ядро рассудит при следующей сборке.
 #[tauri::command]
-pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
-    let (uid, base) = the_dns_page_subject().await;
-    let (uid, dns_path) = uid
-        .and_then(|uid| Some((uid.clone(), crate::utils::dirs::dns_page_path(&uid).ok()?)))
+pub async fn save_dns_config(dns_config: Mapping, profile_uid: Option<String>) -> CmdResult<DnsSaveOutcome> {
+    let current = Config::profiles().await.latest_arc().get_current().cloned();
+    let uid = match owner_of_the_page(profile_uid, current) {
+        PageOwner::Current(uid) => uid,
+        PageOwner::Changed => {
+            return Ok(DnsSaveOutcome {
+                saved: false,
+                validation: ValidationOutcome::invalid(
+                    ValidationErrorKind::BuildFailed,
+                    clash_verge_i18n::t!("dns.subscriptionChanged").into_owned(),
+                ),
+                warning: None,
+                delivery_error: None,
+            });
+        }
+        PageOwner::NoSubscription => {
+            return Err(clash_verge_i18n::t!("errors.noSubscriptionSelected")
+                .into_owned()
+                .into());
+        }
+    };
+    let (_, base) = the_dns_page_subject(Some(uid.clone())).await;
+    let dns_path = crate::utils::dirs::dns_page_path(&uid)
+        .ok()
         .ok_or_else(|| clash_verge_i18n::t!("errors.noSubscriptionSelected").into_owned())?;
     let Some(page) = dns_page::Page::from_file(&dns_config) else {
         return Err(clash_verge_i18n::t!("errors.dnsPageNotMapping").into_owned().into());
@@ -351,10 +371,26 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
 
 /// Подписка страницы DNS (текущая) и блок, от которого считаются её отличия, —
 /// от сборки этой же подписки.
-async fn the_dns_page_subject() -> (Option<String>, dns_page::Base) {
-    let uid = Config::profiles().await.latest_arc().get_current().cloned();
+async fn the_dns_page_subject(uid: Option<String>) -> (Option<String>, dns_page::Base) {
     let base = base_of_the_page(uid.as_ref(), &Config::runtime().await.data_arc());
     (uid, base)
+}
+
+/// Чья страница DNS: подписки, с которой открыт диалог, — если она всё ещё
+/// текущая.
+#[derive(Debug, PartialEq, Eq)]
+enum PageOwner {
+    Current(String),
+    Changed,
+    NoSubscription,
+}
+
+fn owner_of_the_page(dialog: Option<String>, current: Option<String>) -> PageOwner {
+    match (dialog, current) {
+        (Some(dialog), Some(current)) if dialog == current => PageOwner::Current(dialog),
+        (Some(_), _) => PageOwner::Changed,
+        (None, _) => PageOwner::NoSubscription,
+    }
 }
 
 /// Принятая сборка другой подписки — блока для этой страницы нет.
@@ -403,8 +439,8 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
 /// отличия со страницы. `bare` — подписка без страницы (кнопка «как в
 /// подписке»). Пока конфиг не собран, подписки нет — видна одна страница.
 #[tauri::command]
-pub async fn get_dns_page_view(bare: bool) -> CmdResult<Mapping> {
-    let (uid, base) = the_dns_page_subject().await;
+pub async fn get_dns_page_view(bare: bool, profile_uid: Option<String>) -> CmdResult<Mapping> {
+    let (uid, base) = the_dns_page_subject(profile_uid).await;
     let page = if bare {
         dns_page::Page::default()
     } else {
@@ -444,7 +480,9 @@ pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{base_of_the_page, dns_reference_check, read_ladder, tunnels_from_subscription};
+    use super::{
+        PageOwner, base_of_the_page, dns_reference_check, owner_of_the_page, read_ladder, tunnels_from_subscription,
+    };
     use crate::enhance::dns_page::References;
     use serde_yaml_ng::{Mapping, Value};
 
@@ -495,6 +533,20 @@ mod tests {
                 .as_deref()
                 .is_some_and(|text| text.contains("«rs-one»"))
         );
+    }
+
+    #[test]
+    fn the_page_is_saved_only_to_the_subscription_the_dialog_was_opened_with() {
+        assert_eq!(
+            owner_of_the_page(Some("A".into()), Some("A".into())),
+            PageOwner::Current("A".into())
+        );
+        assert_eq!(
+            owner_of_the_page(Some("A".into()), Some("B".into())),
+            PageOwner::Changed
+        );
+        assert_eq!(owner_of_the_page(Some("A".into()), None), PageOwner::Changed);
+        assert_eq!(owner_of_the_page(None, Some("B".into())), PageOwner::NoSubscription);
     }
 
     #[test]

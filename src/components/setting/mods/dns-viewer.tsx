@@ -655,6 +655,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     try {
       const view = await invoke<Record<string, unknown>>('get_dns_page_view', {
         bare: true,
+        profileUid: editedProfileRef.current,
       })
       skipYamlSyncRef.current = true
       updateValuesFromConfig(view)
@@ -708,6 +709,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     try {
       const view = await invoke<Record<string, unknown>>('get_dns_page_view', {
         bare: false,
+        profileUid: editedProfileRef.current,
       })
       skipYamlSyncRef.current = true
       const seeded = updateValuesFromConfig(view)
@@ -778,6 +780,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
       const outcome = await invoke<DnsSaveOutcome>('save_dns_config', {
         dnsConfig: config,
+        profileUid: editedProfileRef.current,
       })
 
       if (!outcome.saved) {
