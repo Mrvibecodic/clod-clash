@@ -392,7 +392,7 @@
       },
       "messages": {
         "autoEnterHint": "After the window is closed, lightweight mode turns on in {{count}} minutes",
-        "autoEnterHint_one": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes"
+        "autoEnterHint_one": "After the window is closed, lightweight mode turns on in {{count}} minute"
       }
     },
     "backup": {

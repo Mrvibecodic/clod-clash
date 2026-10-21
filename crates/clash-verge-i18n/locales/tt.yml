@@ -19,8 +19,8 @@ notifications:
     pending: "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed"
     volumeWithoutRights: "TUN is not available for a copy on a FAT/exFAT drive — move the app to an NTFS drive"
   lightweightModeEntered:
-    title: Җиңел режим
-    body: Җиңел режимга күчелде.
+    title: Lightweight mode
+    body: Entered lightweight mode.
   profilesReactivated:
     title: Профиль
     body: Профиль яңадан активлаштырылды.
@@ -198,7 +198,7 @@ tray:
   systemProxy: Системалы прокси
   tunMode: Tun режимы (виртуаль челтәр адаптеры)
   closeAllConnections: Барлык тоташуларны ябу
-  lightweightMode: Җиңел режим
+  lightweightMode: Lightweight mode
   copyEnv: Мохит үзгәрүчәннәрен күчерү
   confDir: Конфигурация каталогы
   coreDir: Ядро каталогы

@@ -385,14 +385,14 @@
         "autoEnter": "Enter lightweight mode automatically"
       },
       "tooltips": {
-        "autoEnter": "فعال کردن حالت LightWeight به صورت خودکار پس از بسته شدن پنجره برای مدت زمانی خاص"
+        "autoEnter": "Turn lightweight mode on once the window has been closed for the set time"
       },
       "fields": {
-        "delay": "تأخیر ورود خودکار به حالت LightWeight"
+        "delay": "Delay before lightweight mode"
       },
       "messages": {
-        "autoEnterHint": "هنگام بستن پنجره، حالت LightWeight پس از {{count}} دقیقه به طور خودکار فعال می‌شود",
-        "autoEnterHint_one": "هنگام بستن پنجره، حالت LightWeight پس از {{count}} دقیقه به طور خودکار فعال می‌شود"
+        "autoEnterHint": "After the window is closed, lightweight mode turns on in {{count}} minutes",
+        "autoEnterHint_one": "After the window is closed, lightweight mode turns on in {{count}} minute"
       }
     },
     "backup": {

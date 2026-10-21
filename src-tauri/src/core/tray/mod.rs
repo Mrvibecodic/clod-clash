@@ -1321,11 +1321,41 @@ mod tests {
             .collect();
         locales.sort();
         assert_eq!(locales.len(), 13, "{locales:?}");
-        for locale in &locales {
-            let tray: serde_yaml_ng::Value = serde_yaml_ng::from_str(&read(
+        let tray_of = |locale: &str| -> serde_yaml_ng::Value {
+            serde_yaml_ng::from_str(&read(
                 root.join(format!("crates/clash-verge-i18n/locales/{locale}.yml")),
             ))
-            .unwrap_or_default();
+            .unwrap_or_default()
+        };
+        let lite_mode_in_the_window = |locale: &str| {
+            serde_json::from_str::<serde_json::Value>(&read(root.join(format!("src/locales/{locale}/settings.json"))))
+                .unwrap_or_default()
+                .pointer("/components/verge/advanced/fields/liteModeSettings")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        };
+        let tray_text = |tray: &serde_yaml_ng::Value, key: &str| {
+            key.split('.')
+                .try_fold(tray, |node, key| node.get(key))
+                .and_then(serde_yaml_ng::Value::as_str)
+                .map(str::to_owned)
+        };
+        let english_tray = tray_of("en");
+        let english_window = lite_mode_in_the_window("en");
+        assert!(english_window.is_some());
+        for locale in &locales {
+            let tray = tray_of(locale);
+            // Окно называет облегчённый режим по-английски — трей и его
+            // уведомление тоже: голого названия режима у окна нет.
+            if lite_mode_in_the_window(locale) == english_window {
+                for key in [
+                    "tray.lightweightMode",
+                    "notifications.lightweightModeEntered.title",
+                    "notifications.lightweightModeEntered.body",
+                ] {
+                    assert_eq!(tray_text(&tray, key), tray_text(&english_tray, key), "{locale}: {key}");
+                }
+            }
             for (tray_key, namespace, window_key) in PAIRS {
                 let window: serde_json::Value =
                     serde_json::from_str(&read(root.join(format!("src/locales/{locale}/{namespace}.json"))))

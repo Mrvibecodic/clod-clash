@@ -19,8 +19,8 @@ notifications:
     pending: "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed"
     volumeWithoutRights: "TUN is not available for a copy on a FAT/exFAT drive — move the app to an NTFS drive"
   lightweightModeEntered:
-    title: Mode Ringan
-    body: Masuk ke mode ringan.
+    title: Lightweight mode
+    body: Entered lightweight mode.
   profilesReactivated:
     title: Profil
     body: Profil diaktifkan kembali.
@@ -198,7 +198,7 @@ tray:
   systemProxy: Proksi Sistem
   tunMode: Mode Tun (NIC Virtual)
   closeAllConnections: Tutup Semua Koneksi
-  lightweightMode: Mode Ringan
+  lightweightMode: Lightweight mode
   copyEnv: Salin Variabel Lingkungan
   confDir: Direktori Konfigurasi
   coreDir: Direktori Core

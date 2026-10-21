@@ -19,8 +19,8 @@ notifications:
     pending: "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed"
     volumeWithoutRights: "TUN is not available for a copy on a FAT/exFAT drive — move the app to an NTFS drive"
   lightweightModeEntered:
-    title: حالت سبک
-    body: به حالت سبک وارد شد.
+    title: Lightweight mode
+    body: Entered lightweight mode.
   profilesReactivated:
     title: پروفایل
     body: پروفایل دوباره فعال شد.
@@ -198,7 +198,7 @@ tray:
   systemProxy: پراکسی سیستم
   tunMode: Tun (کارت شبکه مجازی)
   closeAllConnections: بستن همه اتصال‌ها
-  lightweightMode: حالت سبک
+  lightweightMode: Lightweight mode
   copyEnv: کپی متغیرهای محیطی
   confDir: پوشه پیکربندی
   coreDir: پوشه هسته

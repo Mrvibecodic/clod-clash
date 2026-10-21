@@ -19,8 +19,8 @@ notifications:
     pending: "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed"
     volumeWithoutRights: "TUN is not available for a copy on a FAT/exFAT drive — move the app to an NTFS drive"
   lightweightModeEntered:
-    title: الوضع الخفيف
-    body: تم الدخول إلى الوضع الخفيف.
+    title: Lightweight mode
+    body: Entered lightweight mode.
   profilesReactivated:
     title: الملف الشخصي
     body: تمت إعادة تفعيل الملف الشخصي.
@@ -198,7 +198,7 @@ tray:
   systemProxy: وكيل النظام
   tunMode: وضع TUN
   closeAllConnections: إغلاق كل الاتصالات
-  lightweightMode: الوضع الخفيف
+  lightweightMode: Lightweight mode
   copyEnv: نسخ متغيرات البيئة
   confDir: دليل الإعدادات
   coreDir: دليل النواة
