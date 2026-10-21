@@ -97,7 +97,7 @@ fn is_openable_url(url: &str) -> bool {
 #[tauri::command]
 pub async fn open_web_url(url: String) -> CmdResult<()> {
     if !is_openable_url(url.as_str()) {
-        return Err("url scheme is not allowed".into());
+        return Err(clash_verge_i18n::t!("errors.urlNotAllowed").into_owned().into());
     }
     open::that_detached(url.as_str()).stringify_err()
 }

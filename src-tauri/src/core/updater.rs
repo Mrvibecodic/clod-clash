@@ -695,7 +695,7 @@ mod windows_installer {
     /// снимать и возвращать нечего.
     pub(super) fn prepare(update: &Update, bytes: &[u8], language: Option<&str>) -> Result<Launch> {
         if !bytes.starts_with(b"MZ") {
-            bail!("the downloaded update is not a Windows installer");
+            bail!("{}", clash_verge_i18n::t!("errors.updateNotInstaller"));
         }
         let app = crate::constants::branding::APP_NAME;
         let dir = std::env::temp_dir().join(format!("{app}-{}-updater-{}", update.version, std::process::id()));
@@ -917,7 +917,15 @@ where
 {
     tokio::time::timeout(CHECK_ATTEMPT_DEADLINE, check)
         .await
-        .unwrap_or_else(|_| Err(anyhow!("no answer within {}s", CHECK_ATTEMPT_DEADLINE.as_secs())))
+        .unwrap_or_else(|_| {
+            Err(anyhow!(
+                "{}",
+                clash_verge_i18n::t!(
+                    "errors.updateNoAnswer",
+                    secs = CHECK_ATTEMPT_DEADLINE.as_secs().to_string()
+                )
+            ))
+        })
 }
 
 /// Загрузка обновления со сторожем тишины. У загрузки плагина нет срока:
@@ -942,9 +950,12 @@ async fn download_watched(update: &Update, mut on_chunk: impl FnMut(usize, Optio
             () = progress.notified() => {}
             () = tokio::time::sleep(DOWNLOAD_STALL_LIMIT) => {
                 return Err(anyhow!(
-                    "the download of v{} received nothing for {}s",
-                    update.version,
-                    DOWNLOAD_STALL_LIMIT.as_secs()
+                    "{}",
+                    clash_verge_i18n::t!(
+                        "errors.updateStalled",
+                        version = update.version,
+                        secs = DOWNLOAD_STALL_LIMIT.as_secs().to_string()
+                    )
                 ));
             }
         }
@@ -989,7 +1000,7 @@ impl SilentUpdater {
     async fn install(update: Update, bytes: Vec<u8>) -> Result<()> {
         refuse_for_a_portable_copy(this_copy_is_portable())?;
         let Some(running) = InstallerRunning::claim() else {
-            return Err(anyhow!("another update is being installed right now"));
+            return Err(anyhow!("{}", clash_verge_i18n::t!("errors.updateAlreadyInstalling")));
         };
         #[cfg(target_os = "windows")]
         {
@@ -1022,14 +1033,14 @@ impl SilentUpdater {
         // Установщик уже работает (например, тот, что ставят на старте) —
         // отказ сразу, а не после загрузки.
         if INSTALLING.load(Ordering::Acquire) {
-            return Err(anyhow!("another update is being installed right now"));
+            return Err(anyhow!("{}", clash_verge_i18n::t!("errors.updateAlreadyInstalling")));
         }
         let cancel = CancellationToken::new();
         let ticket = MANUAL_INSTALLS.fetch_add(1, Ordering::Relaxed);
         {
             let mut slot = self.manual_cancel.lock();
             if slot.is_some() {
-                return Err(anyhow!("the update is already being downloaded"));
+                return Err(anyhow!("{}", clash_verge_i18n::t!("errors.updateAlreadyDownloading")));
             }
             *slot = Some((ticket, cancel.clone()));
         }

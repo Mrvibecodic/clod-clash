@@ -269,10 +269,16 @@ fn ensure_private_dir(dir: &Path) -> Result<()> {
 
     let meta = fs::symlink_metadata(dir)?;
     if !meta.is_dir() {
-        anyhow::bail!("{dir:?} занят не каталогом");
+        anyhow::bail!(
+            "{}",
+            clash_verge_i18n::t!("errors.dirNotADirectory", path = format!("{dir:?}"))
+        );
     }
     if meta.uid() != unsafe { libc::geteuid() } {
-        anyhow::bail!("{dir:?} принадлежит другому пользователю");
+        anyhow::bail!(
+            "{}",
+            clash_verge_i18n::t!("errors.dirOfAnotherUser", path = format!("{dir:?}"))
+        );
     }
     fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
     Ok(())
@@ -285,7 +291,10 @@ const IPC_SOCKET_PATH_LIMIT: usize = 100;
 fn socket_in_private_dir(dir: &Path) -> Result<PathBuf> {
     let socket = dir.join("verge-mihomo.sock");
     if socket.as_os_str().len() > IPC_SOCKET_PATH_LIMIT {
-        anyhow::bail!("путь сокета {socket:?} длиннее допустимого");
+        anyhow::bail!(
+            "{}",
+            clash_verge_i18n::t!("errors.socketPathTooLong", path = format!("{socket:?}"))
+        );
     }
     ensure_private_dir(dir)?;
     Ok(socket)

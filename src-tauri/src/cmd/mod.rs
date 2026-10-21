@@ -81,4 +81,114 @@ mod tests {
         assert!(!text.contains("abcdefghij0123456789XYZ"), "{text}");
         assert!(text.contains("failed"));
     }
+
+    fn rust_sources(dir: &std::path::Path, found: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                rust_sources(&path, found);
+            } else if path.extension().and_then(std::ffi::OsStr::to_str) == Some("rs") {
+                found.push(path);
+            }
+        }
+    }
+
+    fn production_sources() -> Vec<(std::path::PathBuf, std::string::String)> {
+        let mut files = Vec::new();
+        rust_sources(
+            std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src")),
+            &mut files,
+        );
+        files
+            .into_iter()
+            .map(|path| {
+                let source = std::fs::read_to_string(&path).unwrap_or_default();
+                let code = crate::utils::source_scan::without_test_modules(&source).to_owned();
+                (path, code)
+            })
+            .collect()
+    }
+
+    /// Ошибки, которые доходят до окна или уведомления, не зашиты в код
+    /// по-русски: текст берётся из локалей и звучит на языке окна. Проверка
+    /// одиночного экземпляра идёт до окна — её ответ только в журнал.
+    #[test]
+    fn no_error_is_hardcoded_in_russian() {
+        let cyrillic = |text: &str| text.chars().any(|c| matches!(c, 'а'..='я' | 'А'..='Я' | 'ё' | 'Ё'));
+        let sources = production_sources();
+        assert!(sources.len() > 50, "исходники не найдены");
+        for (path, code) in sources {
+            if path.ends_with("utils/server.rs") {
+                continue;
+            }
+            for opening in [
+                "bail!(",
+                "anyhow!(",
+                ".context(\"",
+                "with_context(|| \"",
+                "with_context(|| format!(",
+                "Err(\"",
+                "Err(format!(",
+                ".ok_or(\"",
+                "ok_or_else(|| \"",
+                "ok_or_else(|| format!(",
+                "map_err(|e| format!(\"",
+                "map_err(|err| format!(\"",
+                "map_err(|error| format!(\"",
+            ] {
+                for (at, _) in code.match_indices(opening) {
+                    let call = code[at..].split(';').next().unwrap_or_default();
+                    let literal = call.split('"').nth(1).unwrap_or_default();
+                    assert!(!cyrillic(literal), "{}: {call}", path.display());
+                }
+            }
+        }
+    }
+
+    /// Каждый ключ, которым бэкенд говорит с человеком, есть во всех локалях:
+    /// иначе вместо фразы показалось бы имя ключа.
+    #[test]
+    fn every_key_the_backend_speaks_is_in_every_locale() {
+        let locales = std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../crates/clash-verge-i18n/locales"
+        ));
+        let mut tables = Vec::new();
+        for entry in std::fs::read_dir(locales).into_iter().flatten().flatten() {
+            let text = std::fs::read_to_string(entry.path()).unwrap_or_default();
+            let table: serde_yaml_ng::Value = serde_yaml_ng::from_str(&text).unwrap_or_default();
+            tables.push((entry.path(), table));
+        }
+        assert_eq!(tables.len(), 13, "локалей не тринадцать");
+        let mut checked = 0_usize;
+        for (path, code) in production_sources() {
+            for (at, _) in code.match_indices("t!(\"") {
+                if code[..at]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_alphanumeric() || c == '_')
+                {
+                    continue;
+                }
+                let key = code[at + 4..].split('"').next().unwrap_or_default();
+                for (locale, table) in &tables {
+                    let found = key
+                        .split('.')
+                        .try_fold(table, |node, part| node.get(part))
+                        .is_some_and(serde_yaml_ng::Value::is_string);
+                    assert!(
+                        found,
+                        "{}: ключ {key} отсутствует в {}",
+                        path.display(),
+                        locale.display()
+                    );
+                }
+                checked += 1;
+            }
+        }
+        assert!(checked > 100, "ключей не нашлось — тест ослеп");
+    }
 }

@@ -11,7 +11,7 @@ pub fn invoke_uwptools() -> Result<()> {
     let tool_path = resource_dir.join("enableLoopback.exe");
 
     if !tool_path.exists() {
-        bail!("enableLoopback exe not found");
+        bail!("{}", clash_verge_i18n::t!("errors.uwpToolMissing"));
     }
 
     let token = Token::with_current_process()?;

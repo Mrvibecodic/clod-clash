@@ -331,9 +331,12 @@ fn refused_by_the_system(wanted: &WantedProxy, after: Option<&ObservedProxy>) ->
 
 fn the_system_refused(wanted: &WantedProxy, after: Option<&ObservedProxy>) -> anyhow::Error {
     anyhow::anyhow!(
-        "the system did not accept the proxy settings: wanted {}, the system reports {}",
-        wanted.describe(),
-        after.map_or_else(ObservedProxy::unreadable, ObservedProxy::describe)
+        "{}",
+        clash_verge_i18n::t!(
+            "errors.proxyNotAccepted",
+            wanted = wanted.describe(),
+            actual = after.map_or_else(ObservedProxy::unreadable, ObservedProxy::describe)
+        )
     )
 }
 

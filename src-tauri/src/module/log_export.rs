@@ -98,7 +98,7 @@ pub async fn write_archive(target: PathBuf) -> Result<usize> {
         files.sort();
         files.dedup();
 
-        let file = std::fs::File::create(&target).with_context(|| format!("cannot create {}", target.display()))?;
+        let file = std::fs::File::create(&target).with_context(|| clash_verge_i18n::t!("errors.fileNotCreated", path = target.display().to_string()))?;
         let mut zip = zip::ZipWriter::new(file);
         let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 

@@ -94,7 +94,7 @@ pub async fn copy_icon_file(path: String, name: String) -> CmdResult<String> {
     let icon_name = normalize_icon_segment(name.as_str())?;
 
     if !file_path.exists() {
-        return Err("file not found".into());
+        return Err(clash_verge_i18n::t!("errors.fileNotFound").into_owned().into());
     }
 
     let icon_dir = dirs::app_icons_dir().stringify_err()?;

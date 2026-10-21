@@ -16,7 +16,12 @@ pub async fn update_launch() -> Result<()> {
     #[cfg(target_os = "windows")]
     {
         let is_admin = is_current_app_handle_admin(Handle::app_handle());
-        schtasks::set_auto_launch(is_enable, is_admin).await?;
+        schtasks::set_auto_launch(is_enable, is_admin).await.map_err(|e| {
+            anyhow::anyhow!(
+                "{}",
+                clash_verge_i18n::t!("errors.autostartNotChanged", reason = format!("{e:#}"))
+            )
+        })?;
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -32,7 +37,10 @@ pub async fn update_launch() -> Result<()> {
             logging!(error, Type::System, "auto-launch change failed: {e}");
             // clod:autostart — отказ больше не выдаётся за успех: иначе тумблер
             // оставался включённым, а при следующем входе приложение не стартовало.
-            return Err(anyhow::anyhow!("auto-launch change failed: {e}"));
+            return Err(anyhow::anyhow!(
+                "{}",
+                clash_verge_i18n::t!("errors.autostartNotChanged", reason = e.to_string())
+            ));
         }
     }
 

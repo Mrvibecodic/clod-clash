@@ -90,7 +90,13 @@ pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeed
     .await;
     let connection_id = match subscribed {
         Ok(connected) => connected?,
-        Err(_) => anyhow::bail!("поток Mihomo WebSocket не ответил на рукопожатие за {MIHOMO_WS_CONNECT_TIMEOUT:?}"),
+        Err(_) => anyhow::bail!(
+            "{}",
+            clash_verge_i18n::t!(
+                "errors.connectionsSilent",
+                timeout = format!("{MIHOMO_WS_CONNECT_TIMEOUT:?}")
+            )
+        ),
     };
     drop(message_tx);
     Ok(MihomoWsEventStream {

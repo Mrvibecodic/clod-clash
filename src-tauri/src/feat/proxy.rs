@@ -238,9 +238,12 @@ pub async fn copy_clash_env() -> anyhow::Result<()> {
         _ => anyhow::bail!("copy_clash_env: invalid env type {env_type}"),
     };
 
-    clipboard
-        .write_text(&export_text)
-        .map_err(|err| anyhow::anyhow!("failed to write to clipboard: {err}"))
+    clipboard.write_text(&export_text).map_err(|err| {
+        anyhow::anyhow!(
+            "{}",
+            clash_verge_i18n::t!("errors.clipboardNotWritten", reason = err.to_string())
+        )
+    })
 }
 
 #[cfg(test)]

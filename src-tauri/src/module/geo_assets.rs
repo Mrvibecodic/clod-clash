@@ -127,7 +127,7 @@ pub async fn refresh_home_copies() -> Result<usize> {
         let outcome = async {
             let data = download(&url).await?;
             if !looks_like_a_database(file, &data) {
-                bail!("the downloaded {file} does not look like a geo database");
+                bail!("{}", clash_verge_i18n::t!("errors.geoNotADatabase", file = file));
             }
             help::write_atomic(&path, &data).await
         }

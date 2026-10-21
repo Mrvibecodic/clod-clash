@@ -70,7 +70,7 @@ pub async fn allow_inbound() -> Result<()> {
         }
     }
     if paths.is_empty() {
-        bail!("no core binaries found next to the app");
+        bail!("{}", clash_verge_i18n::t!("errors.firewallNoCore"));
     }
 
     let mut script = String::from("$fail=0; ");
@@ -114,8 +114,11 @@ pub async fn allow_inbound() -> Result<()> {
 
     if !status.success() {
         bail!(
-            "failed to add the firewall rule, status {}",
-            status.code().unwrap_or(-1)
+            "{}",
+            clash_verge_i18n::t!(
+                "errors.firewallRuleNotAdded",
+                code = status.code().unwrap_or(-1).to_string()
+            )
         );
     }
     Ok(())

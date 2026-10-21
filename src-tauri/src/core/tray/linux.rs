@@ -181,9 +181,9 @@ fn decode_icon(icon_bytes: &[u8]) -> Result<Vec<Icon>> {
     let source = tauri::image::Image::from_bytes(icon_bytes)?;
     let (source_width, source_height) = (source.width(), source.height());
     let mut source = image::RgbaImage::from_raw(source_width, source_height, source.rgba().to_vec())
-        .ok_or_else(|| anyhow::anyhow!("размер иконки трея не совпадает с её данными"))?;
+        .ok_or_else(|| anyhow::anyhow!("{}", clash_verge_i18n::t!("errors.trayIconSizeMismatch")))?;
     if source_width == 0 || source_height == 0 {
-        anyhow::bail!("иконка трея пустая");
+        anyhow::bail!("{}", clash_verge_i18n::t!("errors.trayIconEmpty"));
     }
     premultiply(&mut source);
 
