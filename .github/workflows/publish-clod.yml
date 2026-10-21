@@ -54,7 +54,7 @@ jobs:
             exit 1
           fi
 
-          bash scripts/release-assets.sh check "$id" "$VERSION"
+          bash scripts/release-assets.sh check "$id"
 
           # Тело релиза — из сообщения аннотированного publish-тега (если есть)
           NOTES=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
@@ -74,8 +74,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          bash scripts/release-assets.sh unversion \
-            "${{ steps.publish.outputs.release_id }}" "${GITHUB_REF_NAME#publish-clod-v}"
+          bash scripts/release-assets.sh unversion "${{ steps.publish.outputs.release_id }}"
 
       - name: Roll latest.json into the updater release
         env:

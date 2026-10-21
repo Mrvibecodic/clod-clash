@@ -4,18 +4,24 @@
 # платформами. unversion — убирает версию из имён файлов, чтобы работали
 # постоянные ссылки /releases/latest/download/<файл>.
 #
-# Вызов: release-assets.sh check|unversion <id релиза> <версия>
+# Вызов: release-assets.sh check|unversion <id релиза>
 # Окружение: GH_TOKEN, GITHUB_REPOSITORY. Запускать из корня репозитория.
 set -euo pipefail
 
 COMMAND="$1"
 RELEASE_ID="$2"
-VERSION="${3#v}"
 REPO="$GITHUB_REPOSITORY"
 
+# Версию ищем по форме имени, а не по строке версии: в имени rpm сборщик может
+# записать версию с дефисом иначе (rpm не допускает «-» в version).
 unversioned() {
-  local name="${1/_${VERSION}_/_}"
-  echo "${name/-${VERSION}-1./-}"
+  if [[ "$1" =~ ^(Clod\.Clash)_[0-9][^_]*_(.+)$ ]]; then
+    echo "${BASH_REMATCH[1]}_${BASH_REMATCH[2]}"
+  elif [[ "$1" =~ ^(Clod\.Clash)-[0-9][^-]*-.+\.([^.]+\.rpm.*)$ ]]; then
+    echo "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
+  else
+    echo "$1"
+  fi
 }
 
 check() {

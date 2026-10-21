@@ -217,7 +217,7 @@ jobs:
           echo "release tag: $RELEASE_TAG (id=$RELEASE_ID)"
 
           VERSION="${RELEASE_TAG#clod-v}"
-          bash scripts/release-assets.sh check "$RELEASE_ID" "$VERSION"
+          bash scripts/release-assets.sh check "$RELEASE_ID"
 
           PRERELEASE=false
           case "$VERSION" in *-*) PRERELEASE=true ;; esac
@@ -243,8 +243,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          bash scripts/release-assets.sh unversion \
-            "${{ needs.prepare_release.outputs.release_id }}" "${GITHUB_REF_NAME#clod-v}"
+          bash scripts/release-assets.sh unversion "${{ needs.prepare_release.outputs.release_id }}"
 
       - name: Roll latest.json into the updater release
         env:
