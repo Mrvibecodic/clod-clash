@@ -395,17 +395,13 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
         message: format!("failed to read current profile \"{current_profile_uid}\"").into(),
     })?;
 
-    let dropped_ui_keys = EXTERNAL_UI_KEYS
-        .iter()
-        .filter(|&&key| current.remove(key).is_some())
-        .copied()
-        .collect::<Vec<&str>>();
-    if !dropped_ui_keys.is_empty() {
+    let dropped_keys = drop_what_the_subscription_may_not_set(&mut current);
+    if !dropped_keys.is_empty() {
         logging!(
             info,
             Type::Config,
             "drop `{}` imposed by the subscription",
-            dropped_ui_keys.join("`, `")
+            dropped_keys.join("`, `")
         );
     }
 
@@ -499,7 +495,22 @@ fn process_seq_items(
     config
 }
 
-const EXTERNAL_UI_KEYS: &[&str] = &["external-ui", "external-ui-url", "external-ui-name"];
+/// Чем подписка не распоряжается вовсе: веб-панель ядра и второй вход его API
+/// (по TLS на любом адресе) — это плоскость управления приложения.
+const KEYS_THE_SUBSCRIPTION_MAY_NOT_SET: &[&str] = &[
+    "external-ui",
+    "external-ui-url",
+    "external-ui-name",
+    "external-controller-tls",
+];
+
+fn drop_what_the_subscription_may_not_set(subscription: &mut Mapping) -> Vec<&'static str> {
+    KEYS_THE_SUBSCRIPTION_MAY_NOT_SET
+        .iter()
+        .filter(|&&key| subscription.remove(key).is_some())
+        .copied()
+        .collect()
+}
 
 const CONTROL_PLANE_KEYS: &[&str] = &[
     "external-controller",
@@ -524,7 +535,10 @@ const CONTROL_PLANE_KEYS: &[&str] = &[
 ];
 
 fn control_plane_keys() -> impl Iterator<Item = &'static str> {
-    CONTROL_PLANE_KEYS.iter().chain(EXTERNAL_UI_KEYS.iter()).copied()
+    CONTROL_PLANE_KEYS
+        .iter()
+        .chain(KEYS_THE_SUBSCRIPTION_MAY_NOT_SET.iter())
+        .copied()
 }
 
 fn snapshot_control_plane(config: &Mapping) -> Mapping {
@@ -3618,6 +3632,21 @@ mod tests {
         assert!(result.get("external-ui").is_none());
         assert!(result.get("external-ui-url").is_none());
         assert!(result.get("external-ui-name").is_none());
+    }
+
+    #[test]
+    fn a_profile_cannot_open_the_cores_api_over_tls() {
+        let mut subscription = mapping(r#"{mixed-port: 7890, external-controller-tls: "0.0.0.0:9443"}"#);
+        assert_eq!(
+            super::drop_what_the_subscription_may_not_set(&mut subscription),
+            ["external-controller-tls"]
+        );
+        assert!(!subscription.contains_key("external-controller-tls"));
+
+        let snapshot = super::snapshot_control_plane(&mapping(r"{mixed-port: 7890}"));
+        let hijacked = mapping(r#"{mixed-port: 7890, external-controller-tls: "0.0.0.0:9443"}"#);
+        let result = super::enforce_control_plane(hijacked, snapshot);
+        assert!(result.get("external-controller-tls").is_none());
     }
 
     #[test]
