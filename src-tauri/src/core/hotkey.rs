@@ -467,15 +467,21 @@ impl Hotkey {
         let old_map = Self::get_map_from_vec(current_hotkeys);
         let new_map = Self::get_map_from_vec(&new_hotkeys);
 
-        let (del, add) = Self::get_diff(old_map, new_map);
+        let (del, add) = Self::get_diff(old_map.clone(), new_map);
 
-        del.iter().for_each(|key| {
-            let _ = self.unregister(key);
-        });
-
-        for (key, func) in add.iter() {
-            self.register(key, func).await?;
-        }
+        swap_hotkeys(
+            &old_map,
+            &del,
+            &add,
+            |key, func| {
+                let (key, func) = (key.to_owned(), func.to_owned());
+                async move { self.register(&key, &func).await }
+            },
+            |key| {
+                let _ = self.unregister(key);
+            },
+        )
+        .await?;
 
         // Update the current hotkeys after all async operations
         self.current.store(Arc::new(new_hotkeys));
@@ -528,6 +534,40 @@ impl Hotkey {
     }
 }
 
+/// Сменить набор клавиш целиком или никак: новые регистрируются раньше, чем
+/// снимаются старые, а отказ любой из них возвращает прежний набор — настройки
+/// при отказе тоже остаются прежними.
+async fn swap_hotkeys<Registered: Future<Output = Result<()>>>(
+    old: &HashMap<&str, &str>,
+    del: &[&str],
+    add: &[(&str, &str)],
+    mut register: impl FnMut(&str, &str) -> Registered,
+    mut unregister: impl FnMut(&str),
+) -> Result<()> {
+    for (done, &(key, func)) in add.iter().enumerate() {
+        let Err(err) = register(key, func).await else {
+            continue;
+        };
+        for &(key, _) in add.iter().take(done + 1) {
+            match old.get(key) {
+                Some(&old_func) => {
+                    if let Err(err) = register(key, old_func).await {
+                        logging!(warn, Type::Hotkey, "Failed to restore hotkey {}: {}", key, err);
+                    }
+                }
+                None => unregister(key),
+            }
+        }
+        return Err(err);
+    }
+    for &key in del {
+        if !add.iter().any(|&(added, _)| added == key) {
+            unregister(key);
+        }
+    }
+    Ok(())
+}
+
 impl Drop for Hotkey {
     fn drop(&mut self) {
         let app_handle = handle::Handle::app_handle();
@@ -539,8 +579,77 @@ impl Drop for Hotkey {
 
 #[cfg(test)]
 mod tests {
-    use super::{EXIT_REFUSAL_STATUS, HotkeyFunction, PressVerdict, press_verdict};
+    use super::{EXIT_REFUSAL_STATUS, Hotkey, HotkeyFunction, PressVerdict, press_verdict, swap_hotkeys};
     use crate::utils::source_scan::{fn_body, production_code};
+    use parking_lot::Mutex;
+    use std::collections::{BTreeMap, HashMap};
+
+    /// Сменить набор на «регистраторе», который, как системный, снимает
+    /// прежнюю регистрацию клавиши перед новой и отказывает на занятых.
+    async fn swapped(old: &[(&str, &str)], new: &[(&str, &str)], taken: &[&str]) -> (bool, BTreeMap<String, String>) {
+        let registered: Mutex<BTreeMap<String, String>> = Mutex::new(
+            old.iter()
+                .map(|&(key, func)| (key.to_owned(), func.to_owned()))
+                .collect(),
+        );
+        let old_map: HashMap<&str, &str> = old.iter().copied().collect();
+        let (del, add) = Hotkey::get_diff(old_map.clone(), new.iter().copied().collect());
+        let swapped = swap_hotkeys(
+            &old_map,
+            &del,
+            &add,
+            |key, func| {
+                registered.lock().remove(key);
+                let outcome = if taken.contains(&key) {
+                    Err(anyhow::anyhow!("{key} is taken"))
+                } else {
+                    registered.lock().insert(key.to_owned(), func.to_owned());
+                    Ok(())
+                };
+                std::future::ready(outcome)
+            },
+            |key| {
+                registered.lock().remove(key);
+            },
+        )
+        .await;
+        (swapped.is_ok(), registered.into_inner())
+    }
+
+    fn set(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
+        pairs
+            .iter()
+            .map(|&(key, func)| (key.to_owned(), func.to_owned()))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn a_taken_combination_leaves_the_previous_hotkeys_working() {
+        let old = [("Ctrl+Alt+1", "toggle_system_proxy"), ("Ctrl+Alt+2", "toggle_tun_mode")];
+        for new in [
+            vec![("Ctrl+Alt+9", "toggle_system_proxy"), ("Ctrl+Alt+2", "toggle_tun_mode")],
+            vec![("Ctrl+Alt+3", "toggle_system_proxy"), ("Ctrl+Alt+9", "toggle_tun_mode")],
+            vec![("Ctrl+Alt+9", "toggle_system_proxy"), ("Ctrl+Alt+1", "toggle_tun_mode")],
+            vec![
+                ("Ctrl+Alt+1", "toggle_system_proxy"),
+                ("Ctrl+Alt+2", "toggle_tun_mode"),
+                ("Ctrl+Alt+9", "quit"),
+            ],
+        ] {
+            assert_eq!(
+                swapped(&old, &new, &["Ctrl+Alt+9"]).await,
+                (false, set(&old)),
+                "{new:?}: после отказа работает ровно прежний набор"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_free_set_replaces_the_previous_one_whole() {
+        let old = [("Ctrl+Alt+1", "toggle_system_proxy"), ("Ctrl+Alt+2", "toggle_tun_mode")];
+        let new = [("Ctrl+Alt+2", "toggle_system_proxy"), ("Ctrl+Alt+3", "toggle_tun_mode")];
+        assert_eq!(swapped(&old, &new, &["Ctrl+Alt+9"]).await, (true, set(&new)));
+    }
 
     fn every_function() -> Vec<HotkeyFunction> {
         #[allow(unused_mut)]
