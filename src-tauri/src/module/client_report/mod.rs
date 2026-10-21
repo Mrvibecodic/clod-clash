@@ -343,8 +343,25 @@ fn history_of(entry: &serde_json::Value) -> Vec<(i64, u64)> {
 /// История задержек узлов из `wanted`: из `/proxies` и провайдеров подписки — у
 /// того же узла, чей адрес у `wanted`: одноимённый узел другого провайдера не в счёт.
 fn histories(listed: &CoreListing, wanted: &HashMap<String, Address>) -> HashMap<String, Vec<(i64, u64)>> {
+    fn fingerprint_of(entry: &serde_json::Value) -> Option<&str> {
+        entry
+            .get("fingerprint")
+            .and_then(serde_json::Value::as_str)
+            .filter(|fingerprint| !fingerprint.is_empty())
+    }
+    // `/proxies` перечисляет и узлы провайдеров, без имени провайдера: запись с
+    // именем и отпечатком узла провайдера — его узел, а не одноимённый свой.
+    let members: HashSet<(&str, &str)> = listed
+        .entries()
+        .filter(|(_, provider, _)| provider.is_some())
+        .filter_map(|(name, _, entry)| Some((name, fingerprint_of(entry)?)))
+        .collect();
     let mut out = HashMap::new();
     for (name, provider, entry) in listed.entries() {
+        if provider.is_none() && fingerprint_of(entry).is_some_and(|fingerprint| members.contains(&(name, fingerprint)))
+        {
+            continue;
+        }
         if wanted
             .get(name)
             .is_some_and(|address| address.provider == provider.unwrap_or_default())
@@ -1252,43 +1269,52 @@ mod tests {
 
     #[test]
     fn provider_nodes_are_read_from_the_providers_listing() {
-        let proxies =
-            serde_json::json!({"proxies": {"Свой": {"history": [{"time": "2026-10-04T10:00:00Z", "delay": 5}]}}});
+        let record = |name: &str, fingerprint: &str, second: u8, delay: u64| {
+            serde_json::json!({"name": name, "fingerprint": fingerprint,
+                "history": [{"time": format!("2026-10-04T10:00:0{second}Z"), "delay": delay}]})
+        };
         let providers = vec![
             (
-                "panel".into(),
-                serde_json::json!({"proxies": [
-                    {"name": "Чужой", "history": [{"time": "2026-10-04T10:00:01Z", "delay": 7}]},
-                    {"name": "Свой", "history": [{"time": "2026-10-04T10:00:02Z", "delay": 9}]}
-                ]}),
-            ),
-            // Одноимённый узел провайдера, чьего адреса у отчёта нет (имена
-            // переписаны), — не тот узел.
-            (
                 "a-renamed".into(),
-                serde_json::json!({"proxies": [{"name": "Чужой", "history": [{"time": "2026-10-04T10:00:03Z", "delay": 99}]}]}),
+                // Одноимённый узел провайдера, чьего адреса у отчёта нет (имена
+                // переписаны), — не тот узел.
+                serde_json::json!({"proxies": [record("Чужой", "f-renamed", 3, 99)]}),
             ),
             (
                 "default".into(),
                 serde_json::json!({"proxies": [{"name": "Группа", "history": []}]}),
+            ),
+            (
+                "panel".into(),
+                serde_json::json!({"proxies": [record("Чужой", "f-panel", 1, 7), record("Свой", "f-panel-own", 2, 9)]}),
             ),
         ];
         let mut wanted = wanted(&["Свой", "Чужой"]);
         if let Some(address) = wanted.get_mut("Чужой") {
             address.provider = "panel".into();
         }
-        let listed = histories(
-            &CoreListing {
-                proxies,
-                providers,
-                failed: 0,
-            },
-            &wanted,
-        );
-        assert_eq!(listed.len(), 2);
-        // Одноимённый узел подписки первее провайдерского.
-        assert_eq!(listed["Свой"][0].1, 5);
-        assert_eq!(listed["Чужой"][0].1, 7);
+        // Ядро перечисляет в `/proxies` и узлы провайдеров, а из одноимённых —
+        // какой-то один.
+        for (shown, own) in [
+            (record("Свой", "f-own", 0, 5), Some(5)),
+            (record("Свой", "f-panel-own", 2, 9), None),
+        ] {
+            let proxies = serde_json::json!({"proxies": {
+                "Свой": shown,
+                "Чужой": record("Чужой", "f-renamed", 3, 99),
+                "Группа": {"all": ["Свой"], "history": []},
+            }});
+            let listed = histories(
+                &CoreListing {
+                    proxies,
+                    providers: providers.clone(),
+                    failed: 0,
+                },
+                &wanted,
+            );
+            assert_eq!(listed["Чужой"][0].1, 7);
+            assert_eq!(listed.get("Свой").map(|history| history[0].1), own, "{own:?}");
+        }
     }
 
     #[test]
