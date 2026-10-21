@@ -209,6 +209,57 @@ pub async fn clear(uid: &str) {
     }
 }
 
+/// Убрать картинки подписок, которых нет в реестре: докачанные уже после её
+/// удаления и оставшиеся от прежних версий. Реестр читается после списка
+/// файлов: картинку новой подписки пишут, когда та уже в реестре.
+pub async fn sweep_orphans() {
+    let Ok(dir) = cache_dir() else { return };
+    let names = file_names(&dir).await;
+    let live: BTreeSet<std::string::String> = {
+        let profiles = Config::profiles().await;
+        let arc = profiles.latest_arc();
+        arc.items
+            .iter()
+            .flatten()
+            .filter_map(|item| item.uid.as_deref().map(str::to_owned))
+            .collect()
+    };
+    if crate::config::load_failures::happened(crate::config::load_failures::ConfigFile::Profiles) {
+        return;
+    }
+    let mut removed = 0_usize;
+    for name in names.iter().filter(|name| is_orphan(name, &live)) {
+        if fs::remove_file(dir.join(name)).await.is_ok() {
+            removed += 1;
+        }
+    }
+    if removed > 0 {
+        logging!(
+            info,
+            Type::Config,
+            "removed {removed} pictures of deleted subscriptions"
+        );
+    }
+}
+
+async fn file_names(dir: &Path) -> Vec<std::string::String> {
+    let mut names = Vec::new();
+    let Ok(mut entries) = fs::read_dir(dir).await else {
+        return names;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        names.push(entry.file_name().to_string_lossy().into_owned());
+    }
+    names
+}
+
+/// Картинка подписки, которой нет: `<uid>.…` или черновик записи `.<uid>.…`.
+fn is_orphan(name: &str, live: &BTreeSet<std::string::String>) -> bool {
+    let name = name.strip_prefix('.').unwrap_or(name);
+    name.split_once('.')
+        .is_some_and(|(uid, _)| is_safe_uid(uid) && !live.contains(uid))
+}
+
 /// Что значит ответ сервера на запрос картинки.
 #[derive(Debug, PartialEq, Eq)]
 enum Reply {
@@ -539,8 +590,8 @@ pub async fn group_icon(uid: &str, url: &str) -> Shown {
 #[cfg(test)]
 mod tests {
     use super::{
-        KNOWN_EXTENSIONS, Reply, Validators, cached_icons, icon_stem, icons_of, is_safe_uid, mime_for, remove_stem,
-        reply_to, saved_validators, store_fresh, validators_path, wanted_icons,
+        KNOWN_EXTENSIONS, Reply, Validators, cached_icons, icon_stem, icons_of, is_orphan, is_safe_uid, mime_for,
+        remove_stem, reply_to, saved_validators, store_fresh, validators_path, wanted_icons,
     };
     use reqwest::header::{ETAG, HeaderMap, HeaderValue, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 
@@ -754,6 +805,27 @@ mod tests {
             ["https://cdn.example/a.png"]
         );
         assert_eq!(icons_of(None).count(), 0);
+    }
+
+    #[test]
+    fn only_the_pictures_of_subscriptions_that_are_gone_are_orphans() {
+        let live = std::iter::once("sub1".to_owned()).collect();
+        let icon = format!("{}.svg", icon_stem("sub2", "https://cdn.example/a.png"));
+        for (name, orphan) in [
+            ("sub1.png", false),
+            ("sub1.bg.jpg", false),
+            ("sub1.meta", false),
+            (".sub1.png.aB3dE9xZ.tmp", false),
+            ("sub2.png", true),
+            ("sub2.bg.webp", true),
+            ("sub2.meta", true),
+            (icon.as_str(), true),
+            (".sub2.png.aB3dE9xZ.tmp", true),
+            ("README", false),
+            ("..", false),
+        ] {
+            assert_eq!(is_orphan(name, &live), orphan, "{name}");
+        }
     }
 
     #[test]

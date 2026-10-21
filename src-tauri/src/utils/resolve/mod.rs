@@ -125,6 +125,7 @@ pub fn resolve_setup_async() {
 
         crate::core::traffic_estimate::init();
         crate::core::connections_poll::spawn();
+        AsyncHandler::spawn(crate::module::logo_cache::sweep_orphans);
 
         crate::feat::release_stale_panel_locks().await;
 
