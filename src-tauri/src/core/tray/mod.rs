@@ -1273,6 +1273,34 @@ mod tests {
         assert_eq!(proxy_item_names("proxy_99_Auto"), None);
     }
 
+    #[test]
+    fn the_english_interface_and_help_spell_tun_one_way() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut files = vec![root.join("crates/clash-verge-i18n/locales/en.yml")];
+        for dir in [
+            "src/locales/en",
+            "website/content/docs/en/user",
+            "website/content/docs/en/provider",
+        ] {
+            files.extend(
+                std::fs::read_dir(root.join(dir))
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .map(|entry| entry.path()),
+            );
+        }
+        assert!(files.len() > 3, "{files:?}");
+        for file in files {
+            let text = std::fs::read_to_string(&file).unwrap_or_default();
+            assert!(
+                !text.split(|c: char| !c.is_alphanumeric()).any(|word| word == "Tun"),
+                "{}: «Tun» вместо «TUN»",
+                file.display()
+            );
+        }
+    }
+
     /// Одна сущность — одно слово: пункт трея и окно на каждом языке.
     #[test]
     fn the_tray_names_things_with_the_words_of_the_window() {

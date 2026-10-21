@@ -36,7 +36,7 @@ command-line utilities) won't go through it. TUN is there for them.
 ## TUN mode
 
 **TUN** creates a virtual network adapter and captures the traffic of all programs.
-It's turned on with the "TUN" switch in quick actions (advanced mode), "Tun
+It's turned on with the "TUN" switch in quick actions (advanced mode), "TUN
 Mode" in **Settings → System Setting**, or in the tray menu. The same switches
 define what the connect button turns on.
 
@@ -57,12 +57,12 @@ checks that traffic really goes through the tunnel and warns you if it doesn't.
 
 ### Stack
 
-In the "Tun Mode" window (the gear next to the "Tun Mode" switch in the settings)
+In the "TUN Mode" window (the gear next to the "TUN Mode" switch in the settings)
 you choose the stack: `gvisor`, `system`, `mixed` or `mips`. "Auto" is the stack from the
 subscription, or **gvisor** if there is none there. `mips` is Mihomo's own stack; like
 `gvisor`, it doesn't open a local listener.
 
-<Shot src="ru/tun-dialog.png" alt="The “Tun Mode” window: stack and routing" width={720} />
+<Shot src="ru/tun-dialog.png" alt="The “TUN Mode” window: stack and routing" width={720} />
 
 ### TUN on Windows
 

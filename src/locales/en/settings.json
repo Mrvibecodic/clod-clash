@@ -6,7 +6,7 @@
     "system": {
       "title": "System Setting",
       "toggles": {
-        "tunMode": "Tun Mode",
+        "tunMode": "TUN Mode",
         "systemProxy": "System Proxy"
       },
       "tooltips": {
@@ -30,9 +30,9 @@
         },
         "tunMode": {
           "autoDisabled": "The TUN adapter could not be created, so TUN is off. Try turning it on again; the details are in the application log",
-          "noRights": "There were not enough rights to create the tunnel, so TUN is off. Install the background service (Settings, the wrench icon next to the TUN mode switch) or run the application as administrator",
+          "noRights": "There were not enough rights to create the tunnel, so TUN is off. Install the background service (Settings, the wrench icon next to the “TUN Mode” switch) or run the application as administrator",
           "rightsDeclined": "The rights prompt was declined, so the background service cannot be installed and TUN stays off",
-          "serviceSilent": "The background service is installed but does not answer, so TUN does not work yet. Try repairing it: Settings, the wrench icon next to the TUN mode switch",
+          "serviceSilent": "The background service is installed but does not answer, so TUN does not work yet. Try repairing it: Settings, the wrench icon next to the “TUN Mode” switch",
           "setupPending": "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed",
           "setupBusy": "The service setup is already running — wait for it to finish and try again",
           "volumeWithoutRights": "TUN is not available for a copy on a FAT/exFAT drive — move the app to an NTFS drive",
@@ -65,7 +65,7 @@
     "proxyControl": {
       "tooltips": {
         "systemProxy": "Enable to modify the operating system's proxy settings. If enabling fails, modify the operating system's proxy settings manually",
-        "tunMode": "Tun (Virtual NIC) mode: Captures all system traffic, when enabled, there is no need to enable system proxy.",
+        "tunMode": "TUN (Virtual NIC) mode: Captures all system traffic, when enabled, there is no need to enable system proxy.",
         "tunUnavailable": "TUN requires Service Mode or Admin Mode",
         "serviceOutdated": "The TUN service is left over from an older app version and needs repair"
       },
@@ -76,7 +76,7 @@
       },
       "fields": {
         "systemProxy": "System Proxy",
-        "tunMode": "Tun Mode"
+        "tunMode": "TUN Mode"
       },
       "lockedByProvider": "Set by your provider"
     },
@@ -305,7 +305,7 @@
           "showOutboundModesInline": "Show Outbound Modes Inline",
           "commonTrayIcon": "Common Tray Icon",
           "systemProxyTrayIcon": "System Proxy Tray Icon",
-          "tunTrayIcon": "Tun Tray Icon",
+          "tunTrayIcon": "TUN Tray Icon",
           "enableTraySpeed": "Enable Tray Speed"
         },
         "options": {
@@ -566,9 +566,9 @@
       }
     },
     "tun": {
-      "title": "Tun Mode",
+      "title": "TUN Mode",
       "fields": {
-        "stack": "Tun Stack",
+        "stack": "TUN Stack",
         "device": "Device Name",
         "autoRoute": "Auto Route",
         "routeExcludeAddress": "Route Exclude Address",
@@ -709,7 +709,7 @@
         "global": "Mode: Global",
         "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "Enable/Disable System Proxy",
-        "toggleTunMode": "Enable/Disable Tun Mode",
+        "toggleTunMode": "Enable/Disable TUN Mode",
         "entryLightweightMode": "Enter lightweight mode",
         "direct": "Mode: Direct",
         "reactivateProfiles": "Reapply Subscription"
