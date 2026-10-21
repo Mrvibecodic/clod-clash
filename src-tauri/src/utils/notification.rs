@@ -10,6 +10,11 @@ pub enum NotificationEvent<'a> {
         mode: &'a str,
     },
     SystemProxyToggled(bool),
+    /// Системный прокси из трея или клавишей не переключился.
+    SystemProxyNotSwitched {
+        system_refused: bool,
+        reason: &'a str,
+    },
     TunModeToggled(bool),
     /// TUN из трея или клавишей не включён: подготовка службы отказала.
     TunSetupRefused {
@@ -98,6 +103,15 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
             };
 
             let body = clash_verge_i18n::t!(key);
+            notify(title, body);
+        }
+        NotificationEvent::SystemProxyNotSwitched { system_refused, reason } => {
+            let title = clash_verge_i18n::t!("notifications.systemProxyToggled.title");
+            let body = if system_refused {
+                clash_verge_i18n::t!("notifications.systemProxyToggled.writeFailed", reason = reason)
+            } else {
+                clash_verge_i18n::t!("notifications.systemProxyToggled.failed", reason = reason)
+            };
             notify(title, body);
         }
         NotificationEvent::TunModeToggled(enabled) => {

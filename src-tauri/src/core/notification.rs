@@ -439,6 +439,7 @@ mod tests {
         "sysproxy::core_gave_up",
         "sysproxy::core_not_running",
         "sysproxy::guard_stood_down",
+        "sysproxy::switch_failed",
         "sysproxy::write_failed",
         "tun::adapter_busy",
         "tun::no_rights",

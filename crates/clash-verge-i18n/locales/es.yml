@@ -10,6 +10,8 @@ notifications:
     title: Proxy del sistema
     'on': System proxy has been enabled.
     'off': System proxy has been disabled.
+    writeFailed: "The system did not accept the proxy settings: {reason}"
+    failed: "The system proxy was not switched: {reason}"
   tunModeToggled:
     title: Modo de interfaz virtual (TUN)
     'on': TUN mode has been enabled.

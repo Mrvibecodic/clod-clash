@@ -1532,6 +1532,7 @@ export interface TranslationResources {
               coreGaveUp: string
               coreNotRunning: string
               guardStoodDown: string
+              switchFailed: string
               turnOffAction: string
               writeFailed: string
             }

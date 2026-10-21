@@ -541,6 +541,7 @@ export const translationKeys = [
   'settings.sections.system.notifications.sysproxy.coreGaveUp',
   'settings.sections.system.notifications.sysproxy.coreNotRunning',
   'settings.sections.system.notifications.sysproxy.guardStoodDown',
+  'settings.sections.system.notifications.sysproxy.switchFailed',
   'settings.sections.system.notifications.sysproxy.turnOffAction',
   'settings.sections.system.notifications.sysproxy.writeFailed',
   'settings.sections.system.notifications.tunMode.autoDisabled',

@@ -350,6 +350,11 @@ export const handleNoticeMessage = (
       showNotice.error(
         'settings.sections.system.notifications.sysproxy.guardStoodDown',
       ),
+    'sysproxy::switch_failed': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.sysproxy.switchFailed',
+        msg,
+      ),
     'sysproxy::write_failed': () =>
       showNotice.error(
         'settings.sections.system.notifications.sysproxy.writeFailed',

@@ -161,11 +161,28 @@ pub async fn toggle_system_proxy() -> Toggled {
         }
         Err(err) => {
             logging!(error, Type::ProxyMode, "{err}");
-            if crate::core::sysopt::Sysopt::global().write_failed() {
-                handle::Handle::notice_message("sysproxy::write_failed", err.to_string());
-            }
+            let system_refused = crate::core::sysopt::Sysopt::global().write_failed();
+            let reason = crate::cmd::public_error_text(&err);
+            crate::core::notification::tell_the_outcome(
+                system_proxy_failure_status(system_refused),
+                reason.to_string(),
+                crate::utils::notification::NotificationEvent::SystemProxyNotSwitched {
+                    system_refused,
+                    reason: &reason,
+                },
+            )
+            .await;
             Toggled::Untouched
         }
+    }
+}
+
+/// Чем объяснить человеку несработавшее переключение системного прокси.
+const fn system_proxy_failure_status(the_system_refused_the_write: bool) -> &'static str {
+    if the_system_refused_the_write {
+        "sysproxy::write_failed"
+    } else {
+        "sysproxy::switch_failed"
     }
 }
 
@@ -292,7 +309,9 @@ pub async fn copy_clash_env() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{SetupAnswer, SystemProxyStep, goes_through, system_proxy_step, tun_switch_to};
+    use super::{
+        SetupAnswer, SystemProxyStep, goes_through, system_proxy_failure_status, system_proxy_step, tun_switch_to,
+    };
 
     fn chain(hops: &[&str]) -> Vec<std::string::String> {
         hops.iter().map(|hop| (*hop).to_owned()).collect()
@@ -383,6 +402,16 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_failed_system_proxy_switch_is_always_explained() {
+        assert_eq!(system_proxy_failure_status(true), "sysproxy::write_failed");
+        assert_eq!(
+            system_proxy_failure_status(false),
+            "sysproxy::switch_failed",
+            "отказ не в записи — тоже со своей причиной, а не только в журнале"
+        );
     }
 
     #[test]

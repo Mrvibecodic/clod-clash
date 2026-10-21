@@ -25,6 +25,7 @@
           "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
           "coreNotRunning": "The system proxy was not turned on: the core is not running.",
           "guardStoodDown": "The system refused the proxy settings several times in a row, so the client stopped restoring them on its own. Once the cause is fixed, turn the system proxy off and on again.",
+          "switchFailed": "The system proxy was not switched.",
           "turnOffAction": "Turn the system proxy off",
           "writeFailed": "The system did not accept the proxy settings."
         },

@@ -10,6 +10,8 @@ notifications:
     title: 系统代理
     'on': 系统代理已启用。
     'off': 系统代理已禁用。
+    writeFailed: "The system did not accept the proxy settings: {reason}"
+    failed: "The system proxy was not switched: {reason}"
   tunModeToggled:
     title: 虚拟网卡模式
     'on': TUN 模式已开启。
