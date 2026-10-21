@@ -246,7 +246,9 @@ async fn bring_back_what_the_exit_took() {
         CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
     }
     #[cfg(target_os = "macos")]
-    crate::utils::resolve::dns::apply_remembered_desire();
+    if the_override_may_come_back(&CoreManager::global().get_running_mode()) {
+        crate::utils::resolve::dns::apply_remembered_desire();
+    }
     // Сторож ядра выходит по флагу выхода и сам не возвращается: запуск
     // ядра его не заводит, если ядро числится живым. Сторож среды на выходе
     // молчит — здесь только проверка, что он жив.
@@ -676,8 +678,34 @@ pub async fn hide() {
     handle::Handle::global().set_activation_policy_accessory();
 }
 
+/// Подмена DNS держится, только пока жив туннель: ядро после отменённого
+/// выхода не поднялось — возвращать её не на чем.
+#[cfg(any(target_os = "macos", test))]
+const fn the_override_may_come_back(mode: &RunningMode) -> bool {
+    !matches!(mode, RunningMode::NotRunning)
+}
+
 #[cfg(test)]
 mod tests {
+    /// После отменённого выхода подмена DNS возвращается только к живому ядру.
+    #[test]
+    fn the_dns_override_comes_back_only_with_a_live_core() {
+        use crate::core::manager::RunningMode;
+        assert!(!super::the_override_may_come_back(&RunningMode::NotRunning));
+        assert!(super::the_override_may_come_back(&RunningMode::Sidecar));
+        assert!(super::the_override_may_come_back(&RunningMode::Service));
+        let body = crate::utils::source_scan::fn_body(
+            crate::utils::source_scan::without_test_modules(include_str!("window.rs")),
+            "async fn bring_back_what_the_exit_took",
+        )
+        .unwrap_or_default();
+        let guard = body.find("the_override_may_come_back(").unwrap_or(usize::MAX);
+        assert!(
+            guard < body.find("apply_remembered_desire()").unwrap_or_default(),
+            "{body}"
+        );
+    }
+
     use super::{ExitPace, ProxyAtExit, the_take_down_went_as_asked};
 
     #[test]
