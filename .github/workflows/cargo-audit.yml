@@ -53,7 +53,7 @@ jobs:
           set -euo pipefail
           fail() { echo "::error::$1"; exit 1; }
 
-          expected=$'[advisories]\nignore = ["RUSTSEC-2026-0293"]'
+          expected=$'[advisories]\nignore = ["RUSTSEC-2026-0293", "RUSTSEC-2026-0367", "RUSTSEC-2026-0368", "RUSTSEC-2026-0369"]'
           actual=$(grep -vE '^[[:space:]]*(#|$)' .cargo/audit.toml || true)
           [ "$actual" = "$expected" ] ||
             fail ".cargo/audit.toml изменился — сторож проверяет не то, что заглушено: ${actual//$'\n'/; }"
@@ -90,6 +90,18 @@ jobs:
             fail "уязвимый ringbuf попал в релизную сборку — RUSTSEC-2026-0293 затрагивает не только dev"
           fi
           echo "уязвимый ringbuf только в dev-сборке (фича tauri-dev), в релизном дереве его нет"
+
+          # zip < 9 законен только у tauri-plugin-updater (архив обновления
+          # распаковывается после проверки подписи), наш собственный — 9+.
+          old_zip=$(grep -A1 '^name = "zip"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p' | grep -E '^[0-8]\.' || true)
+          [ -n "$old_zip" ] || fail "zip < 9 в Cargo.lock не осталось — ignore RUSTSEC-2026-0367/0368/0369 больше не нужен"
+          for v in $old_zip; do
+            users=$(cargo tree --locked -p clash-verge -e normal,build --target all -i "zip@$v" --depth 1 --prefix none --format '{p}' | sed 1d | sed 's/ (.*//' | sort -u)
+            [ -n "$users" ] || fail "cargo tree не нашёл, кто тянет zip $v"
+            others=$(grep -vE '^tauri-plugin-updater v' <<<"$users" || true)
+            [ -z "$others" ] || fail "zip $v тянет не только tauri-plugin-updater: ${others//$'\n'/; }"
+          done
+          echo "zip < 9 только у tauri-plugin-updater, свой zip — 9+"
 
   audit:
     runs-on: ubuntu-22.04
