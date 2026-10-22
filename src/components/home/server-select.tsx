@@ -88,6 +88,8 @@ const PingVerdict = ({ delay }: { delay?: number }) =>
   )
 
 const AGE_TICK_MS = 5000
+// Пикселей на строку хода колеса, когда оно считает строками.
+const WHEEL_LINE_PX = 16
 
 interface Props {
   open: boolean
@@ -108,6 +110,28 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   })
   const [testing, setTesting] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Полоса групп прокручивается колесом: вертикальный ход колеса — в
+  // горизонтальную прокрутку, если полоса вообще прокручивается; ход в
+  // строках или экранах (настройка мыши) переводится в пиксели. Слушатель не
+  // пассивный, чтобы отменить ход колеса по умолчанию и серия событий
+  // оставалась отменяемой.
+  const groupStripRef = useCallback((strip: HTMLDivElement | null) => {
+    if (!strip) return
+    const onWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+      if (strip.scrollWidth <= strip.clientWidth) return
+      event.preventDefault()
+      const step =
+        event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? strip.clientWidth
+          : event.deltaMode === WheelEvent.DOM_DELTA_LINE
+            ? WHEEL_LINE_PX
+            : 1
+      strip.scrollLeft += event.deltaY * step
+    }
+    strip.addEventListener('wheel', onWheel, { passive: false })
+    return () => strip.removeEventListener('wheel', onWheel)
+  }, [])
 
   const records = useMemo(
     () => (proxies?.records ?? {}) as Record<string, any>,
@@ -419,17 +443,13 @@ export const ServerSelect = ({ open, onClose }: Props) => {
 
         {groups.length > 1 ? (
           <Stack
+            ref={groupStripRef}
             direction="row"
             sx={{
               gap: 0.75,
               overflowX: 'auto',
               flex: 'none',
               pb: 0.5,
-              '&::-webkit-scrollbar': { height: 4 },
-              '&::-webkit-scrollbar-thumb': {
-                bgcolor: 'divider',
-                borderRadius: 2,
-              },
             }}
           >
             {groups.map((item) => {
