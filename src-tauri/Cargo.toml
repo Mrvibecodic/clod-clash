@@ -1,6 +1,6 @@
 [package]
 name = "clash-verge"
-version = "0.1.13"
+version = "0.1.14-alpha.1"
 description = "Clod Clash"
 authors = ["Mrvibecodic"]
 license = "GPL-3.0-only"
