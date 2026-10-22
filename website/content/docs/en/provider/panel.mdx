@@ -96,34 +96,26 @@ subscription is added:
 | 404 or 410 | downloads the subscription the usual way right away |
 | another 4xx code | tries the channel twice more; if all three attempts got that answer — the usual way |
 | connection closed with no answer (for example, nginx `return 444`) | same as another 4xx code |
-| 5xx (for example, 502 from a reverse proxy) | treats it as a failure on the way: after three attempts the subscription is not added |
+| 5xx (for example, 502 from a reverse proxy or 520 from Cloudflare) | same as another 4xx code |
 
-Check what the subscription domain returns for any unknown path — it must not
-be a 5xx:
+Check what the subscription domain returns for an unknown path:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' https://sub.example.com/c1/test
 ```
 
-`404` is fine. `000` with the error `Empty reply from server` or an HTTP/2
-stream reset means the connection was closed with no answer — also fine. `502`
-and other 5xx — fix the reverse proxy so that it answers unknown paths with 404.
+`404` — the subscription is added at once. Another 4xx or 5xx code, or `000` (the
+connection closed with no answer) — after three channel attempts, that is a few seconds
+longer; to add at once, make unknown paths answer 404. A page with code 200 instead of a
+channel answer — the usual way at once.
 
-Two more cases where the subscription is not added:
+The subscription is not added when the channel address redirects to `http://` or through a chain of
+more than 10 redirects. Answer `/c1/…` without a redirect or with a redirect to `https://` only.
 
-- Cloudflare or another intermediary stands in front of the server. A connection your server
-  closes with no answer reaches the client from the intermediary as 520 or 502, which is a 5xx.
-  Make unknown paths answer 404.
-- The channel address redirects to `http://` or through a chain of more than 10 redirects. Answer
-  `/c1/…` without a redirect or with a redirect to `https://` only.
-
-With the middleware, update it to a version newer than 1.8.0. When the panel server closes the
-connection with no answer (nginx `return 444`), earlier versions answered the channel address with
-502: with the channel turned off and for subscriptions the middleware did not know yet, the
-subscription was not added in the client, and after reinstalling the middleware (a new key)
-subscriptions with the channel stopped updating. The new version answers 404 — the subscription is
-added the usual way, without the channel, and a subscription with the channel picks up the new key
-by itself.
+With the middleware and the channel turned off, the subscription is added the usual way, without the
+channel. With the channel turned on, the subscription is added over it, and after the middleware is
+reinstalled (a new key) it picks up the new key by itself at the next update — with any middleware
+version.
 
 The external address and the device identifier linked to a subscription may be
 personal data under Russian Federal Law 152-FZ and the GDPR, and their controller is the provider,

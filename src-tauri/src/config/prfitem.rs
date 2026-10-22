@@ -496,6 +496,11 @@ struct ChannelHeard {
     /// сервером (WAF, лимит запросов) или сервер напрямую закрыл запрос без
     /// ответа. Пробуется ещё раз.
     doubt: bool,
+    /// Сервер ответил 5xx — канал мог и быть, а мог и не быть: так отвечает
+    /// Cloudflare перед сервером, рвущим незнакомые запросы (nginx с 444),
+    /// прослойка прежних версий, пересылающая неузнанный запрос на такой
+    /// сервер, и просто лежащий сервер.
+    failed: bool,
     /// Канал ответил, но разговор не сложился: разъехались часы, чужой ответ,
     /// незнакомый формат, переадресация на http. Это не повод уходить на
     /// открытый путь.
@@ -509,9 +514,9 @@ enum Verdict {
     Answered,
     /// Канала нет.
     Absent,
-    /// Отказ посредника или обрыв: попробовать ещё.
+    /// Отказ посредника, обрыв или 5xx при добавлении: попробовать ещё.
     Doubt,
-    /// Сервер молчит: попробовать ещё.
+    /// Сервер молчит (при включении канала у добавленной — и 5xx): попробовать ещё.
     Silent,
 }
 
@@ -542,11 +547,12 @@ const fn is_not_found(status: reqwest::StatusCode) -> bool {
 fn channel_heard(err: &anyhow::Error, route: Route) -> ChannelHeard {
     if let Some(ChanRefused(status)) = err.downcast_ref::<ChanRefused>() {
         // «Нет такого адреса» — прослойка канала не знает; прочий отказ 3xx/4xx
-        // дал посредник перед сервером; 5xx — сбой по дороге.
+        // дал посредник перед сервером.
         let absent = is_not_found(*status);
         return ChannelHeard {
             absent,
             doubt: !absent && (status.is_client_error() || status.is_redirection()),
+            failed: status.is_server_error(),
             answered: false,
         };
     }
@@ -560,6 +566,7 @@ fn channel_heard(err: &anyhow::Error, route: Route) -> ChannelHeard {
         // этого может только сервер. С запасом — только на прямом маршруте:
         // через ядро или системный прокси это молчание.
         doubt: route == Route::Direct && crate::utils::network::hung_up(err),
+        failed: false,
         answered: [
             "clod-chan-stale",
             "clod-chan-mismatch",
@@ -598,6 +605,7 @@ impl RouteFailures {
                 let heard = channel_heard(&err, route);
                 self.channel.absent |= heard.absent;
                 self.channel.doubt |= heard.doubt;
+                self.channel.failed |= heard.failed;
                 self.channel.answered |= heard.answered;
                 self.unanswered = Some(match self.unanswered.take() {
                     Some(previous) => help::keep_the_clearer_error(previous, err),
@@ -608,13 +616,14 @@ impl RouteFailures {
     }
 
     /// Что попытка сказала о защищённом канале: ответ любого маршрута весомее
-    /// «канала нет», а оно — сомнения и молчания.
-    const fn verdict(&self) -> Verdict {
+    /// «канала нет», а оно — сомнения и молчания. 5xx при добавлении подписки
+    /// (`adding`) — сомнение, при включении канала у добавленной — молчание.
+    const fn verdict(&self, adding: bool) -> Verdict {
         if self.answered.is_some() || self.channel.answered {
             Verdict::Answered
         } else if self.channel.absent {
             Verdict::Absent
-        } else if self.channel.doubt {
+        } else if self.channel.doubt || (adding && self.channel.failed) {
             Verdict::Doubt
         } else {
             Verdict::Silent
@@ -652,11 +661,36 @@ impl DownloadFailure {
     }
 }
 
-/// Сколько раз при добавлении пробуется защищённый канал, пока сервер молчит.
-/// Метка ошибки добавления: канал так и не ответил — ни отказом, ни подпиской.
+/// Метка ошибки: канал не ответил ни отказом, ни подпиской — молчание сети, а
+/// при включении канала у добавленной подписки и 5xx.
 const CHAN_SILENT: &str = "clod-chan-silent";
-const ADD_CHANNEL_ATTEMPTS: u8 = 3;
+/// Сколько раз при добавлении пробуется защищённый канал, пока сервер молчит.
+const ADD_CHANNEL_ATTEMPTS: usize = 3;
 const ADD_CHANNEL_PAUSE: Duration = Duration::from_secs(2);
+
+/// Что решают вердикты попыток канала ([`PrfItem::through_channel`]).
+#[derive(Debug, PartialEq, Eq)]
+enum Attempts {
+    /// Канал ответил: ошибка.
+    Answered,
+    /// Канала нет: сказал сервер или все попытки — сомнение.
+    Absent,
+    /// Ещё попытка.
+    Again,
+    /// Попытки вышли, а хотя бы раз было молчание: подписка не добавляется.
+    Silent,
+}
+
+/// Решение по вердиктам всех попыток по порядку; последняя решает сама.
+fn after_attempts(verdicts: &[Verdict]) -> Attempts {
+    match verdicts.last() {
+        Some(Verdict::Answered) => Attempts::Answered,
+        Some(Verdict::Absent) => Attempts::Absent,
+        _ if verdicts.len() < ADD_CHANNEL_ATTEMPTS => Attempts::Again,
+        _ if verdicts.iter().all(|verdict| *verdict == Verdict::Doubt) => Attempts::Absent,
+        _ => Attempts::Silent,
+    }
+}
 
 /// Защищённый канал подписки не дал.
 enum NoChannel {
@@ -728,29 +762,30 @@ impl PrfItem {
         fix_dirty_url(url).ok().map(|url| url.as_str().into())
     }
 
-    /// Подписка защищённым каналом — при добавлении и при включении канала.
-    /// Сервер молчит или отказал посредник перед ним — канал пробуется ещё
-    /// раз, всего [`ADD_CHANNEL_ATTEMPTS`]. Канал ответил, но подписки не дал
-    /// (отказ панели, разъехались часы) — ошибка. «Канала нет» — сразу, если
-    /// так ответил сам сервер, и после всех попыток, если каждый раз отказывал
-    /// посредник или сервер напрямую обрывал запрос: провайдер за строгим WAF
-    /// или за nginx с `return 444` добавляется, как и раньше. Молчание
-    /// хотя бы раз — не «канала нет»: если канал режут по дороге, подписка без
-    /// защиты добавилась бы молча.
+    /// Подписка защищённым каналом — при добавлении (`adding`, ход виден в окне)
+    /// и при включении канала у добавленной. Сервер молчит или отказал посредник
+    /// перед ним — канал пробуется ещё раз, всего [`ADD_CHANNEL_ATTEMPTS`].
+    /// Канал ответил, но подписки не дал (отказ панели, разъехались часы) —
+    /// ошибка. «Канала нет» — сразу, если так ответил сам сервер, и после всех
+    /// попыток, если каждый раз было сомнение ([`Verdict::Doubt`]): провайдер
+    /// за строгим WAF, за nginx с `return 444` или за Cloudflare перед ним
+    /// добавляется, как и раньше. Молчание хотя бы раз — не «канала нет»: если
+    /// канал режут по дороге, подписка без защиты добавилась бы молча.
     async fn through_channel(
         url: &str,
         name: Option<&String>,
         desc: Option<&String>,
         option: Option<&PrfOption>,
-        stages: bool,
+        adding: bool,
     ) -> std::result::Result<Fetched, NoChannel> {
         let mut secure = option.cloned().unwrap_or_default();
         secure.secure = Some(true);
         secure.chan_pin = None;
 
-        let mut always_doubted = true;
-        for attempt in 1..=ADD_CHANNEL_ATTEMPTS {
-            if stages {
+        let mut verdicts = Vec::with_capacity(ADD_CHANNEL_ATTEMPTS);
+        loop {
+            if adding {
+                let attempt = u8::try_from(verdicts.len() + 1).unwrap_or(u8::MAX);
                 crate::core::handle::Handle::add_stage(if attempt == 1 { "checking" } else { "retry" }, attempt);
             }
             let failures = match Self::download(url, name, desc, Some(&secure)).await {
@@ -758,26 +793,18 @@ impl PrfItem {
                 Err(DownloadFailure::Other(err)) => return Err(NoChannel::Failed(err)),
                 Err(DownloadFailure::Routes(failures)) => failures,
             };
-            match failures.verdict() {
-                Verdict::Answered => return Err(NoChannel::Failed(failures.into_shown())),
-                Verdict::Absent => return Err(NoChannel::Absent),
-                Verdict::Doubt => {}
-                Verdict::Silent => always_doubted = false,
-            }
-            if attempt == ADD_CHANNEL_ATTEMPTS {
-                // Подписка не добавляется: молчание ещё не значит, что канала нет.
-                return Err(if always_doubted {
-                    NoChannel::Absent
-                } else {
-                    NoChannel::Failed(failures.into_shown().context(format!(
+            verdicts.push(failures.verdict(adding));
+            match after_attempts(&verdicts) {
+                Attempts::Answered => return Err(NoChannel::Failed(failures.into_shown())),
+                Attempts::Absent => return Err(NoChannel::Absent),
+                Attempts::Silent => {
+                    return Err(NoChannel::Failed(failures.into_shown().context(format!(
                         "{CHAN_SILENT}: the provider's server gave no answer over the secure channel in {ADD_CHANNEL_ATTEMPTS} attempts"
-                    )))
-                });
+                    ))));
+                }
+                Attempts::Again => tokio::time::sleep(ADD_CHANNEL_PAUSE).await,
             }
-            tokio::time::sleep(ADD_CHANNEL_PAUSE).await;
         }
-        // Сюда не доходит: последняя попытка решает сама.
-        Err(NoChannel::Absent)
     }
 
     pub async fn from(item: &Self, file_data: Option<String>) -> Result<Self> {
@@ -1418,7 +1445,7 @@ async fn fetch_for_profile(
         clash_verge_logging::logging!(
             warn,
             clash_verge_logging::Type::Config,
-            "[clod] chan: закреплённый ключ прослойка не узнала или соединение оборвано, повтор без закрепления"
+            "[clod] chan: на закреплённый ключ ответили не каналом или оборвали соединение, повтор без закрепления"
         );
 
         outcome = Box::pin(on_relay_time(clock, |clock| round(None, clock))).await.0;
@@ -1507,13 +1534,15 @@ const CHAN_NEUTRAL_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
 /// Повторять без закрепления ключа прослойки есть смысл, только если ответ
 /// пришёл не каналом: прослойка ключ не узнала (смена ключа, переустановка) и
 /// отдала запрос обычному конвейеру. Что тот ответит, зависит от сервера перед
-/// ней: 404, другой 4xx, страница вместо шифротекста или обрыв без ответа
-/// (nginx `return 444`, если обрыв дошёл до клиента). Сбой по дороге (5xx, таймаут,
-/// отказ соединения), переадресация и ответ, который открылся, — не повод: ключ
-/// тут ни при чём, а без закрепления тело защищено одним адресом подписки.
+/// ней: 404, другой 4xx, страница вместо шифротекста, обрыв без ответа
+/// (nginx `return 444`, если обрыв дошёл до клиента) или 5xx (см.
+/// [`ChannelHeard::failed`]). Молчание сети (таймаут, отказ соединения),
+/// переадресация и ответ, который открылся, — не повод: ключ тут ни при чём, а
+/// без закрепления тело защищено одним адресом подписки. Повтор без ключа ничего
+/// не теряет: новый ключ закрепляется, только если обмен без него удался.
 fn key_may_be_refused(err: &anyhow::Error) -> bool {
     err.downcast_ref::<ChanRefused>()
-        .is_some_and(|ChanRefused(status)| status.is_client_error())
+        .is_some_and(|ChanRefused(status)| status.is_client_error() || status.is_server_error())
         || err.to_string().contains("clod-chan-undecryptable")
         || crate::utils::network::hung_up(err)
 }
@@ -2026,9 +2055,30 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 #[cfg(test)]
 mod channel_tests {
     use super::{
-        Answered, ChanRefused, ChannelHeard, PrfOption, Route, RouteFailures, Verdict, channel_heard, clock_correction,
-        explain_the_failure, key_may_be_refused,
+        Answered, Attempts, ChanRefused, ChannelHeard, PrfOption, Route, RouteFailures, Verdict, after_attempts,
+        channel_heard, clock_correction, explain_the_failure, key_may_be_refused,
     };
+
+    /// Добавление: три сомнения (отказ посредника, обрыв, 5xx) — канала нет,
+    /// обычный путь; молчание хотя бы раз — подписка не добавляется; ответ
+    /// канала и «нет такого адреса» решают сразу.
+    #[test]
+    fn the_channel_attempts_add_up_as_on_android() {
+        use Verdict::{Absent, Answered, Doubt, Silent};
+        for (verdicts, want) in [
+            (vec![Doubt], Attempts::Again),
+            (vec![Silent], Attempts::Again),
+            (vec![Doubt, Doubt], Attempts::Again),
+            (vec![Doubt, Doubt, Doubt], Attempts::Absent),
+            (vec![Doubt, Silent, Doubt], Attempts::Silent),
+            (vec![Silent, Silent, Silent], Attempts::Silent),
+            (vec![Doubt, Absent], Attempts::Absent),
+            (vec![Silent, Answered], Attempts::Answered),
+            (vec![Doubt, Doubt, Answered], Attempts::Answered),
+        ] {
+            assert_eq!(after_attempts(&verdicts), want, "{verdicts:?}");
+        }
+    }
 
     #[test]
     fn the_clock_is_corrected_as_on_android() {
@@ -2049,10 +2099,10 @@ mod channel_tests {
     fn the_pin_is_dropped_only_when_the_middleware_did_not_know_it() {
         let refused =
             |status| -> anyhow::Error { ChanRefused(reqwest::StatusCode::from_u16(status).unwrap_or_default()).into() };
-        for status in [400, 403, 404, 410, 429] {
+        for status in [400, 403, 404, 410, 429, 500, 502, 520] {
             assert!(key_may_be_refused(&refused(status)), "{status}");
         }
-        for status in [308, 500, 502] {
+        for status in [301, 308] {
             assert!(!key_may_be_refused(&refused(status)), "{status}");
         }
         assert!(key_may_be_refused(&anyhow::anyhow!("clod-chan-undecryptable")));
@@ -2105,9 +2155,9 @@ mod channel_tests {
 
         let mut failures = RouteFailures::default();
         failures.note(Route::Core, a_hung_up_request().await, Answered::No);
-        assert_eq!(failures.verdict(), Verdict::Silent);
+        assert_eq!(failures.verdict(true), Verdict::Silent);
         failures.note(Route::Direct, a_hung_up_request().await, Answered::No);
-        assert_eq!(failures.verdict(), Verdict::Doubt);
+        assert_eq!(failures.verdict(true), Verdict::Doubt);
     }
 
     #[test]
@@ -2124,6 +2174,10 @@ mod channel_tests {
             answered: true,
             ..ChannelHeard::default()
         };
+        let failed = ChannelHeard {
+            failed: true,
+            ..ChannelHeard::default()
+        };
         let refused =
             |status| -> anyhow::Error { ChanRefused(reqwest::StatusCode::from_u16(status).unwrap_or_default()).into() };
         for (err, want) in [
@@ -2138,8 +2192,10 @@ mod channel_tests {
             (refused(403), doubt),
             (refused(429), doubt),
             (refused(308), doubt),
-            // Сбой по дороге.
-            (refused(502), ChannelHeard::default()),
+            // 5xx: прослойка с выключенным каналом за nginx с 444, Cloudflare перед ним.
+            (refused(502), failed),
+            (refused(520), failed),
+            // Молчание сети.
             (anyhow::anyhow!("connection refused"), ChannelHeard::default()),
             // Расшифровалось — значит, канал есть.
             (anyhow::anyhow!("clod-chan-stale"), answered),
@@ -2170,26 +2226,35 @@ mod channel_tests {
 
     #[test]
     fn an_answer_outweighs_no_channel_and_no_channel_outweighs_doubt() {
-        let failures = |errors: Vec<anyhow::Error>| {
+        let failures = |errors: Vec<anyhow::Error>, adding: bool| {
             let mut failures = RouteFailures::default();
             for err in errors {
                 failures.note(Route::Direct, err, Answered::No);
             }
-            failures.verdict()
+            failures.verdict(adding)
         };
         let refused =
             |status| -> anyhow::Error { ChanRefused(reqwest::StatusCode::from_u16(status).unwrap_or_default()).into() };
-        assert_eq!(failures(vec![]), Verdict::Silent);
-        assert_eq!(failures(vec![anyhow::anyhow!("timed out")]), Verdict::Silent);
+        assert_eq!(failures(vec![], true), Verdict::Silent);
+        assert_eq!(failures(vec![anyhow::anyhow!("timed out")], true), Verdict::Silent);
         assert_eq!(
-            failures(vec![refused(403), anyhow::anyhow!("timed out")]),
+            failures(vec![refused(403), anyhow::anyhow!("timed out")], true),
             Verdict::Doubt
         );
-        assert_eq!(failures(vec![refused(403), refused(404)]), Verdict::Absent);
+        assert_eq!(failures(vec![refused(403), refused(404)], true), Verdict::Absent);
         assert_eq!(
-            failures(vec![refused(404), anyhow::anyhow!("clod-chan-stale")]),
+            failures(vec![refused(404), anyhow::anyhow!("clod-chan-stale")], true),
             Verdict::Answered
         );
+        // 5xx: при добавлении — сомнение (все попытки так — канала нет), при
+        // включении канала у добавленной — сбой сервера.
+        assert_eq!(failures(vec![refused(502)], true), Verdict::Doubt);
+        assert_eq!(failures(vec![refused(502)], false), Verdict::Silent);
+        assert_eq!(
+            failures(vec![refused(502), anyhow::anyhow!("timed out")], true),
+            Verdict::Doubt
+        );
+        assert_eq!(failures(vec![refused(502), refused(404)], false), Verdict::Absent);
     }
 
     #[test]
@@ -2330,7 +2395,8 @@ mod secure_fetch_tests {
             (403, "denied", true),
             (429, "slow down", true),
             (308, "moved", false),
-            (502, "bad gateway", false),
+            (502, "bad gateway", true),
+            (520, "origin error", true),
             (200, "<html>a page</html>", true),
             (404, "not found", true),
             (410, "gone", true),
@@ -2354,26 +2420,51 @@ mod secure_fetch_tests {
         assert!(unpinned(&seen));
     }
 
+    /// Запрос со старым ключом прослойка отдаёт панели, и та отвечает как на
+    /// чужой путь: обрывом (nginx `return 444`) или 5xx (прослойка прежних
+    /// версий, Cloudflare перед таким сервером) — новый ключ берётся всё равно.
     #[tokio::test]
-    async fn a_lost_key_is_replaced_even_when_the_server_hangs_up_on_it() {
-        let middleware = Relay::new(TOKEN, &[2]);
-        let current = B64.encode(middleware.public(0));
-        let answer = relay(middleware, 0);
-        let (url, seen) = serve(move |path| {
-            let reply = answer(path);
-            if reply.0 == 404 {
-                (HANG_UP, String::new(), String::new())
-            } else {
-                reply
-            }
-        })
+    async fn a_lost_key_is_replaced_however_the_server_answers_the_old_one() {
+        for (status, body) in [(HANG_UP, ""), (502, "bad gateway"), (520, "origin error")] {
+            let middleware = Relay::new(TOKEN, &[2]);
+            let current = B64.encode(middleware.public(0));
+            let answer = relay(middleware, 0);
+            let (url, seen) = serve(move |path| {
+                let reply = answer(path);
+                if reply.0 == 404 {
+                    (status, String::new(), body.into())
+                } else {
+                    reply
+                }
+            })
+            .await;
+
+            let fetched = fetch(&url, &secure(Some(Relay::new(TOKEN, &[1]).public(0)))).await;
+
+            assert_eq!(fetched, Some((BODY.into(), Some(current))), "{status}");
+            assert_eq!(seen.lock().len(), 2, "{status}");
+            assert!(unpinned(&seen), "{status}");
+        }
+    }
+
+    /// Прослойка лежит (5xx на всё) при верном ключе: повтор без ключа, обе
+    /// попытки — отказ, подписка не обновляется, ключ не трогается.
+    #[tokio::test]
+    async fn a_failing_middleware_leaves_the_update_failed_and_the_key_alone() {
+        let (url, seen) = serve(|_| (502, String::new(), "bad gateway".into())).await;
+        let failed = Box::pin(fetch_for_profile(
+            &url,
+            ProxyType::None,
+            5,
+            None,
+            false,
+            &reqwest::header::HeaderMap::new(),
+            Some(&secure(Some(Relay::new(TOKEN, &[1]).public(0)))),
+        ))
         .await;
-
-        let fetched = fetch(&url, &secure(Some(Relay::new(TOKEN, &[1]).public(0)))).await;
-
-        assert_eq!(fetched, Some((BODY.into(), Some(current))));
+        let headline = failed.err().map(|err| err.to_string()).unwrap_or_default();
+        assert!(headline.contains("clod-chan-refused"), "{headline}");
         assert_eq!(seen.lock().len(), 2);
-        assert!(unpinned(&seen));
     }
 
     #[tokio::test]
