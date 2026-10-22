@@ -839,23 +839,69 @@ pub(crate) async fn note_freeze(uid: &str, net: &str, kind: &'static str, verdic
     .await;
 }
 
-/// 16 случайных байт установки из файла `name` в папке приложения; файла нет
-/// или он испорчен — новые. `None` — нет папки или случайных байт.
-fn install_mark(name: &str) -> Option<String> {
+/// Метки установки за этот запуск: файл → (значение, лежит ли оно на диске).
+static MARKS: Mutex<BTreeMap<&'static str, (String, bool)>> = Mutex::new(BTreeMap::new());
+
+/// Метки установки для отчёта; `None` — хотя бы одной нет, отчёт ждёт.
+async fn install_marks() -> Option<store::Install> {
+    Some(store::Install {
+        dev: install_mark(DEVICE_FILE).await?,
+        salt: install_mark(SALT_FILE).await?,
+    })
+}
+
+/// 16 случайных байт установки из файла `name` в папке приложения — за запуск
+/// читаются один раз: метка, другая после сбоя чтения или от запуска к
+/// запуску, значила бы для прослойки новое устройство в новых сетях. Новая
+/// метка, которую не удалось записать, остаётся той же и дописывается при
+/// следующем обращении.
+async fn install_mark(name: &'static str) -> Option<String> {
+    let cached = MARKS.lock().get(name).cloned();
+    if let Some((mark, true)) = cached {
+        return Some(mark);
+    }
     let path = dirs::app_home_dir().ok()?.join(name);
-    if let Ok(text) = std::fs::read_to_string(&path) {
-        let text = text.trim();
-        if text.len() == 32 && text.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Some(text.to_owned());
+    let (mark, saved) = match cached {
+        Some((mark, _)) => (mark.clone(), save_mark(name, &path, &mark).await),
+        None => read_or_create_mark(name, &path).await?,
+    };
+    MARKS.lock().insert(name, (mark.clone(), saved));
+    Some(mark)
+}
+
+/// Метка из файла и признак, что она на диске; файла нет или он испорчен —
+/// новая, записанная целиком. `None` — файл есть, но не прочитался (занят,
+/// нет прав), или нет случайных байт: не повод заводить новую.
+async fn read_or_create_mark(name: &str, path: &std::path::Path) -> Option<(String, bool)> {
+    match tokio::fs::read(path).await {
+        Ok(bytes) => {
+            let text = String::from_utf8_lossy(&bytes);
+            let text = text.trim();
+            if text.len() == 32 && text.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Some((text.to_owned(), true));
+            }
         }
+        Err(err) if err.kind() != std::io::ErrorKind::NotFound => {
+            logging!(warn, Type::Core, "[Report] {name} was not read: {err}");
+            return None;
+        }
+        Err(_) => {}
     }
     let mut raw = [0u8; 16];
     getrandom::fill(&mut raw).ok()?;
     let mark = hex::encode(raw);
-    if let Err(err) = std::fs::write(&path, &mark) {
-        logging!(warn, Type::Core, "[Report] {name} was not saved: {err}");
+    let saved = save_mark(name, path, &mark).await;
+    Some((mark, saved))
+}
+
+async fn save_mark(name: &str, path: &std::path::Path, mark: &str) -> bool {
+    match help::write_atomic(path, mark.as_bytes()).await {
+        Ok(()) => true,
+        Err(err) => {
+            logging!(warn, Type::Core, "[Report] {name} was not saved: {err:#}");
+            false
+        }
     }
-    Some(mark)
 }
 
 fn gzip(bytes: &[u8]) -> std::io::Result<Vec<u8>> {
@@ -1061,18 +1107,11 @@ async fn send(uid: &str) -> i64 {
     };
     settle(work).await;
 
-    // Без соли ключ сети ушёл бы как есть — отчёт ждёт.
-    let Some(salt) = install_mark(SALT_FILE) else {
-        logging!(
-            warn,
-            Type::Core,
-            "[Report] no salt for the network keys, the report waits"
-        );
+    // Без соли ключ сети ушёл бы как есть, без метки прослойка не узнала бы
+    // устройство — отчёт ждёт.
+    let Some(install) = install_marks().await else {
+        logging!(warn, Type::Core, "[Report] no install marks, the report waits");
         return now + SEND_EVERY;
-    };
-    let install = store::Install {
-        dev: install_mark(DEVICE_FILE).unwrap_or_default(),
-        salt,
     };
     let mut hours = SEND_WINDOW / store::HOUR;
     loop {
@@ -1632,5 +1671,42 @@ mod tests {
         // Подписка выпала (обновление не удалось, частые обновления) — срок снят
         assert!(due_between(&mut next, &[], SEND_EVERY).is_empty());
         assert!(next.is_empty());
+    }
+
+    /// Метка живёт в файле: новая — только когда файла нет или он испорчен;
+    /// файл, который не прочитался, новую метку не рождает.
+    #[tokio::test]
+    async fn an_install_mark_is_made_once_and_survives_a_failed_read() {
+        let dir = std::env::temp_dir().join(format!("clod-install-mark-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap_or_default();
+        let path = dir.join("mark");
+
+        let (made, saved) = super::read_or_create_mark("mark", &path).await.unwrap_or_default();
+        assert!(saved);
+        assert_eq!(made.len(), 32);
+        assert!(made.bytes().all(|b| b.is_ascii_hexdigit()));
+        assert_eq!(std::fs::read_to_string(&path).ok(), Some(made.clone()));
+        assert_eq!(
+            super::read_or_create_mark("mark", &path).await,
+            Some((made.clone(), true))
+        );
+
+        // Пустой или не текстовый файл — испорчен: новая метка.
+        for broken in [&b""[..], &[0xff, 0xfe, 0x00][..]] {
+            std::fs::write(&path, broken).unwrap_or_default();
+            let (renewed, saved) = super::read_or_create_mark("mark", &path).await.unwrap_or_default();
+            assert!(saved);
+            assert_eq!(renewed.len(), 32);
+            assert_ne!(renewed, made);
+        }
+
+        // Вместо файла — папка: прочитать нельзя, но это не «файла нет».
+        let busy = dir.join("busy");
+        std::fs::create_dir_all(&busy).unwrap_or_default();
+        assert_eq!(super::read_or_create_mark("busy", &busy).await, None);
+        assert!(busy.is_dir());
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
