@@ -1018,6 +1018,7 @@ pub(super) async fn point_system_proxy_at_the_core() {
     let written = sysopt.update_sysproxy().await;
     sysopt.refresh_guard().await;
     handle::Handle::refresh_verge();
+    crate::core::tray::Tray::global().redraw().await;
     if let Err(err) = written {
         // Прокси остался на прежнем порту, которого у ядра больше нет:
         // молчать здесь значит оставить человека без интернета и без

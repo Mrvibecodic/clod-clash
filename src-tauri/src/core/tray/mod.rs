@@ -65,9 +65,26 @@ enum IconKind {
     Tun,
 }
 
+/// Что о системном прокси показано: меню, значок и подсказка рисуются порознь
+/// и могут знать о нём разное.
+#[derive(Default)]
+struct ShownSystemProxy {
+    menu: AtomicBool,
+    icon: AtomicBool,
+    tooltip: AtomicBool,
+}
+
+impl ShownSystemProxy {
+    fn agree_with(&self, on: bool) -> bool {
+        [&self.menu, &self.icon, &self.tooltip]
+            .into_iter()
+            .all(|shown| shown.load(Ordering::Relaxed) == on)
+    }
+}
+
 pub struct Tray {
     limiter: SystemLimiter,
-    shown_system_proxy: AtomicBool,
+    shown_system_proxy: ShownSystemProxy,
     #[cfg(target_os = "linux")]
     activate_limiter: SystemLimiter,
     #[cfg(target_os = "macos")]
@@ -79,18 +96,20 @@ fn core_is_down() -> bool {
 }
 
 impl TrayState {
+    /// Значок и то, стоял ли в системе наш прокси, когда значок выбирали.
     async fn get_tray_icon(verge: &IVerge) -> (bool, Cow<'_, [u8]>) {
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
+        let system_proxy = Sysopt::global().our_proxy_is_on().await;
         let kind = if core_is_down() {
             IconKind::Common
         } else if tun_mode {
             IconKind::Tun
-        } else if Sysopt::global().our_proxy_is_on().await {
+        } else if system_proxy {
             IconKind::SysProxy
         } else {
             IconKind::Common
         };
-        Self::load_icon(verge, kind).await
+        (system_proxy, Self::load_icon(verge, kind).await.1)
     }
 
     async fn load_icon(verge: &IVerge, kind: IconKind) -> (bool, Cow<'_, [u8]>) {
@@ -149,7 +168,7 @@ impl Default for Tray {
     fn default() -> Self {
         Self {
             limiter: Limiter::new(Duration::from_millis(TRAY_CLICK_DEBOUNCE_MS), SystemClock),
-            shown_system_proxy: AtomicBool::new(false),
+            shown_system_proxy: ShownSystemProxy::default(),
             #[cfg(target_os = "linux")]
             activate_limiter: Limiter::new(Duration::from_millis(TRAY_CLICK_DEBOUNCE_MS), SystemClock),
             #[cfg(target_os = "macos")]
@@ -205,8 +224,7 @@ fn show_the_tray_that_works() {
         if let Some(fallback) = app_handle.tray_by_id(TRAY_ID) {
             logging_error!(Type::Tray, fallback.set_visible(!own_tray_works));
         }
-        tray.update_menu_and_icon().await;
-        logging_error!(Type::Tray, tray.update_tooltip().await);
+        tray.redraw().await;
     });
 }
 
@@ -293,7 +311,7 @@ impl Tray {
 
         let verge = Config::verge().await.latest_arc();
         let system_proxy = Sysopt::global().our_proxy_is_on().await;
-        self.shown_system_proxy.store(system_proxy, Ordering::Relaxed);
+        self.shown_system_proxy.menu.store(system_proxy, Ordering::Relaxed);
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
         let mode = Config::runtime()
             .await
@@ -357,7 +375,8 @@ impl Tray {
             Some(tray)
         };
 
-        let (_is_custom_icon, icon_bytes) = TrayState::get_tray_icon(verge).await;
+        let (system_proxy, icon_bytes) = TrayState::get_tray_icon(verge).await;
+        self.shown_system_proxy.icon.store(system_proxy, Ordering::Relaxed);
 
         #[cfg(target_os = "linux")]
         if ksni_active() {
@@ -393,6 +412,7 @@ impl Tray {
 
         let verge = Config::verge().await.latest_arc();
         let system_proxy = Sysopt::global().our_proxy_is_on().await;
+        self.shown_system_proxy.tooltip.store(system_proxy, Ordering::Relaxed);
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
 
         let switch_str = |flag: bool| {
@@ -499,6 +519,12 @@ impl Tray {
         logging_error!(Type::Tray, self.update_icon(&verge).await);
     }
 
+    /// Трей целиком — меню, значок и подсказка.
+    pub async fn redraw(&self) {
+        self.update_menu_and_icon().await;
+        logging_error!(Type::Tray, self.update_tooltip().await);
+    }
+
     async fn create_tray_from_handle(&self, app_handle: &AppHandle) -> Result<()> {
         if skipped_while_exiting("создание трея") {
             return Ok(());
@@ -508,7 +534,8 @@ impl Tray {
 
         let verge = Config::verge().await.data_arc();
 
-        let icon_bytes = TrayState::get_tray_icon(&verge).await.1;
+        let (system_proxy, icon_bytes) = TrayState::get_tray_icon(&verge).await;
+        self.shown_system_proxy.icon.store(system_proxy, Ordering::Relaxed);
 
         #[cfg(target_os = "linux")]
         if linux::create_tray(&icon_bytes).await || app_handle.tray_by_id(TRAY_ID).is_some() {
@@ -1072,8 +1099,9 @@ fn handle_primary_click() {
 
 /// Прокси могут снять мимо приложения: с системой трей сверяется на каждом
 /// тике сторожа среды, а там, где значок сообщает о наведении мыши (Windows,
-/// macOS), ещё и перед открытием меню. Одна сверка за раз: зависшее чтение
-/// системы не копит за собой новые.
+/// macOS), ещё и перед открытием меню. Сверка — с каждым из трёх элементов:
+/// меню обновляется чаще и само по себе значок и подсказку не чинит. Одна
+/// сверка за раз: зависшее чтение системы не копит за собой новые.
 pub fn catch_up_with_the_system_proxy() {
     static CATCHING_UP: AtomicBool = AtomicBool::new(false);
     if handle::Handle::global().is_exiting() || CATCHING_UP.swap(true, Ordering::AcqRel) {
@@ -1082,11 +1110,13 @@ pub fn catch_up_with_the_system_proxy() {
     AsyncHandler::spawn(|| async {
         let _done = scopeguard::guard((), |()| CATCHING_UP.store(false, Ordering::Release));
         let tray = Tray::global();
-        if Sysopt::global().our_proxy_is_on().await == tray.shown_system_proxy.load(Ordering::Relaxed) {
+        if tray
+            .shown_system_proxy
+            .agree_with(Sysopt::global().our_proxy_is_on().await)
+        {
             return;
         }
-        tray.update_menu_and_icon().await;
-        logging_error!(Type::Tray, tray.update_tooltip().await);
+        tray.redraw().await;
     });
 }
 
@@ -1235,7 +1265,8 @@ fn handle_menu_click(id: std::string::String) {
 
 #[cfg(test)]
 mod tests {
-    use super::{group_decides_traffic, node_title, proxy_item_id, proxy_item_names};
+    use super::{ShownSystemProxy, group_decides_traffic, node_title, proxy_item_id, proxy_item_names};
+    use std::sync::atomic::AtomicBool;
 
     #[test]
     fn the_groups_of_the_tray_follow_the_mode() {
@@ -1245,6 +1276,58 @@ mod tests {
         assert!(!group_decides_traffic("global", "Proxy"));
         assert!(!group_decides_traffic("direct", "Proxy"));
         assert!(!group_decides_traffic("direct", "GLOBAL"));
+    }
+
+    #[test]
+    fn the_tray_agrees_with_the_system_only_when_every_element_does() {
+        for (menu, icon, tooltip) in [(true, true, true), (false, false, false)] {
+            let shown = ShownSystemProxy {
+                menu: AtomicBool::new(menu),
+                icon: AtomicBool::new(icon),
+                tooltip: AtomicBool::new(tooltip),
+            };
+            assert!(shown.agree_with(menu));
+            assert!(!shown.agree_with(!menu));
+        }
+        for (menu, icon, tooltip) in [(true, false, true), (false, true, true), (true, true, false)] {
+            let shown = ShownSystemProxy {
+                menu: AtomicBool::new(menu),
+                icon: AtomicBool::new(icon),
+                tooltip: AtomicBool::new(tooltip),
+            };
+            assert!(!shown.agree_with(true), "{menu} {icon} {tooltip}");
+            assert!(!shown.agree_with(false), "{menu} {icon} {tooltip}");
+        }
+    }
+
+    /// Системный прокси на старте и при смене порта пишется в фоне, после
+    /// подтверждения порта: трей узнаёт об этом от самой записи, а каждый
+    /// элемент трея сам помнит, что он показал.
+    #[test]
+    fn the_tray_learns_of_the_system_proxy_from_the_write_and_every_element_remembers_it() {
+        use crate::utils::source_scan::{fn_body, without_test_modules};
+        let tray = without_test_modules(include_str!("mod.rs"));
+        for (signature, element) in [
+            ("async fn update_menu_internal(", "menu"),
+            ("pub async fn update_icon(", "icon"),
+            ("async fn create_tray_from_handle(", "icon"),
+            ("pub async fn update_tooltip(", "tooltip"),
+        ] {
+            let body = fn_body(tray, signature).unwrap_or_default();
+            assert!(
+                body.contains(&format!("shown_system_proxy.{element}.store(")),
+                "{signature}"
+            );
+        }
+
+        let config = without_test_modules(include_str!("../manager/config.rs"));
+        let pointed = fn_body(config, "pub(super) async fn point_system_proxy_at_the_core()").unwrap_or_default();
+        let written = pointed.find("update_sysproxy()");
+        let redrawn = pointed.find("Tray::global().redraw()");
+        assert!(
+            written.zip(redrawn).is_some_and(|(written, redrawn)| written < redrawn),
+            "{pointed}"
+        );
     }
 
     #[test]
