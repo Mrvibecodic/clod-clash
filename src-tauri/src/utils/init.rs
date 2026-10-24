@@ -846,16 +846,19 @@ pub fn init_scheme() -> Result<()> {
     let app_exe = app_exe.to_string_lossy().into_owned();
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let (clash, _) = hkcu.create_subkey("Software\\Classes\\Clash")?;
-    clash.set_value("", &crate::constants::branding::APP_NAME)?;
-    clash.set_value(
-        "URL Protocol",
-        &format!("{} URL Scheme Protocol", crate::constants::branding::APP_NAME),
-    )?;
-    let (default_icon, _) = hkcu.create_subkey("Software\\Classes\\Clash\\DefaultIcon")?;
-    default_icon.set_value("", &app_exe)?;
-    let (command, _) = hkcu.create_subkey("Software\\Classes\\Clash\\Shell\\Open\\Command")?;
-    command.set_value("", &scheme_open_command(&app_exe))?;
+    for scheme in DEEP_LINK_SCHEMES {
+        let class = format!("Software\\Classes\\{scheme}");
+        let (root, _) = hkcu.create_subkey(&class)?;
+        root.set_value("", &crate::constants::branding::APP_NAME)?;
+        root.set_value(
+            "URL Protocol",
+            &format!("{} URL Scheme Protocol", crate::constants::branding::APP_NAME),
+        )?;
+        let (default_icon, _) = hkcu.create_subkey(format!("{class}\\DefaultIcon"))?;
+        default_icon.set_value("", &app_exe)?;
+        let (command, _) = hkcu.create_subkey(format!("{class}\\Shell\\Open\\Command"))?;
+        command.set_value("", &scheme_open_command(&app_exe))?;
+    }
 
     Ok(())
 }
@@ -891,7 +894,7 @@ pub fn init_scheme() -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 use crate::constants::branding::DEEP_LINK_SCHEMES;
 
 pub async fn startup_script() -> Result<()> {
