@@ -2,7 +2,7 @@ use crate::{
     config::Config,
     process::AsyncHandler,
     utils::{
-        dirs,
+        dirs::{self, PathBufExec as _},
         network::{DOWNGRADE_REFUSED, redirect_is_a_downgrade, tls_failure},
     },
 };
@@ -14,7 +14,7 @@ use reqwest_dav::list_cmd::{ListEntity, ListFile, ListMultiStatus};
 use smartstring::alias::String;
 use std::{
     collections::HashMap,
-    env::{consts::OS, temp_dir},
+    env::consts::OS,
     io::Write as _,
     path::PathBuf,
     sync::{Arc, OnceLock},
@@ -315,8 +315,15 @@ fn parse_webdav_list(xml: &str) -> Result<Vec<ListEntity>, reqwest_dav::Error> {
 pub async fn create_backup() -> Result<(String, PathBuf), Error> {
     let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
     let zip_file_name: String = format!("{OS}-backup-{now}.zip").into();
-    let zip_path = temp_dir().join(zip_file_name.as_str());
+    let zip_path = dirs::app_home_dir()?.join(zip_file_name.as_str());
+    if let Err(err) = write_backup(zip_path.clone()).await {
+        let _ = zip_path.remove_if_exists().await;
+        return Err(err);
+    }
+    Ok((zip_file_name, zip_path))
+}
 
+async fn write_backup(zip_path: PathBuf) -> Result<(), Error> {
     let value = zip_path.clone();
     let file = AsyncHandler::spawn_blocking(move || std::fs::File::create(&value)).await??;
     let mut zip = zip::ZipWriter::new(file);
@@ -355,7 +362,7 @@ pub async fn create_backup() -> Result<(String, PathBuf), Error> {
     zip.start_file(dirs::PROFILE_YAML, options)?;
     zip.write_all(fs::read(dirs::profiles_path()?).await?.as_slice())?;
     zip.finish()?;
-    Ok((zip_file_name, zip_path))
+    Ok(())
 }
 
 /// Файлы подписок, которые в копию не идут. Запасная копия прежней подписки и
