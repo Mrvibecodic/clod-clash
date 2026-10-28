@@ -685,13 +685,13 @@ pub enum ServiceRegistration {
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// Ответ `sc.exe query` о нашей службе: код выхода и вывод.
+/// Ответ `sc.exe <команда>` о нашей службе: код выхода и вывод.
 #[cfg(target_os = "windows")]
-fn sc_query() -> Option<(Option<i32>, std::string::String)> {
+fn sc(command: &str) -> Option<(Option<i32>, std::string::String)> {
     use std::os::windows::process::CommandExt as _;
 
     let output = StdCommand::new("sc.exe")
-        .args(["query", "clash_verge_service"])
+        .args([command, "clash_verge_service"])
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
@@ -705,7 +705,7 @@ fn sc_query() -> Option<(Option<i32>, std::string::String)> {
 fn read_service_registration() -> ServiceRegistration {
     const SERVICE_DOES_NOT_EXIST: i32 = 1060;
 
-    let Some((code, stdout)) = sc_query() else {
+    let Some((code, stdout)) = sc("query") else {
         return ServiceRegistration::Unknown;
     };
 
@@ -767,31 +767,51 @@ pub async fn start_registered_service() -> bool {
         .unwrap_or(false)
 }
 
-/// `sc query` говорит, что служба остановлена после того, как уже работала.
+/// Значение поля из вывода `sc.exe` («STATE : 1  STOPPED» → «1  STOPPED»).
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn sc_value(sc_output: &str, key: &str) -> Option<std::string::String> {
+    sc_output.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        (name.trim() == key).then(|| value.trim().to_owned())
+    })
+}
+
+/// По `sc query` (и, если нужно, `sc qc`) служба остановлена насовсем.
 ///
 /// Остановленная служба с кодом выхода 1077 (`ERROR_SERVICE_NEVER_STARTED`) —
-/// это служба, которую система в эту загрузку ещё не запускала: автозапуск
-/// поднимет её сам. Любой другой код — служба встала насовсем, и ждать, что
-/// она поднимется сама, нечего. Чего-то в ответе нет — не знаем, и тогда это
-/// не «насовсем».
+/// служба, которую система в эту загрузку ещё не запускала: поднимет её
+/// автозапуск, если он у неё есть. Тип запуска «вручную» или «отключена»
+/// (`sc qc`, START_TYPE 3 или 4) — поднимать её некому, это тоже «насовсем».
+/// Любой другой код выхода — служба встала насовсем. Чего-то в ответе нет —
+/// не знаем, и тогда это не «насовсем».
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-fn stopped_after_running(sc_query: &str) -> bool {
+fn stopped_for_good_by(sc_query: &str, sc_qc: impl FnOnce() -> Option<std::string::String>) -> bool {
     const ERROR_SERVICE_NEVER_STARTED: u32 = 1077;
+    const SERVICE_DEMAND_START: u32 = 3;
+    const SERVICE_DISABLED: u32 = 4;
 
-    let value = |key: &str| {
-        sc_query.lines().find_map(|line| {
-            let (name, value) = line.split_once(':')?;
-            (name.trim() == key).then(|| value.trim().to_owned())
-        })
-    };
-    let stopped = value("STATE").is_some_and(|state| state.split_whitespace().any(|word| word == "STOPPED"));
-    let exit_code = value("WIN32_EXIT_CODE").and_then(|code| code.split_whitespace().next()?.parse::<u32>().ok());
-    stopped && exit_code.is_some_and(|code| code != ERROR_SERVICE_NEVER_STARTED)
+    let first_number = |value: std::string::String| value.split_whitespace().next()?.parse::<u32>().ok();
+    let stopped =
+        sc_value(sc_query, "STATE").is_some_and(|state| state.split_whitespace().any(|word| word == "STOPPED"));
+    match sc_value(sc_query, "WIN32_EXIT_CODE").and_then(first_number) {
+        _ if !stopped => false,
+        None => false,
+        Some(ERROR_SERVICE_NEVER_STARTED) => sc_qc()
+            .and_then(|qc| sc_value(&qc, "START_TYPE"))
+            .and_then(first_number)
+            .is_some_and(|start| matches!(start, SERVICE_DEMAND_START | SERVICE_DISABLED)),
+        Some(_) => true,
+    }
 }
 
 #[cfg(target_os = "windows")]
 fn read_stopped_for_good() -> bool {
-    sc_query().is_some_and(|(code, stdout)| code == Some(0) && stopped_after_running(&stdout))
+    sc("query").is_some_and(|(code, stdout)| {
+        code == Some(0)
+            && stopped_for_good_by(&stdout, || {
+                sc("qc").and_then(|(code, stdout)| (code == Some(0)).then_some(stdout))
+            })
+    })
 }
 
 /// Служба Windows остановлена насовсем: сама, автозапуском, она уже не
@@ -1866,7 +1886,7 @@ mod failure_tests {
 
 #[cfg(test)]
 mod stopped_service_tests {
-    use super::stopped_after_running;
+    use super::stopped_for_good_by;
 
     fn sc_query(state: &str, exit_code: &str) -> String {
         format!(
@@ -1887,7 +1907,46 @@ mod stopped_service_tests {
             (String::new(), false),
         ];
         for (output, expected) in cases {
-            assert_eq!(stopped_after_running(&output), expected, "{output}");
+            let auto_start = || Some(sc_qc("2   AUTO_START"));
+            assert_eq!(stopped_for_good_by(&output, auto_start), expected, "{output}");
+        }
+    }
+
+    fn sc_qc(start_type: &str) -> String {
+        format!(
+            "[SC] QueryServiceConfig SUCCESS\r\n\r\nSERVICE_NAME: clash_verge_service\r\n        TYPE               : 10  WIN32_OWN_PROCESS\r\n        START_TYPE         : {start_type}\r\n        ERROR_CONTROL      : 1   NORMAL\r\n        BINARY_PATH_NAME   : \"C:\\Program Files\\Clod Clash\\clash-verge-service.exe\"\r\n"
+        )
+    }
+
+    #[test]
+    fn a_service_not_yet_started_is_stopped_for_good_only_when_nothing_will_start_it() {
+        let never_started = sc_query("1  STOPPED", "1077  (0x435)");
+        let cases = [
+            (Some(sc_qc("2   AUTO_START")), false),
+            (Some(sc_qc("2   AUTO_START  (DELAYED)")), false),
+            (Some(sc_qc("3   DEMAND_START")), true),
+            (Some(sc_qc("4   DISABLED")), true),
+            (Some(sc_qc("")), false),
+            (None, false),
+        ];
+        for (qc, expected) in cases {
+            assert_eq!(stopped_for_good_by(&never_started, || qc.clone()), expected, "{qc:?}");
+        }
+    }
+
+    #[test]
+    fn the_start_type_is_asked_only_for_a_service_not_yet_started() {
+        for output in [
+            sc_query("1  STOPPED", "1067  (0x42b)"),
+            sc_query("4  RUNNING", "0  (0x0)"),
+            sc_query("1  STOPPED", ""),
+        ] {
+            let mut asked = false;
+            let _ = stopped_for_good_by(&output, || {
+                asked = true;
+                None
+            });
+            assert!(!asked, "{output}");
         }
     }
 }
