@@ -613,11 +613,7 @@ fn create_hotkeys(hotkeys: &Option<Vec<String>>) -> HashMap<&str, &str> {
                     let mut parts = item.split(',');
                     match (parts.next(), parts.next()) {
                         (Some(func), Some(key)) => {
-                            if key.to_uppercase().contains("NUMPAD") {
-                                None
-                            } else {
-                                Some((func, key))
-                            }
+                            tray_menu_accepts(key, cfg!(target_os = "windows")).then_some((func, key))
                         }
                         _ => None,
                     }
@@ -625,6 +621,17 @@ fn create_hotkeys(hotkeys: &Option<Vec<String>>) -> HashMap<&str, &str> {
                 .collect::<HashMap<&str, &str>>()
         })
         .unwrap_or_default()
+}
+
+// Сочетание, которое меню трея не примет, роняет сборку всего меню: клавиши
+// цифрового блока не разбираются нигде, а на Windows ещё и модификатор Win
+// (vendor/muda отвергает его как модификатор пункта меню).
+fn tray_menu_accepts(key: &str, windows: bool) -> bool {
+    key.split('+').map(str::trim).all(|token| {
+        let token = token.to_uppercase();
+        let win_key = windows && matches!(token.as_str(), "CMD" | "COMMAND" | "SUPER" | "META");
+        !(token.contains("NUMPAD") || win_key)
+    })
 }
 
 fn create_profile_menu_item(profiles_preview: Vec<IProfilePreview<'_>>) -> Vec<MenuNode> {
@@ -1265,8 +1272,28 @@ fn handle_menu_click(id: std::string::String) {
 
 #[cfg(test)]
 mod tests {
-    use super::{ShownSystemProxy, group_decides_traffic, node_title, proxy_item_id, proxy_item_names};
+    use super::{
+        ShownSystemProxy, group_decides_traffic, node_title, proxy_item_id, proxy_item_names, tray_menu_accepts,
+    };
     use std::sync::atomic::AtomicBool;
+
+    #[test]
+    fn the_tray_menu_skips_keys_it_cannot_show() {
+        for (key, windows, accepted) in [
+            ("CTRL+SHIFT+P", true, true),
+            ("CMD+SHIFT+P", true, false),
+            ("CMD+SHIFT+P", false, true),
+            ("Super+P", true, false),
+            ("META+P", true, false),
+            ("Command+P", true, false),
+            ("CmdOrCtrl+P", true, true),
+            ("CTRL+NUMPAD1", true, false),
+            ("CTRL+NUMPAD1", false, false),
+            ("ALT+F4", false, true),
+        ] {
+            assert_eq!(tray_menu_accepts(key, windows), accepted, "{key} {windows}");
+        }
+    }
 
     #[test]
     fn the_groups_of_the_tray_follow_the_mode() {
