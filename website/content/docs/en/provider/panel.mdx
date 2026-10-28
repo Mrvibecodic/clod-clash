@@ -60,6 +60,9 @@ template; with no key it's off. Rules, groups and `sniffer` are left entirely to
 they set their own there.
 If `profile-update-interval` has never arrived, the subscription isn't updated on a schedule;
 to stop auto-update, send `profile-update-interval: 0`.
+Every provider in `proxy-providers` and `rule-providers` needs its own `path`
+(or leave it out and the core names the file itself): if different providers share a `path`,
+the TUN service rejects the config, and without the service the providers write to the same file.
 
 <Callout type="warn">
 On Windows the `system` and `mixed` TUN stacks are not taken from the template — only by the
