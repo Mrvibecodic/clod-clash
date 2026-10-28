@@ -47,9 +47,6 @@ notifications:
   coreRestart:
     done: "The core has been restarted."
     failed: "The core did not restart: {reason}"
-  appHidden:
-    title: Uygulama Gizlendi
-    body: Uygulama arka planda çalışıyor.
   updateReady:
     title: Uygulama Güncellemesi
     body: A new version (v{version}) has been downloaded and is ready to install.

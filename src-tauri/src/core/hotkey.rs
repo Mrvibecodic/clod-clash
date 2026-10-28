@@ -269,7 +269,6 @@ impl Hotkey {
             HotkeyFunction::Hide => {
                 AsyncHandler::spawn(async move || {
                     feat::hide().await;
-                    notify_event(NotificationEvent::AppHidden).await;
                 });
             }
         }

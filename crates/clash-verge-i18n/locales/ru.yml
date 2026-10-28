@@ -47,9 +47,6 @@ notifications:
   coreRestart:
     done: "Ядро перезапущено."
     failed: "Ядро не перезапустилось: {reason}"
-  appHidden:
-    title: Приложение скрыто
-    body: Приложение работает в фоновом режиме.
   updateReady:
     title: Обновление приложения
     body: Новая версия (v{version}) скачана и готова к установке.

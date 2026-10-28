@@ -47,9 +47,6 @@ notifications:
   coreRestart:
     done: "The core has been restarted."
     failed: "The core did not restart: {reason}"
-  appHidden:
-    title: アプリが非表示
-    body: アプリはバックグラウンドで実行中です。
   updateReady:
     title: アプリの更新
     body: A new version (v{version}) has been downloaded and is ready to install.

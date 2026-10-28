@@ -47,9 +47,6 @@ notifications:
   coreRestart:
     done: "The core has been restarted."
     failed: "The core did not restart: {reason}"
-  appHidden:
-    title: Application Hidden
-    body: The app keeps running in the background.
   updateReady:
     title: App Update
     body: A new version (v{version}) has been downloaded and is ready to install.

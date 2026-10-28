@@ -47,9 +47,6 @@ notifications:
   coreRestart:
     done: "The core has been restarted."
     failed: "The core did not restart: {reason}"
-  appHidden:
-    title: 应用已隐藏
-    body: 应用正在后台运行。
   updateReady:
     title: 应用更新
     body: 新版本 (v{version}) 已下载完成，是否立即安装？

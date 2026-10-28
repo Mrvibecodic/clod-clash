@@ -47,9 +47,6 @@ notifications:
   coreRestart:
     done: "The core has been restarted."
     failed: "The core did not restart: {reason}"
-  appHidden:
-    title: تم إخفاء التطبيق
-    body: التطبيق يعمل في الخلفية.
   updateReady:
     title: تحديث التطبيق
     body: A new version (v{version}) has been downloaded and is ready to install.

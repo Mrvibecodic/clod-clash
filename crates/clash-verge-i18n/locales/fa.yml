@@ -47,9 +47,6 @@ notifications:
   coreRestart:
     done: "The core has been restarted."
     failed: "The core did not restart: {reason}"
-  appHidden:
-    title: برنامه پنهان شد
-    body: برنامه در پس‌زمینه در حال اجراست.
   updateReady:
     title: به‌روزرسانی برنامه
     body: A new version (v{version}) has been downloaded and is ready to install.

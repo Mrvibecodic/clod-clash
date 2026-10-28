@@ -47,9 +47,6 @@ notifications:
   coreRestart:
     done: "The core has been restarted."
     failed: "The core did not restart: {reason}"
-  appHidden:
-    title: 앱이 숨겨짐
-    body: 앱이 백그라운드에서 실행 중입니다.
   updateReady:
     title: 앱 업데이트
     body: A new version (v{version}) has been downloaded and is ready to install.

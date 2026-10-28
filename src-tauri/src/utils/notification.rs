@@ -55,8 +55,6 @@ pub enum NotificationEvent<'a> {
     ProxyHostRefused {
         host: &'a str,
     },
-    #[cfg(target_os = "macos")]
-    AppHidden,
     LogOpenFailed {
         path: &'a str,
     },
@@ -220,12 +218,6 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         NotificationEvent::UpdateNotInstalled => {
             let title = clash_verge_i18n::t!("notifications.updateReady.title");
             let body = clash_verge_i18n::t!("notifications.updateReady.notInstalled");
-            notify(title, body);
-        }
-        #[cfg(target_os = "macos")]
-        NotificationEvent::AppHidden => {
-            let title = clash_verge_i18n::t!("notifications.appHidden.title");
-            let body = clash_verge_i18n::t!("notifications.appHidden.body");
             notify(title, body);
         }
         NotificationEvent::LogOpenFailed { path } => {
