@@ -6,7 +6,7 @@ allowBuilds:
 
 # clod: monaco-editor пинит dompurify ТОЧНОЙ версией 3.2.7, поэтому 18 его
 # advisory (14 moderate + 4 low) бампом самого monaco не закрываются — только
-# перекрытием. 3.4.13 закрывает семнадцать из восемнадцати; у GHSA-x4vx-rjvf-j5p4
+# перекрытием. 3.4.17 закрывает семнадцать из восемнадцати; у GHSA-x4vx-rjvf-j5p4
 # фикса нет вовсе ни в одной версии.
 overrides:
-  dompurify: ^3.4.13
+  dompurify: ^3.4.17
