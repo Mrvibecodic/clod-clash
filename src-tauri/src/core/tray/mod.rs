@@ -17,7 +17,8 @@ use anyhow::Result;
 use smartstring::alias::String;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::future::Future;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 use tauri::{
     AppHandle, Wry,
@@ -82,9 +83,50 @@ impl ShownSystemProxy {
     }
 }
 
+/// Порядок отрисовок одного элемента трея: сборка, прочитавшая состояние
+/// раньше, не ложится поверх уже показанной более новой — меню собирается до
+/// секунды (ждёт список серверов у ядра), и прежняя сборка могла лечь последней.
+#[derive(Default)]
+struct DrawOrder {
+    started: AtomicU64,
+    shown: tokio::sync::Mutex<u64>,
+}
+
+impl DrawOrder {
+    /// Номер сборки — берётся до чтения состояния.
+    fn ticket(&self) -> u64 {
+        self.started.fetch_add(1, Ordering::AcqRel) + 1
+    }
+
+    /// Показать сборку `ticket`, если новее ничего не показано; `None` — опоздала.
+    async fn show_if_newest<R>(&self, ticket: u64, show: impl Future<Output = R>) -> Option<R> {
+        let mut shown = self.shown.lock().await;
+        if !shows_after(*shown, ticket) {
+            return None;
+        }
+        *shown = ticket;
+        // Замок держится до конца показа: иначе опоздавшая сборка проскочила бы.
+        let result = show.await;
+        drop(shown);
+        Some(result)
+    }
+}
+
+const fn shows_after(shown: u64, ticket: u64) -> bool {
+    ticket > shown
+}
+
+#[derive(Default)]
+struct Draws {
+    menu: DrawOrder,
+    icon: DrawOrder,
+    tooltip: DrawOrder,
+}
+
 pub struct Tray {
     limiter: SystemLimiter,
     shown_system_proxy: ShownSystemProxy,
+    draws: Draws,
     #[cfg(target_os = "linux")]
     activate_limiter: SystemLimiter,
     #[cfg(target_os = "macos")]
@@ -169,6 +211,7 @@ impl Default for Tray {
         Self {
             limiter: Limiter::new(Duration::from_millis(TRAY_CLICK_DEBOUNCE_MS), SystemClock),
             shown_system_proxy: ShownSystemProxy::default(),
+            draws: Draws::default(),
             #[cfg(target_os = "linux")]
             activate_limiter: Limiter::new(Duration::from_millis(TRAY_CLICK_DEBOUNCE_MS), SystemClock),
             #[cfg(target_os = "macos")]
@@ -309,9 +352,9 @@ impl Tray {
             Some(tray)
         };
 
+        let ticket = self.draws.menu.ticket();
         let verge = Config::verge().await.latest_arc();
         let system_proxy = Sysopt::global().our_proxy_is_on().await;
-        self.shown_system_proxy.menu.store(system_proxy, Ordering::Relaxed);
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
         let mode = Config::runtime()
             .await
@@ -339,17 +382,28 @@ impl Tray {
         )
         .await?;
 
-        #[cfg(target_os = "linux")]
-        if ksni_active() {
-            linux::update_menu(menu_model).await;
-            return Ok(());
-        }
-
-        if let Some(tray) = tray {
-            logging_error!(
-                Type::Tray,
-                tray.set_menu(Some(render_tray_menu(app_handle, menu_model)?))
-            );
+        let shown = self
+            .draws
+            .menu
+            .show_if_newest(ticket, async {
+                self.shown_system_proxy.menu.store(system_proxy, Ordering::Relaxed);
+                #[cfg(target_os = "linux")]
+                if ksni_active() {
+                    linux::update_menu(menu_model).await;
+                    return Ok(());
+                }
+                if let Some(tray) = tray {
+                    logging_error!(
+                        Type::Tray,
+                        tray.set_menu(Some(render_tray_menu(app_handle, menu_model)?))
+                    );
+                }
+                Ok::<(), anyhow::Error>(())
+            })
+            .await;
+        match shown {
+            Some(shown) => shown?,
+            None => logging!(debug, Type::Tray, "Сборка меню трея опоздала — показана более новая"),
         }
 
         logging!(debug, Type::Tray, "Меню трея обновлено успешно");
@@ -375,32 +429,37 @@ impl Tray {
             Some(tray)
         };
 
+        let ticket = self.draws.icon.ticket();
         let (system_proxy, icon_bytes) = TrayState::get_tray_icon(verge).await;
-        self.shown_system_proxy.icon.store(system_proxy, Ordering::Relaxed);
 
-        #[cfg(target_os = "linux")]
-        if ksni_active() {
-            linux::update_icon(&icon_bytes).await;
-            return Ok(());
-        }
-
-        if let Some(tray) = tray {
-            let template = {
-                #[cfg(target_os = "macos")]
-                {
-                    verge.tray_icon.as_ref().is_none_or(|v| v == "monochrome")
+        self.draws
+            .icon
+            .show_if_newest(ticket, async {
+                self.shown_system_proxy.icon.store(system_proxy, Ordering::Relaxed);
+                #[cfg(target_os = "linux")]
+                if ksni_active() {
+                    linux::update_icon(&icon_bytes).await;
+                    return Ok(());
                 }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    false
+                if let Some(tray) = tray {
+                    let template = {
+                        #[cfg(target_os = "macos")]
+                        {
+                            verge.tray_icon.as_ref().is_none_or(|v| v == "monochrome")
+                        }
+                        #[cfg(not(target_os = "macos"))]
+                        {
+                            false
+                        }
+                    };
+                    let icon = Some(tauri::image::Image::from_bytes(&icon_bytes)?);
+
+                    logging_error!(Type::Tray, tray.set_icon_with_as_template(icon, template));
                 }
-            };
-            let icon = Some(tauri::image::Image::from_bytes(&icon_bytes)?);
-
-            logging_error!(Type::Tray, tray.set_icon_with_as_template(icon, template));
-        }
-
-        Ok(())
+                Ok::<(), anyhow::Error>(())
+            })
+            .await
+            .unwrap_or(Ok(()))
     }
 
     pub async fn update_tooltip(&self) -> Result<()> {
@@ -410,9 +469,9 @@ impl Tray {
 
         let app_handle = handle::Handle::app_handle();
 
+        let ticket = self.draws.tooltip.ticket();
         let verge = Config::verge().await.latest_arc();
         let system_proxy = Sysopt::global().our_proxy_is_on().await;
-        self.shown_system_proxy.tooltip.store(system_proxy, Ordering::Relaxed);
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
 
         let switch_str = |flag: bool| {
@@ -466,20 +525,32 @@ impl Tray {
             ));
         }
 
-        #[cfg(target_os = "linux")]
-        if ksni_active() {
-            linux::update_tooltip(tooltip).await;
-            return Ok(());
-        }
-
-        let Some(tray) = app_handle.tray_by_id(TRAY_ID) else {
+        let tray = if ksni_active() {
+            None
+        } else {
+            app_handle.tray_by_id(TRAY_ID)
+        };
+        if tray.is_none() && !ksni_active() {
             if the_tray_is_missed() {
                 logging!(warn, Type::Tray, "Failed to update tray tooltip: tray not found");
             }
             return Ok(());
-        };
+        }
 
-        logging_error!(Type::Tray, tray.set_tooltip(Some(&tooltip)));
+        self.draws
+            .tooltip
+            .show_if_newest(ticket, async {
+                self.shown_system_proxy.tooltip.store(system_proxy, Ordering::Relaxed);
+                #[cfg(target_os = "linux")]
+                if ksni_active() {
+                    linux::update_tooltip(tooltip).await;
+                    return;
+                }
+                if let Some(tray) = tray {
+                    logging_error!(Type::Tray, tray.set_tooltip(Some(&tooltip)));
+                }
+            })
+            .await;
 
         Ok(())
     }
@@ -488,9 +559,9 @@ impl Tray {
         if skipped_while_exiting("частичное обновление трея") {
             return Ok(());
         }
-        let verge = Config::verge().await.data_arc();
         let app_handle = handle::Handle::app_handle();
         self.update_menu_internal(app_handle, false).await?;
+        let verge = Config::verge().await.data_arc();
         AsyncHandler::spawn(|| async {
             logging_error!(Type::Tray, Self::global().update_menu().await);
         });
@@ -1286,6 +1357,21 @@ mod tests {
     };
     use crate::feat::Toggled;
     use std::sync::atomic::AtomicBool;
+
+    #[tokio::test]
+    async fn a_late_draw_does_not_cover_a_newer_one() {
+        let order = super::DrawOrder::default();
+        let (older, newer) = (order.ticket(), order.ticket());
+        assert_eq!(order.show_if_newest(newer, async { "newer" }).await, Some("newer"));
+        assert_eq!(order.show_if_newest(older, async { "older" }).await, None);
+        let latest = order.ticket();
+        assert_eq!(order.show_if_newest(latest, async { "latest" }).await, Some("latest"));
+
+        // Старая сборка, которую новая ещё не обогнала, показывается как раньше.
+        let (first, second) = (order.ticket(), order.ticket());
+        assert_eq!(order.show_if_newest(first, async { 1 }).await, Some(1));
+        assert_eq!(order.show_if_newest(second, async { 2 }).await, Some(2));
+    }
 
     #[test]
     fn only_a_refused_toggle_rebuilds_the_menu_again() {

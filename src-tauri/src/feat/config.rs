@@ -655,4 +655,28 @@ mod tests {
         assert!(body.contains("delivery_for_turning_tun_on()"), "{body}");
         assert!(body.contains("hand_the_settings_to_the_core(tun_delivery)"), "{body}");
     }
+
+    /// Трей не пересобирает меню после состоявшегося переключения из него:
+    /// перерисовку делает сама правка системного прокси или TUN.
+    #[test]
+    fn switching_the_system_proxy_or_tun_redraws_the_whole_tray() {
+        use crate::config::IVerge;
+        for patch in [
+            IVerge {
+                enable_system_proxy: Some(true),
+                connect_system_proxy: Some(true),
+                ..IVerge::default()
+            },
+            IVerge {
+                enable_tun_mode: Some(false),
+                connect_tun_mode: Some(false),
+                ..IVerge::default()
+            },
+        ] {
+            assert!(
+                super::determine_update_flags(&patch).contains(super::UpdateFlags::GROUP_SYS_TRAY),
+                "{patch:?}"
+            );
+        }
+    }
 }
