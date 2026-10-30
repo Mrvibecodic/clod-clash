@@ -10,14 +10,18 @@ use anyhow::Error;
 use arc_swap::{ArcSwap, ArcSwapOption};
 use backon::{ConstantBuilder, Retryable as _};
 use clash_verge_logging::{Type, logging};
+use parking_lot::Mutex;
 use reqwest_dav::list_cmd::{ListEntity, ListFile, ListMultiStatus};
 use smartstring::alias::String;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env::consts::OS,
     io::Write as _,
     path::PathBuf,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 use tokio::{fs, time::timeout};
@@ -59,7 +63,12 @@ impl Operation {
 
 pub struct WebDavClient {
     config: ArcSwapOption<WebDavConfig>,
-    clients: ArcSwap<HashMap<Operation, reqwest_dav::Client>>,
+    /// Клиент на каждый срок операций: у операций с одним сроком он общий.
+    clients: ArcSwap<HashMap<u64, reqwest_dav::Client>>,
+    /// Операции, перед первой из которых каталог копий уже создан.
+    ready: Mutex<HashSet<Operation>>,
+    /// Растёт на каждом сбросе: клиент, собранный до сброса, не запоминается.
+    generation: AtomicU64,
 }
 
 impl WebDavClient {
@@ -68,52 +77,24 @@ impl WebDavClient {
         WEBDAV_CLIENT.get_or_init(|| Self {
             config: ArcSwapOption::new(None),
             clients: ArcSwap::new(Arc::new(HashMap::new())),
+            ready: Mutex::new(HashSet::new()),
+            generation: AtomicU64::new(0),
         })
     }
 
     async fn get_client(&self, op: Operation) -> Result<reqwest_dav::Client, Error> {
+        let generation = self.generation.load(Ordering::Acquire);
+        let cached = self.clients.load().get(&op.timeout()).cloned();
+        if let Some(client) = &cached
+            && self.ready.lock().contains(&op)
         {
-            let clients_map = self.clients.load();
-            if let Some(client) = clients_map.get(&op) {
-                return Ok(client.clone());
-            }
+            return Ok(client.clone());
         }
 
-        let config = {
-            let existing_config = self.config.load();
-
-            if let Some(cfg_arc) = existing_config.clone() {
-                (*cfg_arc).clone()
-            } else {
-                let verge = Config::verge().await.data_arc();
-                if verge.webdav_url.is_none() || verge.webdav_username.is_none() || verge.webdav_password.is_none() {
-                    let msg: String =
-                        "Unable to create web dav client, please make sure the webdav config is correct".into();
-                    return Err(anyhow::Error::msg(msg));
-                }
-
-                let config = WebDavConfig {
-                    url: verge
-                        .webdav_url
-                        .clone()
-                        .unwrap_or_default()
-                        .trim_end_matches('/')
-                        .into(),
-                    username: verge.webdav_username.clone().unwrap_or_default(),
-                    password: verge.webdav_password.clone().unwrap_or_default(),
-                    trust_self_signed: verge.webdav_trust_self_signed.unwrap_or(false),
-                };
-
-                self.config.store(Some(Arc::new(config.clone())));
-                config
-            }
+        let client = match cached {
+            Some(client) => client,
+            None => self.new_client(op.timeout()).await?,
         };
-
-        let client = reqwest_dav::ClientBuilder::new()
-            .set_agent(agent(op.timeout(), config.trust_self_signed)?)
-            .set_host(config.url.into())
-            .set_auth(reqwest_dav::Auth::Basic(config.username.into(), config.password.into()))
-            .build()?;
 
         // Используем MKCOL напрямую; на некоторых серверах depth-0 PROPFIND
         // ошибочно сообщает об ошибке декодирования.
@@ -163,20 +144,62 @@ impl WebDavClient {
             logging!(info, Type::Backup, "Successfully created backup directory");
         }
 
-        {
+        if self.generation.load(Ordering::Acquire) == generation {
             self.clients.rcu(|clients_map| {
                 let mut new_map = (**clients_map).clone();
-                new_map.insert(op, client.clone());
+                new_map.insert(op.timeout(), client.clone());
                 Arc::new(new_map)
             });
+            self.ready.lock().insert(op);
         }
 
         Ok(client)
     }
 
+    /// Клиент по настройкам WebDAV со сроком `timeout_secs` на запрос.
+    async fn new_client(&self, timeout_secs: u64) -> Result<reqwest_dav::Client, Error> {
+        let config = {
+            let existing_config = self.config.load();
+
+            if let Some(cfg_arc) = existing_config.clone() {
+                (*cfg_arc).clone()
+            } else {
+                let verge = Config::verge().await.data_arc();
+                if verge.webdav_url.is_none() || verge.webdav_username.is_none() || verge.webdav_password.is_none() {
+                    let msg: String =
+                        "Unable to create web dav client, please make sure the webdav config is correct".into();
+                    return Err(anyhow::Error::msg(msg));
+                }
+
+                let config = WebDavConfig {
+                    url: verge
+                        .webdav_url
+                        .clone()
+                        .unwrap_or_default()
+                        .trim_end_matches('/')
+                        .into(),
+                    username: verge.webdav_username.clone().unwrap_or_default(),
+                    password: verge.webdav_password.clone().unwrap_or_default(),
+                    trust_self_signed: verge.webdav_trust_self_signed.unwrap_or(false),
+                };
+
+                self.config.store(Some(Arc::new(config.clone())));
+                config
+            }
+        };
+
+        Ok(reqwest_dav::ClientBuilder::new()
+            .set_agent(agent(timeout_secs, config.trust_self_signed)?)
+            .set_host(config.url.into())
+            .set_auth(reqwest_dav::Auth::Basic(config.username.into(), config.password.into()))
+            .build()?)
+    }
+
     pub fn reset(&self) {
+        self.generation.fetch_add(1, Ordering::AcqRel);
         self.config.store(None);
         self.clients.store(Arc::new(HashMap::new()));
+        self.ready.lock().clear();
     }
 
     pub async fn upload(&self, file_path: PathBuf, file_name: String) -> Result<(), Error> {
@@ -379,6 +402,75 @@ fn kept_out_of_backup(file_name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::kept_out_of_backup;
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn the_backup_folder_is_made_before_the_first_use_of_each_operation() {
+        use super::{Operation, WebDavClient, WebDavConfig};
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await;
+        assert!(listener.is_ok());
+        let Ok(listener) = listener else { return };
+        let port = listener.local_addr().map(|addr| addr.port()).unwrap_or_default();
+        let made = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&made);
+        tokio::spawn(async move {
+            while let Ok((mut socket, _)) = listener.accept().await {
+                let counted = Arc::clone(&counted);
+                tokio::spawn(async move {
+                    let mut request = Vec::new();
+                    let mut chunk = [0_u8; 1024];
+                    while !request.windows(4).any(|end| end == b"\r\n\r\n") {
+                        match socket.read(&mut chunk).await {
+                            Ok(0) | Err(_) => break,
+                            Ok(read) => request.extend_from_slice(chunk.get(..read).unwrap_or_default()),
+                        }
+                    }
+                    if request.starts_with(b"MKCOL ") {
+                        counted.fetch_add(1, Ordering::SeqCst);
+                    }
+                    let _ = socket
+                        .write_all(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                        .await;
+                });
+            }
+        });
+
+        let config = Arc::new(WebDavConfig {
+            url: format!("http://127.0.0.1:{port}").into(),
+            username: "user".into(),
+            password: "secret".into(),
+            trust_self_signed: false,
+        });
+        let dav = WebDavClient {
+            config: arc_swap::ArcSwapOption::new(Some(Arc::clone(&config))),
+            clients: arc_swap::ArcSwap::new(Arc::new(std::collections::HashMap::new())),
+            ready: parking_lot::Mutex::new(std::collections::HashSet::new()),
+            generation: std::sync::atomic::AtomicU64::new(0),
+        };
+
+        for op in [
+            Operation::List,
+            Operation::List,
+            Operation::Upload,
+            Operation::Delete,
+            Operation::List,
+        ] {
+            assert!(dav.get_client(op).await.is_ok(), "{op:?}");
+        }
+        assert_eq!(made.load(Ordering::SeqCst), 3, "по разу перед каждой операцией");
+
+        // Сброс (смена настроек, сбой) — каталог снова создаётся перед операцией
+        dav.reset();
+        dav.config.store(Some(config));
+        assert!(dav.get_client(Operation::List).await.is_ok());
+        assert_eq!(made.load(Ordering::SeqCst), 4);
+    }
 
     #[cfg(not(windows))]
     mod certificate {
