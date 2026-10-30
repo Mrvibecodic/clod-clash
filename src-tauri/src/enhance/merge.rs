@@ -19,6 +19,9 @@ fn deep_merge(a: &mut Value, b: Value) {
 }
 
 pub fn use_merge(merge: &Mapping, config: Mapping) -> Mapping {
+    if merge.is_empty() {
+        return config;
+    }
     let mut config = Value::from(config);
     let merge = use_lowercase(merge);
 
@@ -79,5 +82,11 @@ mod tests {
 
         assert_eq!(merged.get("mode"), Some(&serde_yaml_ng::Value::from("global")));
         assert!(!merged.contains_key("MODE"));
+    }
+
+    #[test]
+    fn an_empty_merge_leaves_the_config_as_it_was() {
+        let config = mapping("{mode: rule, rules: [a], tun: {stack: gvisor}}");
+        assert_eq!(use_merge(&serde_yaml_ng::Mapping::new(), config.clone()), config);
     }
 }

@@ -2119,13 +2119,7 @@ async fn apply_dns_settings(
             let Ok(dns_path) = dirs::dns_page_path(profile_uid) else {
                 return (config, None);
             };
-            // Формовка под TUN для сведения — как если бы TUN был включён:
-            // копия могла быть снята под ним, а сводиться при выключенном.
-            // `enable` формовке не отдаётся: без TUN умолчание ядра — выключено,
-            // и копия, включавшая DNS, должна включать его и дальше.
-            let mut shaped = dns_page::Base::of(&ensure_dns_for_tun(config.clone(), true));
-            shaped.dns.remove("enable");
-            match read_dns_page(&dns_path, may_rewrite_a_legacy_page, base, &shaped).await {
+            match read_dns_page(&dns_path, may_rewrite_a_legacy_page, base, &config).await {
                 Some(page) => page,
                 None => return (config, None),
             }
@@ -2158,6 +2152,23 @@ fn the_dns_page_candidate<'a>(
     }
 }
 
+/// Блок подписки после формовки под TUN — как если бы TUN был включён: копия
+/// могла быть снята под ним, а сводиться при выключенном. `enable` формовке не
+/// отдаётся: без TUN умолчание ядра — выключено, и копия, включавшая DNS,
+/// должна включать его и дальше. Формовке нужны только `dns` и `ipv6`, блоку —
+/// `dns` и `hosts`: весь конфиг для этого не копируется.
+fn shaped_for_tun(config: &Mapping) -> dns_page::Base {
+    let mut part = Mapping::new();
+    for key in ["dns", "hosts", "ipv6"] {
+        if let Some(value) = config.get(key) {
+            part.insert(Value::from(key), value.clone());
+        }
+    }
+    let mut shaped = dns_page::Base::of(&ensure_dns_for_tun(part, true));
+    shaped.dns.remove("enable");
+    shaped
+}
+
 /// Прочитать страницу с диска; старую копию свести к отличиям и переписать
 /// (комментарии человека переносятся в шапку). Файла нет — пустая страница:
 /// при включённом тумблере она есть у каждой подписки, пусть и без отличий.
@@ -2166,7 +2177,7 @@ async fn read_dns_page(
     dns_path: &std::path::Path,
     may_rewrite_a_legacy_page: bool,
     base: &dns_page::Base,
-    shaped: &dns_page::Base,
+    config: &Mapping,
 ) -> Option<dns_page::Page> {
     let raw = match fs::read_to_string(dns_path).await {
         Ok(raw) => raw,
@@ -2192,7 +2203,7 @@ async fn read_dns_page(
     // есть с файла на диске; против кандидата обновления её сверять нельзя:
     // всё, что провайдер поменял, стало бы «выбором человека».
     if !dns_page::is_a_diff_page(&raw) && may_rewrite_a_legacy_page {
-        page = page.differences_from(base).differences_from(shaped);
+        page = page.differences_from(base).differences_from(&shaped_for_tun(config));
         let header = dns_page::header_keeping_the_comments(&raw);
         match help::save_yaml(dns_path, &page.to_file(), Some(&header)).await {
             Ok(()) => logging!(

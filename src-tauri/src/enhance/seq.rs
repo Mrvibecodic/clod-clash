@@ -31,6 +31,21 @@ fn is_selector_group(group_map: &Mapping) -> bool {
 }
 
 pub fn use_seq(seq: SeqMap, mut config: Mapping, field: &str) -> Mapping {
+    // Пустое звено над готовым списком правил или групп не меняет в нём
+    // ничего — список не пересобирается, а ключ встаёт в конец, как и после
+    // прохода ниже. Нет поля или там не список — проход ставит пустой список;
+    // у узлов он ещё пересобирает группы.
+    if field != "proxies"
+        && seq.prepend.is_empty()
+        && seq.append.is_empty()
+        && seq.delete.is_empty()
+        && matches!(config.get(field), Some(Value::Sequence(_)))
+    {
+        if let Some(list) = config.remove(field) {
+            config.insert(Value::String(field.into()), list);
+        }
+        return config;
+    }
     let SeqMap {
         prepend,
         append,
@@ -321,5 +336,62 @@ proxy-groups: "invalid"
         config = use_seq(seq, config, "proxies");
 
         assert_eq!(config.get("proxy-groups").and_then(Value::as_str), Some("invalid"));
+    }
+
+    #[test]
+    fn an_empty_link_still_leaves_a_list_in_place() {
+        let parsed: Result<Mapping, _> = serde_yaml_ng::from_str("{rules: ~, proxies: [a], mode: rule}");
+        assert!(parsed.is_ok());
+        let config = parsed.unwrap_or_default();
+
+        let config = use_seq(SeqMap::default(), config, "rules");
+        assert_eq!(
+            config.get("rules"),
+            Some(&Value::Sequence(Sequence::new())),
+            "null → []"
+        );
+
+        let config = use_seq(SeqMap::default(), config, "proxy-groups");
+        assert_eq!(
+            config.get("proxy-groups"),
+            Some(&Value::Sequence(Sequence::new())),
+            "нет поля → []"
+        );
+
+        let config = use_seq(SeqMap::default(), config, "proxies");
+        assert_eq!(
+            config.get("proxies"),
+            Some(&Value::Sequence(vec![Value::from("a")])),
+            "готовый список — как был"
+        );
+        assert_eq!(config.get("mode"), Some(&Value::from("rule")));
+    }
+
+    /// Порядок ключей виден в окне текущей конфигурации и скрипту подписки:
+    /// пустое звено ставит его так же, как полный проход.
+    #[test]
+    fn an_empty_link_orders_the_keys_as_a_full_pass_does() {
+        let parsed: Result<Mapping, _> =
+            serde_yaml_ng::from_str("{rules: [r], proxy-groups: [{name: g, proxies: [a], type: select}], sniffer: {}}");
+        assert!(parsed.is_ok());
+        let config = parsed.unwrap_or_default();
+        let keys = |config: &Mapping| {
+            config
+                .keys()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        };
+
+        let full = SeqMap {
+            delete: vec!["absent".to_owned()],
+            ..SeqMap::default()
+        };
+        for field in ["rules", "proxy-groups"] {
+            let empty = use_seq(SeqMap::default(), config.clone(), field);
+            let passed = use_seq(full.clone(), config.clone(), field);
+            assert_eq!(keys(&empty), keys(&passed), "{field}");
+            assert_eq!(empty, passed, "{field}");
+        }
     }
 }
