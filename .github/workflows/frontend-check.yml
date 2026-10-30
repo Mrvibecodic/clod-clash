@@ -41,9 +41,8 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'knip.json'
               - 'scripts/**'
-              - 'src-tauri/src/lib.rs'
-              - 'src-tauri/src/core/notification.rs'
-              - 'src-tauri/src/feat/tun.rs'
+              - 'src-tauri/src/**'
+              - 'crates/**'
               - 'eslint.config.ts'
               - 'tsconfig.json'
               - 'vite.config.*'
@@ -91,7 +90,7 @@ jobs:
 
       - name: Check unused and missing i18n keys
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
-        run: node scripts/cleanup-unused-i18n.mjs --check
+        run: pnpm i18n:check
 
       - name: Check unused backend commands
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'

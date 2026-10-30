@@ -36,7 +36,7 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm knip:check
-node scripts/cleanup-unused-i18n.mjs --check
+pnpm i18n:check
 pnpm cmd:check
 ```
 

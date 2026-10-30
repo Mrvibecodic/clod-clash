@@ -123,9 +123,6 @@ jobs:
           workspaces: |
             . -> target
 
-      - name: Verify Rust target
-        run: rustup target list --installed
-
       - name: Install dependencies (ubuntu only)
         if: matrix.os == 'ubuntu-22.04'
         timeout-minutes: 15
