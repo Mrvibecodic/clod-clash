@@ -70,10 +70,18 @@ const ORDER_OPTIONS = [
   {
     id: 'default',
     labelKey: 'connections.components.order.default',
-    fn: (list: IConnectionsItem[]) =>
-      list.sort(
-        (a, b) => getConnectionStartTime(b) - getConnectionStartTime(a),
-      ),
+    fn: (list: IConnectionsItem[]) => {
+      // Дата разбирается один раз на соединение, а не в каждом сравнении
+      const startedAt = new Map(
+        list.map((connection) => [
+          connection,
+          getConnectionStartTime(connection),
+        ]),
+      )
+      return list.sort(
+        (a, b) => (startedAt.get(b) ?? 0) - (startedAt.get(a) ?? 0),
+      )
+    },
   },
   {
     id: 'uploadSpeed',

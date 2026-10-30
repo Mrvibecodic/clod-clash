@@ -1,8 +1,6 @@
 import { alpha, styled, Box } from '@mui/material'
 import type { ReactNode } from 'react'
 
-import type { SearchState } from '@/components/base'
-
 // clod:design-v3 — лог читают глазами по столбцу: время и сообщение
 // моноширинным, уровень — чипом, а не просто цветным словом (радиус 2 без
 // фона не рисовал ничего). Разделитель теперь во всю строку.
@@ -65,43 +63,24 @@ const Item = styled(Box)(({ theme }) => {
 
 interface Props {
   value: ILogItem
-  searchState?: SearchState
+  /** Регекс подсветки, общий для всего списка (см. `buildHighlightRegex`). */
+  highlight?: RegExp | null
 }
 
-const LogItem = ({ value, searchState }: Props) => {
+const LogItem = ({ value, highlight }: Props) => {
   const renderHighlightText = (text: string) => {
-    if (!searchState?.text.trim()) return text
+    if (!highlight) return text
 
     try {
-      const searchText = searchState.text
-      let pattern: string
-
-      if (searchState.useRegularExpression) {
-        try {
-          new RegExp(searchText)
-          pattern = searchText
-        } catch {
-          pattern = searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        }
-      } else {
-        const escaped = searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        pattern = searchState.matchWholeWord ? `\\b${escaped}\\b` : escaped
-      }
-
-      const flags = searchState.matchCase ? 'g' : 'gi'
-      const regex = new RegExp(pattern, flags)
       const elements: ReactNode[] = []
       let lastIndex = 0
-      let match: RegExpExecArray | null
 
-      while ((match = regex.exec(text)) !== null) {
+      // `matchAll` идёт по копии регекса: общий для всех строк не сдвигается
+      for (const match of text.matchAll(highlight)) {
         const start = match.index
         const matchText = match[0]
 
-        if (matchText === '') {
-          regex.lastIndex += 1
-          continue
-        }
+        if (matchText === '') continue
 
         if (start > lastIndex) {
           elements.push(text.slice(lastIndex, start))

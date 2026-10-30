@@ -21,6 +21,27 @@ export const buildRegex = (pattern: string, flags = '') => {
   }
 }
 
+/**
+ * Регекс подсветки найденного (флаг `g`): одна сборка на весь список строк.
+ * Кривой регекс подсвечивается как обычный текст; `null` — подсвечивать нечего.
+ */
+export const buildHighlightRegex = (
+  query: string,
+  options: SearchMatcherOptions = {},
+): RegExp | null => {
+  if (!query.trim()) return null
+
+  let pattern: string
+  if (options.useRegularExpression) {
+    pattern = buildRegex(query) ? query : escapeRegex(query)
+  } else {
+    const escaped = escapeRegex(query)
+    pattern = options.matchWholeWord ? `\\b${escaped}\\b` : escaped
+  }
+
+  return buildRegex(pattern, options.matchCase ? 'g' : 'gi')
+}
+
 export const compileStringMatcher = (
   query: string,
   options: SearchMatcherOptions = {},

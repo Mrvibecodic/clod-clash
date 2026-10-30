@@ -28,6 +28,7 @@ import { useVisibility } from '@/hooks/use-visibility'
 import { saveLogText } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { coreLevelHides, emptyState } from '@/utils/empty-state'
+import { buildHighlightRegex } from '@/utils/search-matcher'
 
 const LogPage = () => {
   const { t } = useTranslation()
@@ -40,6 +41,10 @@ const LogPage = () => {
 
   const [match, setMatch] = useState(() => (_: string) => true)
   const [searchState, setSearchState] = useState<SearchState>()
+  const highlight = useMemo(
+    () => buildHighlightRegex(searchState?.text ?? '', searchState),
+    [searchState],
+  )
   const { isCoreDown } = useSystemState()
   const {
     response: { data: logData },
@@ -230,7 +235,7 @@ const LogPage = () => {
           count={filteredLogs.length}
           estimateSize={50}
           renderItem={(i) => (
-            <LogItem value={filteredLogs[i]} searchState={searchState} />
+            <LogItem value={filteredLogs[i]} highlight={highlight} />
           )}
           onScroll={(event) => {
             const element = event.currentTarget as HTMLDivElement
