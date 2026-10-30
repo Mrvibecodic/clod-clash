@@ -400,9 +400,18 @@ async fn clear_local() {
         }
         guard.seen.clear();
         guard.primed = false;
-        guard.cleared = Some(uid);
     }
     save().await;
+    // Не записалось — обнулить и записать ещё раз на следующем круге.
+    let mut guard = runtime().lock();
+    if zero_is_written(&guard, uid.as_ref()) {
+        guard.cleared = Some(uid);
+    }
+}
+
+/// Обнулённое досчитанное подписки `uid` лежит в файле (запись не сорвалась).
+fn zero_is_written(runtime: &Runtime, uid: Option<&String>) -> bool {
+    uid.is_none_or(|uid| runtime.estimates.get(uid).is_none_or(|kept| kept.saved.is_some()))
 }
 
 /// Общий файл прежних версий становится файлом своей подписки. Опрос ядра для
@@ -431,7 +440,7 @@ pub async fn init() {
 mod tests {
     use super::{
         Kept, PERSIST_EVERY_TICKS, Runtime, SAMPLE_MAX, SAMPLE_MIN, counts_as_proxy, interval_for_minutes, persist_now,
-        reconcile, take_traffic, unsaved,
+        reconcile, take_traffic, unsaved, zero_is_written,
     };
     use tauri_plugin_mihomo::models::Connection;
 
@@ -548,6 +557,21 @@ mod tests {
             .filter(|_| persist_now(&mut runtime, true))
             .count();
         assert_eq!(written, 3);
+    }
+
+    #[test]
+    fn a_zero_that_was_not_written_is_written_again() {
+        let mut runtime = Runtime::default();
+        let uid = "first".to_owned();
+        assert!(zero_is_written(&runtime, None), "подписки нет — писать нечего");
+        assert!(zero_is_written(&runtime, Some(&uid)), "оценки нет — писать нечего");
+
+        runtime.estimates.insert(uid.clone(), Kept::default());
+        runtime.estimates.entry(uid.clone()).or_default().saved = Some(Default::default());
+        assert!(zero_is_written(&runtime, Some(&uid)));
+
+        runtime.estimates.entry(uid.clone()).or_default().saved = None;
+        assert!(!zero_is_written(&runtime, Some(&uid)), "запись сорвалась — повторить");
     }
 
     #[test]
