@@ -571,24 +571,12 @@ export async function getNetworkInterfacesInfo() {
   return invoke<INetworkInterface[]>('get_network_interfaces_info')
 }
 
-export async function createWebdavBackup() {
-  return invoke<void>('create_webdav_backup')
-}
-
 export async function createLocalBackup() {
   return invoke<void>('create_local_backup')
 }
 
-export async function deleteWebdavBackup(filename: string) {
-  return invoke<void>('delete_webdav_backup', { filename })
-}
-
 export async function deleteLocalBackup(filename: string) {
   return invoke<void>('delete_local_backup', { filename })
-}
-
-export async function restoreWebDavBackup(filename: string) {
-  return invoke<void>('restore_webdav_backup', { filename })
 }
 
 export async function restoreLocalBackup(filename: string) {
@@ -601,28 +589,6 @@ export async function importLocalBackup(source: string) {
 
 export async function exportLocalBackup(filename: string) {
   return invoke<boolean>('export_local_backup', { filename })
-}
-
-export async function saveWebdavConfig(
-  url: string,
-  username: string,
-  password: string,
-  trustSelfSigned: boolean,
-) {
-  return invoke<void>('save_webdav_config', {
-    url,
-    username,
-    password,
-    trustSelfSigned,
-  })
-}
-
-export async function listWebDavBackup() {
-  const list: IWebDavFile[] = await invoke<IWebDavFile[]>('list_webdav_backup')
-  list.forEach((item) => {
-    item.filename = item.href.split('/').pop() as string
-  })
-  return list
 }
 
 export async function listLocalBackup() {

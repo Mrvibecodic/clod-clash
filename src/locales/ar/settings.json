@@ -243,7 +243,7 @@
       "advanced": {
         "title": "الإعدادات الأساسية  Verge",
         "tooltips": {
-          "backupInfo": "Support local or WebDAV backup of configuration files",
+          "backupInfo": "Support local backup of configuration files",
           "openConfDir": "إذا عمل البرنامج بشكل غير طبيعي، قم بالنسخ الاحتياطي ثم حذف جميع الملفات في هذا المجلد ثم أعد تشغيل البرنامج",
           "liteMode": "إيقاف الواجهة الرسومية والإبقاء على تشغيل النواة",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
@@ -400,8 +400,7 @@
     "backup": {
       "title": "إعداد النسخ الاحتياطي",
       "tabs": {
-        "local": "Local backup",
-        "webdav": "WebDAV backup"
+        "local": "Local backup"
       },
       "actions": {
         "backup": "نسخ احتياطي",
@@ -409,24 +408,9 @@
         "exportBackup": "Save the backup to a file",
         "deleteBackup": "حذف النسخة الاحتياطية",
         "restoreBackup": "استعادة النسخة الاحتياطية",
-        "viewHistory": "View history",
-        "checkConnection": "فحص الاتصال"
-      },
-      "fields": {
-        "webdavUrl": "عنوان خادم WebDAV",
-        "username": "اسم المستخدم",
-        "trustSelfSigned": "Trust a self-signed certificate",
-        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
+        "viewHistory": "View history"
       },
       "messages": {
-        "webdavUrlRequired": "لا يمكن ترك رابط WebDAV فارغًا",
-        "invalidWebdavUrl": "تنسيق رابط WebDAV غير صالح",
-        "usernameRequired": "لا يمكن ترك اسم المستخدم فارغًا",
-        "passwordRequired": "لا يمكن ترك كلمة المرور فارغة",
-        "webdavConfigSaved": "تم حفظ إعدادات WebDAV بنجاح",
-        "webdavConfigSaveFailed": "فشل حفظ إعدادات WebDAV: {{error}}",
-        "backupCreated": "تم إنشاء النسخة الاحتياطية بنجاح",
-        "backupFailed": "فشل في النسخ الاحتياطي: {{error}}",
         "localBackupCreated": "Local backup created successfully",
         "localBackupFailed": "Local backup failed",
         "restoreSuccess": "تمت الاستعادة بنجاح، سيعاد تشغيل التطبيق خلال ثانية واحدة",
@@ -434,8 +418,6 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "اتصال WebDAV يعمل",
-        "webdavRefreshFailed": "تعذر الاتصال بـ WebDAV: {{error}}",
         "confirmDelete": "هل تريد بالتأكيد حذف ملف النسخة الاحتياطية هذا؟",
         "confirmRestore": "هل تريد بالتأكيد استعادة ملف النسخة الاحتياطية هذا؟"
       },
@@ -446,23 +428,15 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "local": "Creates a snapshot on this device, stored under the app data directory.",
-        "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV",
-        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
+        "local": "Creates a snapshot on this device, stored under the app data directory."
       },
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
-        "webdavFailed": "لم يستجب خادم WebDAV. اضغط زر التحديث لإعادة المحاولة",
-        "webdavNotConfigured": "WebDAV is not set up — set it up in Backup Setting",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
-      },
-      "webdav": {
-        "title": "WebDAV settings"
       }
     },
     "misc": {

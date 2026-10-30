@@ -243,7 +243,7 @@
       "advanced": {
         "title": "Verge詳細設定",
         "tooltips": {
-          "backupInfo": "WebDAVを使用した設定ファイルのバックアップをサポートします。",
+          "backupInfo": "設定ファイルのローカルバックアップをサポートします。",
           "openConfDir": "アプリケーションが正常に動作しない場合は、このフォルダ内のすべてのファイルを!バックアップ!して削除し、アプリケーションを再起動してください。",
           "liteMode": "GUIを閉じて、コアのみを実行します。",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
@@ -400,8 +400,7 @@
     "backup": {
       "title": "バックアップ設定",
       "tabs": {
-        "local": "Local backup",
-        "webdav": "WebDAV backup"
+        "local": "Local backup"
       },
       "actions": {
         "backup": "バックアップ",
@@ -409,24 +408,9 @@
         "exportBackup": "Save the backup to a file",
         "deleteBackup": "バックアップを削除",
         "restoreBackup": "バックアップを復元",
-        "viewHistory": "View history",
-        "checkConnection": "接続を確認"
-      },
-      "fields": {
-        "webdavUrl": "WebDAVサーバーのURL http(s)://",
-        "username": "ユーザー名",
-        "trustSelfSigned": "Trust a self-signed certificate",
-        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
+        "viewHistory": "View history"
       },
       "messages": {
-        "webdavUrlRequired": "WebDAVサーバーのURLは必須です。",
-        "invalidWebdavUrl": "無効なWebDAVサーバーのURL形式",
-        "usernameRequired": "ユーザー名は必須です。",
-        "passwordRequired": "パスワードは必須です。",
-        "webdavConfigSaved": "WebDAV設定が保存されました。",
-        "webdavConfigSaveFailed": "WebDAV設定の保存に失敗しました: {{error}}",
-        "backupCreated": "バックアップが作成されました。",
-        "backupFailed": "バックアップに失敗しました: {{error}}",
         "localBackupCreated": "Local backup created successfully",
         "localBackupFailed": "Local backup failed",
         "restoreSuccess": "復元に成功しました。アプリケーションは1秒後に再起動します。",
@@ -434,8 +418,6 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "ローカルバックアップのインポートに成功しました",
         "localBackupImportFailed": "ローカルバックアップのインポートに失敗しました: {{error}}",
-        "webdavRefreshSuccess": "WebDAV に接続できました",
-        "webdavRefreshFailed": "WebDAV に接続できませんでした: {{error}}",
         "confirmDelete": "Confirm to delete this backup file?",
         "confirmRestore": "Confirm to restore this backup file?"
       },
@@ -446,23 +428,15 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "local": "Creates a snapshot on this device, stored under the app data directory.",
-        "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV",
-        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
+        "local": "Creates a snapshot on this device, stored under the app data directory."
       },
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
-        "webdavFailed": "WebDAV サーバーが応答しませんでした。更新ボタンを押して再試行してください",
-        "webdavNotConfigured": "WebDAV is not set up — set it up in Backup Setting",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
-      },
-      "webdav": {
-        "title": "WebDAV settings"
       }
     },
     "misc": {

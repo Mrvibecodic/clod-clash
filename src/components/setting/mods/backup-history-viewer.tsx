@@ -13,28 +13,18 @@ import { useTranslation } from 'react-i18next'
 import {
   BaseDialog,
   BaseLoadingOverlay,
-  BaseSegmented,
   FormHint,
   FormTile,
 } from '@/components/base'
 import { MONO_TEXT } from '@/components/base/base-mono'
-import { useVerge } from '@/hooks/use-verge'
 import {
   deleteLocalBackup,
-  deleteWebdavBackup,
   exportLocalBackup,
   listLocalBackup,
-  listWebDavBackup,
   restartApp,
   restoreLocalBackup,
-  restoreWebDavBackup,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import {
-  buildWebdavSignature,
-  getWebdavStatus,
-  setWebdavStatus,
-} from '@/services/webdav-status'
 import { backupHistoryNote } from '@/utils/backup-history'
 import { dateTimeText } from '@/utils/date-text'
 
@@ -44,18 +34,14 @@ dayjs.extend(relativeTime)
 const DATE_FORMAT = 'YYYY-MM-DD_HH-mm-ss'
 const FILENAME_PATTERN = /\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/
 
-type BackupSource = 'local' | 'webdav'
 type PendingConfirmation = {
   action: 'delete' | 'restore'
   filename: string
-  source: BackupSource
 } | null
 
 interface BackupHistoryViewerProps {
   open: boolean
-  source: BackupSource
   page: number
-  onSourceChange: (source: BackupSource) => void
   onPageChange: (page: number) => void
   onClose: () => void
 }
@@ -70,14 +56,11 @@ interface BackupRow {
 
 export const BackupHistoryViewer = ({
   open,
-  source,
   page,
-  onSourceChange,
   onPageChange,
   onClose,
 }: BackupHistoryViewerProps) => {
   const { t } = useTranslation()
-  const { verge } = useVerge()
   const [rows, setRows] = useState<BackupRow[]>([])
   const [listed, setListed] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -86,18 +69,11 @@ export const BackupHistoryViewer = ({
   const [isConfirming, setIsConfirming] = useState(false)
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation>(null)
-  const isLocal = source === 'local'
-  const isWebDavConfigured = Boolean(
-    verge?.webdav_url && verge?.webdav_username && verge?.webdav_password,
-  )
-  const webdavSignature = buildWebdavSignature(verge)
-  const webdavStatus = getWebdavStatus(webdavSignature)
-  const shouldSkipWebDav = !isLocal && !isWebDavConfigured
   const pageSize = 8
   const isBusy = loading || isRestoring || isRestarting || isConfirming
 
   const buildRow = useCallback(
-    (item: ILocalBackupFile | IWebDavFile): BackupRow | null => {
+    (item: ILocalBackupFile): BackupRow | null => {
       const { filename, last_modified } = item
       if (!filename.toLowerCase().endsWith('.zip')) return null
 
@@ -134,51 +110,32 @@ export const BackupHistoryViewer = ({
     [t],
   )
 
-  const fetchRows = useCallback(
-    async (options?: { force?: boolean }) => {
-      if (!open) return
-      setListed(false)
-      if (shouldSkipWebDav) {
-        setRows([])
-        return
-      }
-      if (!isLocal && webdavStatus === 'failed' && !options?.force) {
-        setRows([])
-        return
-      }
+  const fetchRows = useCallback(async () => {
+    if (!open) return
+    setListed(false)
 
-      setLoading(true)
-      try {
-        const list = isLocal
-          ? await listLocalBackup()
-          : await listWebDavBackup()
-        if (!isLocal) {
-          setWebdavStatus(webdavSignature, 'ready')
-        }
-        setRows(
-          list
-            .map((item) => buildRow(item))
-            .filter((item): item is BackupRow => item !== null)
-            .sort((a, b) =>
-              a.sort_value === b.sort_value
-                ? b.filename.localeCompare(a.filename)
-                : b.sort_value - a.sort_value,
-            ),
-        )
-        setListed(true)
-      } catch (error) {
-        if (!isLocal) {
-          setWebdavStatus(webdavSignature, 'failed')
-        }
-        console.error(error)
-        setRows([])
-        showNotice.error(error)
-      } finally {
-        setLoading(false)
-      }
-    },
-    [buildRow, isLocal, open, shouldSkipWebDav, webdavSignature, webdavStatus],
-  )
+    setLoading(true)
+    try {
+      const list = await listLocalBackup()
+      setRows(
+        list
+          .map((item) => buildRow(item))
+          .filter((item): item is BackupRow => item !== null)
+          .sort((a, b) =>
+            a.sort_value === b.sort_value
+              ? b.filename.localeCompare(a.filename)
+              : b.sort_value - a.sort_value,
+          ),
+      )
+      setListed(true)
+    } catch (error) {
+      console.error(error)
+      setRows([])
+      showNotice.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }, [buildRow, open])
 
   useEffect(() => {
     void fetchRows()
@@ -192,20 +149,9 @@ export const BackupHistoryViewer = ({
     currentPage * pageSize + pageSize,
   )
 
-  const note = backupHistoryNote({
-    notConfigured: shouldSkipWebDav,
-    serverFailed: !isLocal && webdavStatus === 'failed',
-    listed,
-    total,
-  })
+  const note = backupHistoryNote({ listed, total })
 
   const summary = useMemo(() => {
-    if (note === 'notConfigured') {
-      return t('settings.modals.backup.history.webdavNotConfigured')
-    }
-    if (note === 'serverFailed') {
-      return t('settings.modals.backup.history.webdavFailed')
-    }
     if (note !== 'summary') return null
     const recent =
       rows[0]?.backup_time?.fromNow() ?? rows[0]?.display_time ?? ''
@@ -217,37 +163,28 @@ export const BackupHistoryViewer = ({
 
   const handleDelete = (filename: string) => {
     if (isRestarting) return
-    setPendingConfirmation({ action: 'delete', filename, source })
+    setPendingConfirmation({ action: 'delete', filename })
   }
 
   const handleRestore = (filename: string) => {
     if (isRestoring || isRestarting) return
-    setPendingConfirmation({ action: 'restore', filename, source })
+    setPendingConfirmation({ action: 'restore', filename })
   }
 
   const handleConfirmAction = useLockFn(async () => {
     if (!pendingConfirmation) return
-    const { action, filename, source: actionSource } = pendingConfirmation
-    const actionIsLocal = actionSource === 'local'
+    const { action, filename } = pendingConfirmation
     setIsConfirming(true)
     if (action === 'restore') {
       setIsRestoring(true)
     }
     try {
       if (action === 'delete') {
-        if (actionIsLocal) {
-          await deleteLocalBackup(filename)
-        } else {
-          await deleteWebdavBackup(filename)
-        }
+        await deleteLocalBackup(filename)
         setPendingConfirmation(null)
         await fetchRows()
       } else {
-        if (actionIsLocal) {
-          await restoreLocalBackup(filename)
-        } else {
-          await restoreWebDavBackup(filename)
-        }
+        await restoreLocalBackup(filename)
         setPendingConfirmation(null)
         showNotice.success('settings.modals.backup.messages.restoreSuccess')
         setIsRestarting(true)
@@ -269,7 +206,6 @@ export const BackupHistoryViewer = ({
 
   const handleExport = useLockFn(async (filename: string) => {
     if (isRestarting) return
-    if (!isLocal) return
     try {
       const exported = await exportLocalBackup(filename)
       if (!exported) return
@@ -284,7 +220,7 @@ export const BackupHistoryViewer = ({
 
   const handleRefresh = () => {
     if (isRestarting) return
-    void fetchRows({ force: true })
+    void fetchRows()
   }
 
   const closeConfirmDialog = () => {
@@ -324,21 +260,7 @@ export const BackupHistoryViewer = ({
     >
       <Box sx={{ position: 'relative', minHeight: 320, pt: 1.5, pb: 1 }}>
         <BaseLoadingOverlay isLoading={isBusy} />
-        <BaseSegmented
-          fullWidth
-          value={source}
-          disabled={isBusy}
-          options={[
-            { value: 'local', label: t('settings.modals.backup.tabs.local') },
-            { value: 'webdav', label: t('settings.modals.backup.tabs.webdav') },
-          ]}
-          onChange={(next) => {
-            if (isBusy) return
-            onSourceChange(next)
-            onPageChange(0)
-          }}
-        />
-        <Box sx={{ mt: 1, mb: 1, fontSize: 12.5, color: 'text.secondary' }}>
+        <Box sx={{ mb: 1, fontSize: 12.5, color: 'text.secondary' }}>
           {summary}
         </Box>
 
@@ -365,20 +287,16 @@ export const BackupHistoryViewer = ({
                 </Box>
               </Box>
               <Box sx={{ flex: 'none', display: 'flex' }}>
-                {isLocal && (
-                  <IconButton
-                    size="small"
-                    title={t('settings.modals.backup.actions.exportBackup')}
-                    aria-label={t(
-                      'settings.modals.backup.actions.exportBackup',
-                    )}
-                    sx={{ color: 'text.secondary' }}
-                    disabled={isBusy}
-                    onClick={() => handleExport(row.filename)}
-                  >
-                    <DownloadRounded fontSize="small" />
-                  </IconButton>
-                )}
+                <IconButton
+                  size="small"
+                  title={t('settings.modals.backup.actions.exportBackup')}
+                  aria-label={t('settings.modals.backup.actions.exportBackup')}
+                  sx={{ color: 'text.secondary' }}
+                  disabled={isBusy}
+                  onClick={() => handleExport(row.filename)}
+                >
+                  <DownloadRounded fontSize="small" />
+                </IconButton>
                 <IconButton
                   size="small"
                   title={t('settings.modals.backup.actions.deleteBackup')}

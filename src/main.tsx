@@ -30,6 +30,13 @@ if (!container) {
 
 disableWebViewShortcuts()
 
+// Резервных копий в WebDAV больше нет: прошлые версии держали в хранилище окна
+// его адрес и логин, а самые старые — и пароль открытым текстом.
+try {
+  localStorage.removeItem('webdav_status')
+  localStorage.removeItem('webdav_status_cache')
+} catch {}
+
 const initializeApp = (initialThemeMode: 'light' | 'dark') => {
   const contexts = [
     <ThemeModeProvider key="theme" initialState={initialThemeMode} />,

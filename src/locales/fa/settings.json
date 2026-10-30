@@ -243,7 +243,7 @@
       "advanced": {
         "title": "تنظیمات پیشرفته Verge",
         "tooltips": {
-          "backupInfo": "از فایل های پیکربندی پشتیبان WebDAV پشتیبانی می کند",
+          "backupInfo": "Support local backup of configuration files",
           "openConfDir": "اگر نرم‌افزار به‌طور غیرعادی اجرا می‌شود، از تمام فایل‌های موجود در این پوشه نسخه پشتیبان تهیه و پاک کنید تا نرم‌افزار را مجدداً راه‌اندازی کنید",
           "liteMode": "رابط کاربری گرافیکی را ببندید و فقط هسته را در حال اجرا نگه دارید",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
@@ -400,8 +400,7 @@
     "backup": {
       "title": "تنظیمات پشتیبان گیری",
       "tabs": {
-        "local": "Local backup",
-        "webdav": "WebDAV backup"
+        "local": "Local backup"
       },
       "actions": {
         "backup": "پشتیبان‌گیری",
@@ -409,24 +408,9 @@
         "exportBackup": "Save the backup to a file",
         "deleteBackup": "حذف پشتیبان",
         "restoreBackup": "بازیابی پشتیبان",
-        "viewHistory": "View history",
-        "checkConnection": "بررسی اتصال"
-      },
-      "fields": {
-        "webdavUrl": "http(s):// URL سرور WebDAV",
-        "username": "نام کاربری",
-        "trustSelfSigned": "Trust a self-signed certificate",
-        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
+        "viewHistory": "View history"
       },
       "messages": {
-        "webdavUrlRequired": "آدرس WebDAV نمی‌تواند خالی باشد",
-        "invalidWebdavUrl": "فرمت آدرس WebDAV نامعتبر است",
-        "usernameRequired": "نام کاربری نمی‌تواند خالی باشد",
-        "passwordRequired": "رمز عبور نمی‌تواند خالی باشد",
-        "webdavConfigSaved": "پیکربندی WebDAV با موفقیت ذخیره شد",
-        "webdavConfigSaveFailed": "خطا در ذخیره تنظیمات WebDAV: {{error}}",
-        "backupCreated": "پشتیبان‌گیری با موفقیت ایجاد شد",
-        "backupFailed": "خطا در پشتیبان‌گیری: {{error}}",
         "localBackupCreated": "Local backup created successfully",
         "localBackupFailed": "Local backup failed",
         "restoreSuccess": "بازیابی با موفقیت انجام شد، برنامه در 1 ثانیه راه‌اندازی مجدد می‌شود",
@@ -434,8 +418,6 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "اتصال WebDAV برقرار است",
-        "webdavRefreshFailed": "اتصال به WebDAV ممکن نشد: {{error}}",
         "confirmDelete": "آیا از حذف این فایل پشتیبان اطمینان دارید؟",
         "confirmRestore": "آیا از بازیابی این فایل پشتیبان اطمینان دارید؟"
       },
@@ -446,23 +428,15 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "local": "یک اسنپ‌شات روی این دستگاه ایجاد می‌کند که در پوشه‌ی داده‌های برنامه ذخیره می‌شود.",
-        "webdav": "پس از تنظیم اعتبارنامه‌ها، یک اسنپ‌شات (عکس فوری) در سرور WebDAV خود آپلود کنید.",
-        "configureWebdav": "پیکربندی WebDAV",
-        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
+        "local": "یک اسنپ‌شات روی این دستگاه ایجاد می‌کند که در پوشه‌ی داده‌های برنامه ذخیره می‌شود."
       },
       "history": {
         "title": "تاریخچه پشتیبان گیری",
         "summary": "{{count}} backups • latest {{recent}}",
         "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "هیچ نسخه پشتیبان در دسترس نیست",
-        "webdavFailed": "سرور WebDAV پاسخ نداد. برای تلاش دوباره دکمه تازه‌سازی را بزنید",
-        "webdavNotConfigured": "WebDAV is not set up — set it up in Backup Setting",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
-      },
-      "webdav": {
-        "title": "پیکربندی WebDAV"
       }
     },
     "misc": {

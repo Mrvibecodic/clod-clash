@@ -953,10 +953,6 @@ interface IVergeConfig {
   enable_auto_backup_schedule?: boolean
   auto_backup_interval_hours?: number
   proxy_layout_column?: number
-  webdav_url?: string
-  webdav_username?: string
-  webdav_password?: string
-  webdav_trust_self_signed?: boolean
   enable_external_controller?: boolean
   enable_hwid?: boolean
   hwid?: string
@@ -969,25 +965,9 @@ interface IVergeConfig {
   enable_sub_notifications?: boolean
 }
 
-interface IWebDavFile {
-  filename: string
-  href: string
-  last_modified: string
-  content_length: number
-  content_type: string
-  tag: string
-}
-
 interface ILocalBackupFile {
   filename: string
   path: string
   last_modified: string
   content_length: number
-}
-
-interface IWebDavConfig {
-  url: string
-  username: string
-  password: string
-  trustSelfSigned: boolean
 }

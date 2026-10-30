@@ -243,7 +243,7 @@
       "advanced": {
         "title": "Verge Киңәйтелгән көйләүләр",
         "tooltips": {
-          "backupInfo": "WebDAV аша конфигурация файлын саклауны хуплый",
+          "backupInfo": "Support local backup of configuration files",
           "openConfDir": "Әгәр программада хаталар чыкса, бу папкадагы файлларны саклап калыгыз да, аннары барысын да бетереп, программаны яңадан башлагыз",
           "liteMode": "GUI-ны ябыгыз һәм бары тик төшне генә эшләтеп калдырыгыз",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
@@ -400,8 +400,7 @@
     "backup": {
       "title": "Резерв копия көйләүләре",
       "tabs": {
-        "local": "Local backup",
-        "webdav": "WebDAV backup"
+        "local": "Local backup"
       },
       "actions": {
         "backup": "Резерв копия",
@@ -409,24 +408,9 @@
         "exportBackup": "Save the backup to a file",
         "deleteBackup": "Резерв копияне бетерү",
         "restoreBackup": "Резерв копияне кайтару",
-        "viewHistory": "View history",
-        "checkConnection": "Тоташуны тикшерү"
-      },
-      "fields": {
-        "webdavUrl": "WebDAV сервер URL-ы (http(s)://)",
-        "username": "Кулланучы исеме",
-        "trustSelfSigned": "Trust a self-signed certificate",
-        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
+        "viewHistory": "View history"
       },
       "messages": {
-        "webdavUrlRequired": "WebDAV адресы буш булырга тиеш түгел",
-        "invalidWebdavUrl": "WebDAV адресы дөрес түгел",
-        "usernameRequired": "Кулланучы исеме буш булмаска тиеш",
-        "passwordRequired": "Пароль буш булмаска тиеш",
-        "webdavConfigSaved": "WebDAV көйләүләре сакланды",
-        "webdavConfigSaveFailed": "WebDAV көйләүләрен саклап булмады: {{error}}",
-        "backupCreated": "Резерв копия уңышлы ясалды",
-        "backupFailed": "Резерв копия хата белән төгәлләнде: {{error}}",
         "localBackupCreated": "Local backup created successfully",
         "localBackupFailed": "Local backup failed",
         "restoreSuccess": "Уңышлы кайтарылды, кушымта 1 секундтан яңадан башланачак",
@@ -434,8 +418,6 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "WebDAV белән тоташу эшли",
-        "webdavRefreshFailed": "WebDAV белән тоташып булмады: {{error}}",
         "confirmDelete": "Бу резерв копия файлын бетерергә телисезме?",
         "confirmRestore": "Бу резерв копия файлын кире кайтарырга телисезме?"
       },
@@ -446,23 +428,15 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "local": "Creates a snapshot on this device, stored under the app data directory.",
-        "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV",
-        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
+        "local": "Creates a snapshot on this device, stored under the app data directory."
       },
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
-        "webdavFailed": "WebDAV серверы җавап бирмәде. Кабатлау өчен яңарту төймәсенә басыгыз",
-        "webdavNotConfigured": "WebDAV is not set up — set it up in Backup Setting",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
-      },
-      "webdav": {
-        "title": "WebDAV settings"
       }
     },
     "misc": {

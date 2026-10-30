@@ -243,7 +243,7 @@
       "advanced": {
         "title": "Ajustes avanzados de Verge",
         "tooltips": {
-          "backupInfo": "Soporte para la copia de seguridad de archivos de configuración a través de WebDAV",
+          "backupInfo": "Copia de seguridad local de los archivos de configuración",
           "openConfDir": "Si el software no funciona correctamente, !realice una copia de seguridad! y elimine todos los archivos de esta carpeta, luego reinicie el software.",
           "liteMode": "Cierra la interfaz gráfica y solo mantiene el núcleo en ejecución",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
@@ -400,8 +400,7 @@
     "backup": {
       "title": "Configuración de copia de seguridad",
       "tabs": {
-        "local": "Local backup",
-        "webdav": "WebDAV backup"
+        "local": "Local backup"
       },
       "actions": {
         "backup": "Copia de seguridad",
@@ -409,24 +408,9 @@
         "exportBackup": "Save the backup to a file",
         "deleteBackup": "Eliminar copia de seguridad",
         "restoreBackup": "Restaurar copia de seguridad",
-        "viewHistory": "View history",
-        "checkConnection": "Comprobar conexión"
-      },
-      "fields": {
-        "webdavUrl": "Dirección del servidor WebDAV http(s)://",
-        "username": "Nombre de usuario",
-        "trustSelfSigned": "Trust a self-signed certificate",
-        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
+        "viewHistory": "View history"
       },
       "messages": {
-        "webdavUrlRequired": "La dirección del servidor WebDAV no puede estar vacía",
-        "invalidWebdavUrl": "Formato de dirección del servidor WebDAV no válido",
-        "usernameRequired": "El nombre de usuario no puede estar vacío",
-        "passwordRequired": "La contraseña no puede estar vacía",
-        "webdavConfigSaved": "Configuración de WebDAV guardada con éxito",
-        "webdavConfigSaveFailed": "Error al guardar la configuración de WebDAV: {{error}}",
-        "backupCreated": "Copia de seguridad creada con éxito",
-        "backupFailed": "Error al crear la copia de seguridad: {{error}}",
         "localBackupCreated": "Local backup created successfully",
         "localBackupFailed": "Local backup failed",
         "restoreSuccess": "Restauración exitosa. La aplicación se reiniciará en 1 segundo",
@@ -434,8 +418,6 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "La conexión WebDAV funciona",
-        "webdavRefreshFailed": "No se pudo conectar a WebDAV: {{error}}",
         "confirmDelete": "Confirm to delete this backup file?",
         "confirmRestore": "Confirm to restore this backup file?"
       },
@@ -446,23 +428,15 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "local": "Creates a snapshot on this device, stored under the app data directory.",
-        "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV",
-        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
+        "local": "Creates a snapshot on this device, stored under the app data directory."
       },
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
-        "webdavFailed": "El servidor WebDAV no respondió. Pulse el botón de actualizar para reintentar",
-        "webdavNotConfigured": "WebDAV is not set up — set it up in Backup Setting",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
-      },
-      "webdav": {
-        "title": "WebDAV settings"
       }
     },
     "misc": {

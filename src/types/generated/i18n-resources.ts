@@ -974,7 +974,6 @@ export interface TranslationResources {
         backup: {
           actions: {
             backup: string
-            checkConnection: string
             deleteBackup: string
             exportBackup: string
             importBackup: string
@@ -987,12 +986,6 @@ export interface TranslationResources {
             scheduleLabel: string
             title: string
           }
-          fields: {
-            trustSelfSigned: string
-            trustSelfSignedHelper: string
-            username: string
-            webdavUrl: string
-          }
           history: {
             empty: string
             summary: string
@@ -1000,44 +993,25 @@ export interface TranslationResources {
             title: string
             unknownPlatform: string
             unknownTime: string
-            webdavFailed: string
-            webdavNotConfigured: string
           }
           manual: {
-            configureWebdav: string
             local: string
-            webdav: string
-            webdavNotConfigured: string
           }
           messages: {
-            backupCreated: string
-            backupFailed: string
             confirmDelete: string
             confirmRestore: string
-            invalidWebdavUrl: string
             localBackupCreated: string
             localBackupExported: string
             localBackupExportFailed: string
             localBackupFailed: string
             localBackupImported: string
             localBackupImportFailed: string
-            passwordRequired: string
             restoreSuccess: string
-            usernameRequired: string
-            webdavConfigSaved: string
-            webdavConfigSaveFailed: string
-            webdavRefreshFailed: string
-            webdavRefreshSuccess: string
-            webdavUrlRequired: string
           }
           tabs: {
             local: string
-            webdav: string
           }
           title: string
-          webdav: {
-            title: string
-          }
         }
         clashCore: {
           rebootAfterUpgrade: {
@@ -1718,7 +1692,6 @@ export interface TranslationResources {
         downloaded: string
         expireTime: string
         from: string
-        password: string
         readOnly: string
         timeout: string
         updateAt: string

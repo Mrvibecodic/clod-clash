@@ -243,7 +243,7 @@
       "advanced": {
         "title": "Maintenance",
         "tooltips": {
-          "backupInfo": "Support local or WebDAV backup of configuration files",
+          "backupInfo": "Support local backup of configuration files",
           "openConfDir": "If the software runs abnormally, BACKUP and delete all files in this folder then restart the software",
           "liteMode": "Only the core keeps running; the app window is closed",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
@@ -400,8 +400,7 @@
     "backup": {
       "title": "Backup Setting",
       "tabs": {
-        "local": "Local backup",
-        "webdav": "WebDAV backup"
+        "local": "Local backup"
       },
       "actions": {
         "backup": "Backup",
@@ -409,24 +408,9 @@
         "exportBackup": "Save the backup to a file",
         "deleteBackup": "Delete Backup",
         "restoreBackup": "Restore Backup",
-        "viewHistory": "View history",
-        "checkConnection": "Check connection"
-      },
-      "fields": {
-        "webdavUrl": "WebDAV Server URL",
-        "username": "Username",
-        "trustSelfSigned": "Trust a self-signed certificate",
-        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
+        "viewHistory": "View history"
       },
       "messages": {
-        "webdavUrlRequired": "WebDAV URL cannot be empty",
-        "invalidWebdavUrl": "Invalid WebDAV URL format",
-        "usernameRequired": "Username cannot be empty",
-        "passwordRequired": "Password cannot be empty",
-        "webdavConfigSaved": "WebDAV configuration saved successfully",
-        "webdavConfigSaveFailed": "Failed to save WebDAV configuration: {{error}}",
-        "backupCreated": "Backup created successfully",
-        "backupFailed": "Backup failed: {{error}}",
         "localBackupCreated": "Local backup created successfully",
         "localBackupFailed": "Local backup failed",
         "restoreSuccess": "Restore Success, App will restart in 1s",
@@ -434,8 +418,6 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "WebDAV connection works",
-        "webdavRefreshFailed": "Could not connect to WebDAV: {{error}}",
         "confirmDelete": "Confirm to delete this backup file?",
         "confirmRestore": "Confirm to restore this backup file?"
       },
@@ -446,23 +428,15 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "local": "Creates a snapshot on this device, stored under the app data directory.",
-        "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV",
-        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
+        "local": "Creates a snapshot on this device, stored under the app data directory."
       },
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "summary_one": "{{count}} backup • latest {{recent}}",
         "empty": "No backups available",
-        "webdavFailed": "The WebDAV server did not respond. Press the refresh button to retry",
-        "webdavNotConfigured": "WebDAV is not set up — set it up in Backup Setting",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
-      },
-      "webdav": {
-        "title": "WebDAV settings"
       }
     },
     "misc": {

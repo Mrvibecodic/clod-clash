@@ -243,7 +243,7 @@
       "advanced": {
         "title": "Pengaturan Lanjutan Verge",
         "tooltips": {
-          "backupInfo": "Mendukung file konfigurasi cadangan WebDAV",
+          "backupInfo": "Mendukung pencadangan lokal file konfigurasi",
           "openConfDir": "Jika perangkat lunak berjalan tidak normal, CADANGKAN dan hapus semua file di folder ini lalu mulai ulang perangkat lunak",
           "liteMode": "Tutup GUI dan biarkan hanya kernel yang berjalan",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
@@ -400,8 +400,7 @@
     "backup": {
       "title": "Pengaturan Cadangan",
       "tabs": {
-        "local": "Local backup",
-        "webdav": "WebDAV backup"
+        "local": "Local backup"
       },
       "actions": {
         "backup": "Cadangan",
@@ -409,24 +408,9 @@
         "exportBackup": "Save the backup to a file",
         "deleteBackup": "Hapus Cadangan",
         "restoreBackup": "Pulihkan Cadangan",
-        "viewHistory": "View history",
-        "checkConnection": "Periksa koneksi"
-      },
-      "fields": {
-        "webdavUrl": "URL Server WebDAV",
-        "username": "Nama Pengguna",
-        "trustSelfSigned": "Trust a self-signed certificate",
-        "trustSelfSignedHelper": "Only for your own server, such as a NAS"
+        "viewHistory": "View history"
       },
       "messages": {
-        "webdavUrlRequired": "URL WebDAV tidak boleh kosong",
-        "invalidWebdavUrl": "Format URL WebDAV tidak valid",
-        "usernameRequired": "Nama pengguna tidak boleh kosong",
-        "passwordRequired": "Kata sandi tidak boleh kosong",
-        "webdavConfigSaved": "Konfigurasi WebDAV berhasil disimpan",
-        "webdavConfigSaveFailed": "Gagal menyimpan konfigurasi WebDAV: {{error}}",
-        "backupCreated": "Cadangan berhasil dibuat",
-        "backupFailed": "Cadangan gagal: {{error}}",
         "localBackupCreated": "Local backup created successfully",
         "localBackupFailed": "Local backup failed",
         "restoreSuccess": "Pemulihan Berhasil, Aplikasi akan dimulai ulang dalam 1 detik",
@@ -434,8 +418,6 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "Koneksi WebDAV berfungsi",
-        "webdavRefreshFailed": "Tidak dapat terhubung ke WebDAV: {{error}}",
         "confirmDelete": "Konfirmasi untuk menghapus file cadangan ini?",
         "confirmRestore": "Konfirmasi untuk memulihkan file cadangan ini?"
       },
@@ -446,23 +428,15 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "local": "Creates a snapshot on this device, stored under the app data directory.",
-        "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV",
-        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
+        "local": "Creates a snapshot on this device, stored under the app data directory."
       },
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
-        "webdavFailed": "Server WebDAV tidak merespons. Tekan tombol muat ulang untuk mencoba lagi",
-        "webdavNotConfigured": "WebDAV is not set up — set it up in Backup Setting",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
-      },
-      "webdav": {
-        "title": "WebDAV settings"
       }
     },
     "misc": {
