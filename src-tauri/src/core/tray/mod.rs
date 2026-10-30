@@ -1143,6 +1143,15 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
     handle_menu_click(event.id.as_ref().into());
 }
 
+/// Галочку у пункта меню система переворачивает сама, не дожидаясь ответа:
+/// при отказе её возвращает только пересборка меню, а состоявшееся
+/// переключение системного прокси трей уже перерисовал. У TUN «переключено»
+/// бывает и после сорвавшегося шага, до перерисовки трея не дошедшего, —
+/// там меню пересобирается всегда.
+const fn the_menu_needs_rebuilding_after(toggled: feat::Toggled) -> bool {
+    !matches!(toggled, feat::Toggled::To(_))
+}
+
 fn handle_menu_click(id: std::string::String) {
     if !Tray::global().should_handle_tray_click() {
         return;
@@ -1169,11 +1178,10 @@ fn handle_menu_click(id: std::string::String) {
                 logging!(info, Type::Tray, "Клик по меню трея: открываю окно");
                 lightweight::wake_or_show().await;
             }
-            // Галочку у пункта меню система переворачивает сама, не дожидаясь
-            // ответа: при отказе её возвращает только пересборка меню.
             MenuIds::SYSTEM_PROXY => {
-                feat::toggle_system_proxy().await;
-                logging_error!(Type::Tray, Tray::global().update_menu().await);
+                if the_menu_needs_rebuilding_after(feat::toggle_system_proxy().await) {
+                    logging_error!(Type::Tray, Tray::global().update_menu().await);
+                }
             }
             MenuIds::TUN_MODE => {
                 feat::toggle_tun_mode().await;
@@ -1273,9 +1281,19 @@ fn handle_menu_click(id: std::string::String) {
 #[cfg(test)]
 mod tests {
     use super::{
-        ShownSystemProxy, group_decides_traffic, node_title, proxy_item_id, proxy_item_names, tray_menu_accepts,
+        ShownSystemProxy, group_decides_traffic, node_title, proxy_item_id, proxy_item_names,
+        the_menu_needs_rebuilding_after, tray_menu_accepts,
     };
+    use crate::feat::Toggled;
     use std::sync::atomic::AtomicBool;
+
+    #[test]
+    fn only_a_refused_toggle_rebuilds_the_menu_again() {
+        assert!(!the_menu_needs_rebuilding_after(Toggled::To(true)));
+        assert!(!the_menu_needs_rebuilding_after(Toggled::To(false)));
+        assert!(the_menu_needs_rebuilding_after(Toggled::Untouched));
+        assert!(the_menu_needs_rebuilding_after(Toggled::Locked));
+    }
 
     #[test]
     fn the_tray_menu_skips_keys_it_cannot_show() {
