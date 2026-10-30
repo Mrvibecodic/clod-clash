@@ -617,8 +617,12 @@ fn start_over_in(runtime: &mut Runtime, uid: &str, now: i64, switched_at: i64) {
 /// сайту долгий, а сторож среды ждёт замок считаные секунды.
 enum IpWork {
     None,
-    /// Места нет — узнать сеть и адрес.
-    Locate(u64),
+    /// Места нет — узнать адрес в сети, которую сборщик уже прочитал.
+    Locate {
+        changes: u64,
+        net: String,
+        kind: &'static str,
+    },
     /// Адрес места пора переспросить.
     Refresh(Spot),
 }
@@ -666,10 +670,9 @@ async fn collect() -> IpWork {
                     window.pings.len() + window.traffic.len()
                 );
             }
-            if here.is_some() {
-                IpWork::Locate(changes)
-            } else {
-                IpWork::None
+            match here {
+                Some((net, kind)) => IpWork::Locate { changes, net, kind },
+                None => IpWork::None,
             }
         }
     }
@@ -687,11 +690,11 @@ async fn tick() {
 async fn settle(work: IpWork) {
     match work {
         IpWork::None => {}
-        IpWork::Locate(changes) => {
-            let spot = locate(changes).await;
+        IpWork::Locate { changes, net, kind } => {
+            let spot = locate(changes, net, kind).await;
             with_runtime(|runtime| {
                 if CHANGES.load(Ordering::Acquire) == changes && runtime.spot.is_none() {
-                    runtime.spot = spot;
+                    runtime.spot = Some(spot);
                 }
             });
         }
@@ -712,15 +715,14 @@ async fn settle(work: IpWork) {
     }
 }
 
-/// Узнать место: текущую сеть и внешний адрес в ней.
-async fn locate(changes: u64) -> Option<Spot> {
-    let (net, kind) = crate::module::freeze_check::current_network().await?;
+/// Узнать место: внешний адрес в текущей сети.
+async fn locate(changes: u64, net: String, kind: &'static str) -> Spot {
     let (ip4, ip6) = ip::current().await;
-    Some(Spot {
+    Spot {
         place: Place { net, kind, ip4, ip6 },
         changes,
         ip_at: help::now_secs(),
-    })
+    }
 }
 
 /// Сторож среды увидел смену сети или пробуждение. Намеренное до смены уходит
@@ -1020,14 +1022,20 @@ fn sends_between(item: &PrfItem) -> bool {
 }
 
 /// Подписки, которым пора попробовать отправить между обновлениями: срок из
-/// [`NEXT`] подошёл (или его нет — после запуска), накопленное есть на диске.
+/// [`NEXT`] подошёл (или его нет — после запуска), накопленное есть на диске
+/// (`stored` спрашивается только у них).
 /// Срок ставится сразу, чтобы следующий круг не позвал отправку повторно.
-fn due_between(next: &mut BTreeMap<String, i64>, wanted: &[(String, bool)], now: i64) -> Vec<String> {
-    next.retain(|uid, _| wanted.iter().any(|(wanted, _)| wanted == uid));
+fn due_between(
+    next: &mut BTreeMap<String, i64>,
+    wanted: &[String],
+    stored: impl Fn(&str) -> bool,
+    now: i64,
+) -> Vec<String> {
+    next.retain(|uid, _| wanted.contains(uid));
     let mut due = Vec::new();
-    for (uid, stored) in wanted {
+    for uid in wanted {
         // Срок дальше, чем ставится, — часы ушли назад: пора.
-        if *stored && next.get(uid).is_none_or(|at| *at <= now || *at > now + SEND_EVERY) {
+        if next.get(uid).is_none_or(|at| *at <= now || *at > now + SEND_EVERY) && stored(uid) {
             next.insert(uid.clone(), now + SEND_EVERY);
             due.push(uid.clone());
         }
@@ -1041,7 +1049,7 @@ fn due_between(next: &mut BTreeMap<String, i64>, wanted: &[(String, bool)], now:
 /// следующей проверки, чтобы не читать накопленное каждый круг. Сети нет —
 /// попытка, как только она появится (проверка раз в [`TICK`]).
 async fn send_between() {
-    let wanted: Vec<(String, bool)> = Config::profiles()
+    let wanted: Vec<String> = Config::profiles()
         .await
         .latest_arc()
         .get_items()
@@ -1049,12 +1057,8 @@ async fn send_between() {
         .flatten()
         .filter(|item| sends_between(item))
         .filter_map(|item| item.uid.as_deref().map(str::to_owned))
-        .map(|uid| {
-            let stored = store::exists(&uid);
-            (uid, stored)
-        })
         .collect();
-    let due = due_between(&mut NEXT.lock(), &wanted, help::now_secs());
+    let due = due_between(&mut NEXT.lock(), &wanted, store::exists, help::now_secs());
     for uid in due {
         AsyncHandler::spawn(move || async move {
             let at = if crate::module::freeze_check::current_network().await.is_some() {
@@ -1571,7 +1575,7 @@ mod tests {
         let mut next = std::collections::BTreeMap::new();
         next.insert("a".to_owned(), now + 3 * SEND_EVERY);
         assert_eq!(
-            due_between(&mut next, &[("a".to_owned(), true)], now),
+            due_between(&mut next, &["a".to_owned()], |_| true, now),
             vec!["a".to_owned()]
         );
 
@@ -1659,17 +1663,28 @@ mod tests {
     #[test]
     fn sends_between_updates_are_tried_once_per_term() {
         let mut next = std::collections::BTreeMap::new();
-        let wanted = vec![("a".to_owned(), true), ("b".to_owned(), false)];
+        let wanted = vec!["a".to_owned(), "b".to_owned()];
+        let asked = std::cell::RefCell::new(Vec::new());
+        let stored = |uid: &str| {
+            asked.borrow_mut().push(uid.to_owned());
+            uid == "a"
+        };
 
         // После запуска срока нет — проверка сразу; без накопленного — нет
-        assert_eq!(due_between(&mut next, &wanted, 0), vec!["a".to_owned()]);
-        // Срок поставлен сразу: следующий круг не зовёт отправку повторно
-        assert!(due_between(&mut next, &wanted, 60).is_empty());
+        assert_eq!(due_between(&mut next, &wanted, stored, 0), vec!["a".to_owned()]);
+        // Срок поставлен сразу: следующий круг не зовёт отправку повторно и
+        // диск у подписки со сроком не спрашивает
+        asked.borrow_mut().clear();
+        assert!(due_between(&mut next, &wanted, stored, 60).is_empty());
+        assert_eq!(*asked.borrow(), vec!["b".to_owned()]);
         assert_eq!(next.get("a"), Some(&SEND_EVERY));
-        assert_eq!(due_between(&mut next, &wanted, SEND_EVERY), vec!["a".to_owned()]);
+        assert_eq!(
+            due_between(&mut next, &wanted, stored, SEND_EVERY),
+            vec!["a".to_owned()]
+        );
 
         // Подписка выпала (обновление не удалось, частые обновления) — срок снят
-        assert!(due_between(&mut next, &[], SEND_EVERY).is_empty());
+        assert!(due_between(&mut next, &[], stored, SEND_EVERY).is_empty());
         assert!(next.is_empty());
     }
 

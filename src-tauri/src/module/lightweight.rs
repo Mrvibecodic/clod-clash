@@ -1,8 +1,4 @@
-use crate::{
-    config::Config,
-    core::{timer::Timer, tray::Tray},
-    process::AsyncHandler,
-};
+use crate::{config::Config, core::tray::Tray, process::AsyncHandler};
 
 use clash_verge_logging::{Type, logging};
 
@@ -87,7 +83,7 @@ pub async fn auto_lightweight_boot() -> Result<()> {
     let is_enable_auto = verge_config.data_arc().enable_auto_light_weight_mode.unwrap_or(false);
     let is_silent_start = verge_config.data_arc().enable_silent_start.unwrap_or(false);
     if is_enable_auto {
-        enable_auto_light_weight_mode().await;
+        enable_auto_light_weight_mode();
     }
     if is_silent_start {
         entry_lightweight_mode().await;
@@ -95,11 +91,7 @@ pub async fn auto_lightweight_boot() -> Result<()> {
     Ok(())
 }
 
-pub async fn enable_auto_light_weight_mode() {
-    if let Err(e) = Timer::global().init().await {
-        logging!(error, Type::Lightweight, "Failed to initialize timer: {e}");
-        return;
-    }
+pub fn enable_auto_light_weight_mode() {
     logging!(info, Type::Lightweight, "включён автоматический лёгкий режим");
     setup_window_close_listener();
     setup_webview_focus_listener();

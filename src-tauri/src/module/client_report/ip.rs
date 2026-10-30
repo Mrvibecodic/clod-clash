@@ -22,11 +22,7 @@ fn parse(body: &str, v6: bool) -> Option<String> {
     (ip.is_ipv6() == v6).then(|| ip.to_string())
 }
 
-async fn ask(url: &str, v6: bool) -> Option<String> {
-    let client = NetworkManager::new()
-        .create_request(ProxyType::None, Some(TIMEOUT_SECS), Some(BROWSER_UA.into()))
-        .await
-        .ok()?;
+async fn ask(client: &reqwest::Client, url: &str, v6: bool) -> Option<String> {
     let response = tokio::time::timeout(Duration::from_secs(TIMEOUT_SECS + 2), client.get(url).send())
         .await
         .ok()?
@@ -39,7 +35,13 @@ async fn ask(url: &str, v6: bool) -> Option<String> {
 
 /// IPv4 и IPv6 клиента; пустая строка — не узнали (нет IPv6, сайт не ответил).
 pub(super) async fn current() -> (String, String) {
-    let (ip4, ip6) = tokio::join!(ask(IPV4_URL, false), ask(IPV6_URL, true));
+    let Ok(client) = NetworkManager::new()
+        .create_request(ProxyType::None, Some(TIMEOUT_SECS), Some(BROWSER_UA.into()))
+        .await
+    else {
+        return (String::new(), String::new());
+    };
+    let (ip4, ip6) = tokio::join!(ask(&client, IPV4_URL, false), ask(&client, IPV6_URL, true));
     (ip4.unwrap_or_default(), ip6.unwrap_or_default())
 }
 

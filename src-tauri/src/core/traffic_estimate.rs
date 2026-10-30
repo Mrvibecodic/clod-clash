@@ -92,6 +92,8 @@ struct Runtime {
     primed: bool,
     /// Сколько сроков оценки прошло.
     ticks: u32,
+    /// Для какой подписки досчитанное уже обнулено, пока счёт выключен.
+    cleared: Option<Option<String>>,
 }
 
 fn runtime() -> &'static Mutex<Runtime> {
@@ -283,6 +285,8 @@ pub(crate) async fn sample_every() -> Option<Duration> {
         // Счёт выключен: обнуляем досчитанное, чтобы интерфейс показывал число
         // подписки как есть, без пометки «≈».
         clear_local().await;
+    } else {
+        runtime().lock().cleared = None;
     }
     every
 }
@@ -383,16 +387,20 @@ pub async fn snapshot(uid: &str) -> TrafficEstimate {
 /// иначе последняя оценка застыла бы на карточке как вечная правда.
 async fn clear_local() {
     let uid = counted_uid().await;
+    if runtime().lock().cleared.as_ref() == Some(&uid) {
+        return;
+    }
     if let Some(uid) = &uid {
         ensure_loaded(uid).await;
     }
     {
         let mut guard = runtime().lock();
-        if let Some(kept) = uid.and_then(|uid| guard.estimates.get_mut(&uid)) {
+        if let Some(kept) = uid.as_ref().and_then(|uid| guard.estimates.get_mut(uid)) {
             kept.estimate.local_bytes = 0;
         }
         guard.seen.clear();
         guard.primed = false;
+        guard.cleared = Some(uid);
     }
     save().await;
 }

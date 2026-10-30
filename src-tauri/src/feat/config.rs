@@ -408,7 +408,7 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
     }
     if update_flags.contains(UpdateFlags::LIGHT_WEIGHT) {
         if patch.enable_auto_light_weight_mode.unwrap_or(false) {
-            lightweight::enable_auto_light_weight_mode().await;
+            lightweight::enable_auto_light_weight_mode();
         } else {
             lightweight::disable_auto_light_weight_mode();
         }
