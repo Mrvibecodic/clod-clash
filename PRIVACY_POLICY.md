@@ -2,7 +2,7 @@
 
 Languages: **English** · [Русский](./PRIVACY_POLICY.ru.md)
 
-Effective: 14 October 2026. Applies to Clod Clash for Windows, macOS and Linux.
+Effective: 31 October 2026. Applies to Clod Clash for Windows, macOS and Linux.
 
 Clod Clash is an open source VPN client. It is provided free of charge and as is.
 
@@ -96,9 +96,6 @@ described below covers the requests this app makes itself.
     provider logo or group icons named by your subscription send only a standard `User-Agent`.
     No device headers and no identifier are attached to these requests. The core itself also
     downloads the rule and proxy providers your configuration lists.
-*   **To your WebDAV server, if you set one up.** Backups go to the server you configured:
-    subscription files and their addresses, the configuration, the settings (without the
-    device identifier and the WebDAV credentials) and the "16–20" check results.
 *   **To an external dashboard, if you open one.** The web dashboards in the settings open in
     your browser. For yacd the app puts the secret of the local core controller into the
     address, so that site receives it; metacubexd and zashboard keep it in the part of the
@@ -114,8 +111,7 @@ Nothing else is transmitted. The app has no server of its own.
 Subscriptions, profiles, configuration files, credentials contained in them, selected
 servers, settings, logs, unsent report measurements and "16–20" results are stored in the
 app's data folder (`io.clodclash.app` in the system's application data folder, or next to the
-program in portable mode). The app itself uploads them, except the report measurements, only to a
-WebDAV server you configured.
+program in portable mode). Apart from the report measurements, the app does not upload them anywhere.
 Local automatic backups are off by default. Logs are written locally with subscription tokens,
 secrets and destination hosts masked. The support report is copied to the clipboard and the log
 export is saved where you choose, both with addresses and secrets masked; they leave the
@@ -139,7 +135,7 @@ therefore not the controller (operator) of it. The data that leaves your compute
     values and quality reports it receives, and its own privacy policy governs how long it
     keeps them, what it uses them for and how you can exercise your rights;
 *   the third parties named above (GitHub, Cloudflare, Yandex, the operators of addresses in
-    your configuration, your WebDAV server), each under its own policy.
+    your configuration), each under its own policy.
 
 An IP address and a device identifier linked to a subscription can be personal data under the
 GDPR, Russian Federal Law No. 152-FZ "On Personal Data" and similar laws. A provider that turns
@@ -178,10 +174,9 @@ own policies.
 **Security**
 
 The secure channel encrypts its contents between the app and the provider's server, and app
-updates are verified against the signature published with the release before installation. Two honest caveats: a
+updates are verified against the signature published with the release before installation. One honest caveat: a
 configuration can itself point at plain `http` addresses for its rule and proxy providers, and
-those are then fetched without TLS; and the WebDAV client does not verify the server's
-certificate, so use WebDAV only with a server and network you trust. No method of transmission
+those are then fetched without TLS. No method of transmission
 or storage is completely secure, so absolute security cannot be guaranteed.
 
 **Changes to this policy**
