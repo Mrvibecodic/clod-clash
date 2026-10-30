@@ -531,13 +531,8 @@ async fn initialize_config_files() -> Result<()> {
         logging!(warn, Type::Setup, "Failed to move to the default core: {}", e);
     }
 
-    if let Err(e) = trust_the_configured_webdav_once().await {
-        logging!(
-            warn,
-            Type::Setup,
-            "Failed to settle the WebDAV certificate trust: {}",
-            e
-        );
+    if let Err(e) = drop_the_webdav_settings().await {
+        logging!(warn, Type::Setup, "Failed to remove the WebDAV settings: {}", e);
     }
 
     IVerge::validate_and_fix_config()
@@ -595,46 +590,28 @@ fn move_to_the_default_core(verge: &mut serde_yaml_ng::Mapping) -> Option<bool> 
     Some(moved)
 }
 
-/// Прошлые версии ходили в WebDAV без проверки сертификата: у кого WebDAV уже
-/// настроен, доверие самоподписанному включается один раз, чтобы его сервер
-/// не перестал принимать копии; флаг бережёт выбор после этого.
-async fn trust_the_configured_webdav_once() -> Result<()> {
+/// Резервных копий в WebDAV больше нет: адрес, логин и пароль сервера, которые
+/// записали прошлые версии, снимаются с диска вместе с файлом ключа, которым
+/// шифровался пароль.
+async fn drop_the_webdav_settings() -> Result<()> {
+    dirs::app_home_dir()?.join(".encryption_key").remove_if_exists().await?;
     let verge_path = dirs::verge_path()?;
     let mut verge = help::read_mapping(&verge_path).await?;
-    if webdav_trust_is_settled(&verge) {
-        return Ok(());
-    }
-    let configured = help::read_yaml::<IVerge>(&verge_path)
-        .await?
-        .webdav_url
-        .is_some_and(|url| !url.trim().is_empty());
-    settle_webdav_trust(&mut verge, configured);
-    help::save_yaml(&verge_path, &verge, Some(help::VERGE_CONFIG_HEADER)).await?;
-    if configured {
+    if drop_webdav_keys(&mut verge) {
+        help::save_yaml(&verge_path, &verge, Some(help::VERGE_CONFIG_HEADER)).await?;
         logging!(
             info,
             Type::Setup,
-            "the configured WebDAV server keeps a self-signed certificate trusted"
+            "the WebDAV settings of an earlier version were removed"
         );
     }
     Ok(())
 }
 
-fn webdav_trust_is_settled(verge: &serde_yaml_ng::Mapping) -> bool {
-    verge
-        .get("webdav_trust_settled")
-        .and_then(serde_yaml_ng::Value::as_bool)
-        == Some(true)
-}
-
-fn settle_webdav_trust(verge: &mut serde_yaml_ng::Mapping, configured: bool) {
-    use serde_yaml_ng::Value;
-
-    verge.insert(Value::from("webdav_trust_settled"), Value::from(true));
-    let trust = Value::from("webdav_trust_self_signed");
-    if configured && !verge.contains_key(&trust) {
-        verge.insert(trust, Value::from(true));
-    }
+fn drop_webdav_keys(verge: &mut serde_yaml_ng::Mapping) -> bool {
+    let before = verge.len();
+    verge.retain(|key, _| !key.as_str().is_some_and(|key| key.starts_with("webdav_")));
+    verge.len() != before
 }
 
 /// Разово снять из clash.yaml значения, записанные прошлыми версиями за
@@ -979,9 +956,8 @@ async fn handle_copy(src: &PathBuf, dest: &PathBuf, file: &str) {
 mod tests {
     use super::{
         BundledAssetAction, DNS_CONFIG_HEADER, SECONDS_IN_A_DAY, bundled_asset_action, dns_config_problem,
-        drop_legacy_dns_keys, has_untouched_legacy_fallback, has_user_comments, is_cleaned_by_age,
-        legacy_fallback_filter, move_to_the_default_core, older_than_days, settle_webdav_trust,
-        webdav_trust_is_settled,
+        drop_legacy_dns_keys, drop_webdav_keys, has_untouched_legacy_fallback, has_user_comments, is_cleaned_by_age,
+        legacy_fallback_filter, move_to_the_default_core, older_than_days,
     };
     use serde_yaml_ng::{Mapping, Value};
     use std::time::{Duration, SystemTime};
@@ -1033,30 +1009,18 @@ mod tests {
     }
 
     #[test]
-    fn a_configured_webdav_keeps_trusting_its_certificate_once() {
-        let read = |verge: &Mapping| {
-            serde_yaml_ng::from_value::<crate::config::IVerge>(Value::Mapping(verge.clone())).unwrap_or_default()
-        };
+    fn the_webdav_settings_of_an_earlier_version_are_removed_and_nothing_else() {
+        let parsed: Result<Mapping, _> = serde_yaml_ng::from_str(
+            "language: ru\nwebdav_url: c2VhbGVk\nwebdav_username: bWU=\nwebdav_password: c2VjcmV0\n\
+             webdav_trust_self_signed: true\nwebdav_trust_settled: true\nhwid: this-machine\n",
+        );
+        assert!(parsed.is_ok(), "{parsed:?}");
+        let mut verge = parsed.unwrap_or_default();
 
-        let mut configured = Mapping::new();
-        settle_webdav_trust(&mut configured, true);
-        assert!(webdav_trust_is_settled(&configured));
-        assert_eq!(read(&configured).webdav_trust_self_signed, Some(true));
-
-        let mut unconfigured = Mapping::new();
-        settle_webdav_trust(&mut unconfigured, false);
-        assert!(webdav_trust_is_settled(&unconfigured));
-        assert_eq!(read(&unconfigured).webdav_trust_self_signed, None);
-
-        let mut chosen = Mapping::new();
-        chosen.insert("webdav_trust_self_signed".into(), false.into());
-        settle_webdav_trust(&mut chosen, true);
-        assert_eq!(read(&chosen).webdav_trust_self_signed, Some(false), "выбор человека");
-
-        let mut fresh = Mapping::new();
-        fresh.insert("webdav_trust_settled".into(), true.into());
-        assert!(webdav_trust_is_settled(&fresh), "после метки миграция не повторяется");
-        assert!(!webdav_trust_is_settled(&Mapping::new()));
+        assert!(drop_webdav_keys(&mut verge));
+        let keys: Vec<_> = verge.keys().filter_map(Value::as_str).collect();
+        assert_eq!(keys, ["language", "hwid"]);
+        assert!(!drop_webdav_keys(&mut verge), "второй раз записывать нечего");
     }
 
     #[test]

@@ -75,9 +75,7 @@ zip = "9.0.5"
 flate2 = "1.1"
 # Путь файла провайдера узлов у ядра: `proxies/<md5 адреса>`.
 md-5 = "0.10"
-reqwest_dav = "0.3.3"
-serde-xml-rs = "0.6.0"
-aes-gcm = { version = "0.11.0" }
+form_urlencoded = "1.2.2"
 base64 = "0.22.1"
 minisign-verify = "0.2.5"
 getrandom = "0.4.3"

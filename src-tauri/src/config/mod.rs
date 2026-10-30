@@ -3,7 +3,6 @@ mod clash;
 pub mod chan;
 #[allow(clippy::module_inception)]
 mod config;
-mod encrypt;
 mod prfitem;
 pub mod profiles;
 pub mod proxy_label;
@@ -12,7 +11,7 @@ pub mod runtime;
 pub mod sub_headers;
 mod verge;
 
-pub use self::{clash::*, config::*, encrypt::*, prfitem::*, profiles::*, verge::*};
+pub use self::{clash::*, config::*, prfitem::*, profiles::*, verge::*};
 
 pub const DEFAULT_PAC: &str = r#"function FindProxyForURL(url, host) {
   return "PROXY %proxy_host%:%mixed-port%; SOCKS5 %proxy_host%:%mixed-port%; DIRECT;";

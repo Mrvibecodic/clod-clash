@@ -7,7 +7,6 @@ use crate::{
     },
 };
 use anyhow::{Context as _, Result, bail};
-use reqwest_dav::re_exports::url::form_urlencoded;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;

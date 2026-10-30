@@ -20,7 +20,6 @@ pub mod updater;
 pub mod uwp;
 pub mod validate;
 pub mod verge;
-pub mod webdav;
 
 pub use app::*;
 pub use backup::*;
@@ -37,7 +36,6 @@ pub use system::*;
 pub use updater::*;
 pub use uwp::*;
 pub use verge::*;
-pub use webdav::*;
 
 pub trait StringifyErr<T> {
     fn stringify_err(self) -> CmdResult<T>;

@@ -246,11 +246,6 @@ mod app_init {
             cmd::restore_local_backup,
             cmd::import_local_backup,
             cmd::export_local_backup,
-            cmd::create_webdav_backup,
-            cmd::save_webdav_config,
-            cmd::list_webdav_backup,
-            cmd::delete_webdav_backup,
-            cmd::restore_webdav_backup,
         ]
     }
 }

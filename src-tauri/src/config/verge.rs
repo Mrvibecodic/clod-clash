@@ -1,5 +1,5 @@
 use crate::{
-    config::{DEFAULT_PAC, deserialize_encrypted, serialize_encrypted},
+    config::DEFAULT_PAC,
     utils::{dirs, help},
 };
 use anyhow::Result;
@@ -143,36 +143,6 @@ pub struct IVerge {
     pub verge_port: Option<u16>,
 
     pub verge_http_enabled: Option<bool>,
-
-    #[serde(
-        serialize_with = "serialize_encrypted",
-        deserialize_with = "deserialize_encrypted",
-        skip_serializing_if = "Option::is_none",
-        default
-    )]
-    pub webdav_url: Option<String>,
-
-    #[serde(
-        serialize_with = "serialize_encrypted",
-        deserialize_with = "deserialize_encrypted",
-        skip_serializing_if = "Option::is_none",
-        default
-    )]
-    pub webdav_username: Option<String>,
-
-    #[serde(
-        serialize_with = "serialize_encrypted",
-        deserialize_with = "deserialize_encrypted",
-        skip_serializing_if = "Option::is_none",
-        default
-    )]
-    pub webdav_password: Option<String>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub webdav_trust_self_signed: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub webdav_trust_settled: Option<bool>,
 
     #[cfg(target_os = "macos")]
     pub enable_tray_speed: Option<bool>,
@@ -471,9 +441,6 @@ impl IVerge {
             auto_log_clean: Some(2),
             enable_auto_backup_schedule: Some(false),
             auto_backup_interval_hours: Some(24),
-            webdav_url: None,
-            webdav_username: None,
-            webdav_password: None,
             #[cfg(target_os = "macos")]
             enable_tray_speed: Some(false),
             #[cfg(target_os = "macos")]
@@ -578,10 +545,6 @@ impl IVerge {
         patch!(enable_auto_backup_schedule);
         patch!(auto_backup_interval_hours);
 
-        patch!(webdav_url);
-        patch!(webdav_username);
-        patch!(webdav_password);
-        patch!(webdav_trust_self_signed);
         #[cfg(target_os = "macos")]
         patch!(enable_tray_speed);
         #[cfg(target_os = "macos")]

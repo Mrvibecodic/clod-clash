@@ -8,7 +8,6 @@ use crate::{
 use anyhow::{Result, anyhow};
 use chrono::Utc;
 use clash_verge_logging::{Type, logging};
-use reqwest_dav::list_cmd::ListFile;
 use serde::Serialize;
 use smartstring::alias::String;
 use std::path::{Path, PathBuf};
@@ -121,11 +120,6 @@ fn stage_entries(archive: &Path, target: &Path, staged: &mut Vec<(PathBuf, PathB
 }
 
 pub(crate) const MACHINE_LOCAL_KEYS: &[&str] = &[
-    "webdav_url",
-    "webdav_username",
-    "webdav_password",
-    "webdav_trust_self_signed",
-    "webdav_trust_settled",
     "hwid",
     "tun_setup_declined",
     "startup_script",
@@ -158,8 +152,6 @@ fn machine_local_of(verge: &IVerge) -> Result<Settings> {
     Ok(settings)
 }
 
-// Читается вне области шифрования: значение, запечатанное ключом другой
-// машины, остаётся строкой и заменяется своим, а не срывает чтение файла.
 fn restored_settings(archived: &str, local: Settings) -> Result<IVerge> {
     let archived: IVerge = serde_yaml_ng::from_str(archived)?;
     let serde_json::Value::Object(mut settings) = serde_json::to_value(archived)? else {
@@ -220,59 +212,6 @@ async fn finalize_restored_verge_config(local: Settings) -> Result<()> {
         let reason = format!("{err:#}");
         anyhow!("{}", clash_verge_i18n::t!("common.restoreNotApplied", reason = reason))
     })
-}
-
-pub async fn create_backup_and_upload_webdav() -> Result<()> {
-    let (file_name, temp_file_path) = backup::create_backup().await.map_err(|err| {
-        logging!(error, Type::Backup, "Failed to create backup: {err:#?}");
-        err
-    })?;
-
-    if let Err(err) = backup::WebDavClient::global()
-        .upload(temp_file_path.clone(), file_name)
-        .await
-    {
-        logging!(error, Type::Backup, "Failed to upload to WebDAV: {err:#?}");
-        backup::WebDavClient::global().reset();
-        return Err(err);
-    }
-
-    if let Err(err) = temp_file_path.remove_if_exists().await {
-        logging!(warn, Type::Backup, "Failed to remove temp file: {err:#?}");
-    }
-
-    Ok(())
-}
-
-pub async fn list_wevdav_backup() -> Result<Vec<ListFile>> {
-    backup::WebDavClient::global().list().await.map_err(|err| {
-        logging!(error, Type::Backup, "Failed to list WebDAV backup files: {err:#?}");
-        err
-    })
-}
-
-pub async fn delete_webdav_backup(filename: String) -> Result<()> {
-    backup::WebDavClient::global().delete(filename).await.map_err(|err| {
-        logging!(error, Type::Backup, "Failed to delete WebDAV backup file: {err:#?}");
-        err
-    })
-}
-
-pub async fn restore_webdav_backup(filename: String) -> Result<()> {
-    let backup_storage_path = app_home_dir()
-        .map_err(|e| anyhow::anyhow!("Failed to get app home dir: {e}"))?
-        .join(filename.as_str());
-    backup::WebDavClient::global()
-        .download(filename, backup_storage_path.clone())
-        .await
-        .map_err(|err| {
-            logging!(error, Type::Backup, "Failed to download WebDAV backup file: {err:#?}");
-            err
-        })?;
-
-    let res = restore_from(backup_storage_path.clone()).await;
-    let _ = backup_storage_path.remove_if_exists().await;
-    res
 }
 
 pub async fn create_local_backup() -> Result<()> {
@@ -629,11 +568,6 @@ mod tests {
 
     fn this_machine() -> IVerge {
         IVerge {
-            webdav_url: Some("https://my-nas.local/dav".into()),
-            webdav_username: Some("me".into()),
-            webdav_password: Some("mine".into()),
-            webdav_trust_self_signed: Some(true),
-            webdav_trust_settled: Some(true),
             hwid: Some("this-machine".into()),
             tun_setup_declined: Some("0.1.10".into()),
             startup_script: Some("/home/me/up.sh".into()),
@@ -655,9 +589,6 @@ mod tests {
 
     fn the_other_machine() -> IVerge {
         IVerge {
-            webdav_url: Some("https://their-nas.local/dav".into()),
-            webdav_username: Some("them".into()),
-            webdav_password: Some("theirs".into()),
             hwid: Some("their-machine".into()),
             tun_setup_declined: Some("0.1.4".into()),
             startup_script: Some("C:\\Users\\them\\up.cmd".into()),
@@ -739,9 +670,6 @@ mod tests {
         let restored = restored_here(&the_other_machine(), &this_machine());
 
         assert_eq!(restored.hwid.as_deref(), Some("this-machine"));
-        assert_eq!(restored.webdav_url.as_deref(), Some("https://my-nas.local/dav"));
-        assert_eq!(restored.webdav_username.as_deref(), Some("me"));
-        assert_eq!(restored.webdav_password.as_deref(), Some("mine"));
         assert_eq!(restored.tun_setup_declined.as_deref(), Some("0.1.10"));
     }
 
@@ -758,18 +686,18 @@ mod tests {
         let restored = restored_here(&the_other_machine(), &IVerge::default());
 
         assert_eq!(restored.hwid, None);
-        assert_eq!(restored.webdav_url, None);
     }
 
     #[test]
-    fn a_value_sealed_by_another_machine_is_dropped_not_read() {
-        let archived = "language: en\nwebdav_password: c2VhbGVkIGVsc2V3aGVyZQ==\n";
+    fn a_backup_of_an_older_version_restores_without_its_webdav_settings() {
+        let archived = "language: en\nwebdav_url: c2VhbGVk\nwebdav_password: c2VhbGVkIGVsc2V3aGVyZQ==\nwebdav_trust_settled: true\n";
         let restored = restored_settings(archived, machine_local_of(&IVerge::default()).unwrap_or_default());
 
         assert!(restored.is_ok(), "{restored:?}");
         let restored = restored.unwrap_or_default();
         assert_eq!(restored.language.as_deref(), Some("en"));
-        assert_eq!(restored.webdav_password, None);
+        let written = serde_yaml_ng::to_string(&restored).unwrap_or_default();
+        assert!(!written.contains("webdav"), "{written}");
     }
 
     #[test]
