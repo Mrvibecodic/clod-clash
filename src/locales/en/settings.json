@@ -578,7 +578,8 @@
       "dialog": {
         "title": "DNS Overwrite",
         "note": "Subscription values are shown. Only your differences are saved — everything else follows the subscription. Not sure? Leave it as is.",
-        "fakeIpIdle": "Has no effect: redir-host mode is selected"
+        "fakeIpIdle": "Has no effect: redir-host mode is selected",
+        "yamlNote": "In text mode only the dns and hosts blocks are saved, without comments."
       },
       "sections": {
         "behavior": "Behavior"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "onlyDnsAndHosts": "Only dns and hosts are saved — remove: {{keys}}"
       },
       "options": {
         "filterMode": {

@@ -578,7 +578,8 @@
       "dialog": {
         "title": "DNS Overwrite",
         "note": "Ditampilkan nilai dari langganan. Hanya perbedaan Anda yang disimpan — sisanya mengikuti langganan. Jika ragu, jangan diubah.",
-        "fakeIpIdle": "Tidak berlaku: mode redir-host dipilih"
+        "fakeIpIdle": "Tidak berlaku: mode redir-host dipilih",
+        "yamlNote": "Dalam mode teks hanya blok dns dan hosts yang disimpan, tanpa komentar."
       },
       "sections": {
         "behavior": "Perilaku"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "onlyDnsAndHosts": "Hanya dns dan hosts yang disimpan — hapus: {{keys}}"
       },
       "options": {
         "filterMode": {

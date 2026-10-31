@@ -578,7 +578,8 @@
       "dialog": {
         "title": "DNS-Überschreibung",
         "note": "Angezeigt werden die Werte des Abonnements. Gespeichert werden nur Ihre Abweichungen — alles andere folgt dem Abonnement. Im Zweifel nichts ändern.",
-        "fakeIpIdle": "Ohne Wirkung: Modus redir-host ist gewählt"
+        "fakeIpIdle": "Ohne Wirkung: Modus redir-host ist gewählt",
+        "yamlNote": "Im Textmodus werden nur die Blöcke dns und hosts gespeichert, ohne Kommentare."
       },
       "sections": {
         "behavior": "Verhalten"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "onlyDnsAndHosts": "Nur dns und hosts werden gespeichert — entfernen: {{keys}}"
       },
       "options": {
         "filterMode": {

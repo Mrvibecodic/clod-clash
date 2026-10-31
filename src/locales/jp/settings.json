@@ -578,7 +578,8 @@
       "dialog": {
         "title": "DNS上書き",
         "note": "サブスクリプションの値を表示しています。保存されるのは変更点のみで、それ以外はサブスクリプションに従います。不明な場合は変更しないでください。",
-        "fakeIpIdle": "無効: redir-host モードが選択されています"
+        "fakeIpIdle": "無効: redir-host モードが選択されています",
+        "yamlNote": "テキストモードでは dns と hosts のブロックのみ保存され、コメントは保存されません。"
       },
       "sections": {
         "behavior": "動作"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "onlyDnsAndHosts": "保存されるのは dns と hosts のみです。削除してください: {{keys}}"
       },
       "options": {
         "filterMode": {

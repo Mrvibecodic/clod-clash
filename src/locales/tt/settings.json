@@ -578,7 +578,8 @@
       "dialog": {
         "title": "DNS Overwrite",
         "note": "Язылу кыйммәтләре күрсәтелә. Сезнең аермалар гына саклана — калганы язылуга иярә. Ышанмасагыз, үзгәртмәгез.",
-        "fakeIpIdle": "Тәэсир итми: redir-host режимы сайланган"
+        "fakeIpIdle": "Тәэсир итми: redir-host режимы сайланган",
+        "yamlNote": "Текст режимында dns һәм hosts блоклары гына саклана, аңлатмаларсыз."
       },
       "sections": {
         "behavior": "Тәртип"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "onlyDnsAndHosts": "dns һәм hosts кына саклана — бетерегез: {{keys}}"
       },
       "options": {
         "filterMode": {

@@ -1057,10 +1057,12 @@ export interface TranslationResources {
             fakeIpIdle: string
             note: string
             title: string
+            yamlNote: string
           }
           errors: {
             invalid: string
             invalidYaml: string
+            onlyDnsAndHosts: string
           }
           fields: {
             defaultNameserver: {

@@ -578,7 +578,8 @@
       "dialog": {
         "title": "DNS Overwrite",
         "note": "تُعرض قيم الاشتراك. تُحفظ اختلافاتك فقط، ويتبع الباقي الاشتراك. إن لم تكن متأكدًا فلا تغيّر شيئًا.",
-        "fakeIpIdle": "بلا تأثير: الوضع redir-host محدد"
+        "fakeIpIdle": "بلا تأثير: الوضع redir-host محدد",
+        "yamlNote": "في وضع النص تُحفظ كتلتا dns و hosts فقط، دون تعليقات."
       },
       "sections": {
         "behavior": "السلوك"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "onlyDnsAndHosts": "تُحفظ dns و hosts فقط — أزل: {{keys}}"
       },
       "options": {
         "filterMode": {

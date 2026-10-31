@@ -578,7 +578,8 @@
       "dialog": {
         "title": "DNS 覆写",
         "note": "显示的是订阅中的值。仅保存您的改动，其余部分跟随订阅。不确定时请勿修改。",
-        "fakeIpIdle": "不生效：当前为 redir-host 模式"
+        "fakeIpIdle": "不生效：当前为 redir-host 模式",
+        "yamlNote": "文本模式下仅保存 dns 和 hosts 块，不保存注释。"
       },
       "sections": {
         "behavior": "行为"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "配置无效",
-        "invalidYaml": "YAML 格式无效"
+        "invalidYaml": "YAML 格式无效",
+        "onlyDnsAndHosts": "仅保存 dns 和 hosts，请删除：{{keys}}"
       },
       "options": {
         "filterMode": {

@@ -578,7 +578,8 @@
       "dialog": {
         "title": "Sobrescritura de DNS",
         "note": "Se muestran los valores de la suscripción. Solo se guardan sus diferencias; lo demás sigue a la suscripción. Si no está seguro, no lo cambie.",
-        "fakeIpIdle": "Sin efecto: está seleccionado el modo redir-host"
+        "fakeIpIdle": "Sin efecto: está seleccionado el modo redir-host",
+        "yamlNote": "En modo texto solo se guardan los bloques dns y hosts, sin comentarios."
       },
       "sections": {
         "behavior": "Comportamiento"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "onlyDnsAndHosts": "Solo se guardan dns y hosts; quite: {{keys}}"
       },
       "options": {
         "filterMode": {

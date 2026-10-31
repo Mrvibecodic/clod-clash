@@ -578,7 +578,8 @@
       "dialog": {
         "title": "DNS 덮어쓰기",
         "note": "구독 값이 표시됩니다. 변경한 부분만 저장되며 나머지는 구독을 따릅니다. 잘 모르면 변경하지 마세요.",
-        "fakeIpIdle": "적용되지 않음: redir-host 모드가 선택됨"
+        "fakeIpIdle": "적용되지 않음: redir-host 모드가 선택됨",
+        "yamlNote": "텍스트 모드에서는 dns와 hosts 블록만 저장되며 주석은 저장되지 않습니다."
       },
       "sections": {
         "behavior": "동작"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "잘못된 구성",
-        "invalidYaml": "잘못된 YAML 형식"
+        "invalidYaml": "잘못된 YAML 형식",
+        "onlyDnsAndHosts": "dns와 hosts만 저장됩니다. 다음을 제거하세요: {{keys}}"
       },
       "options": {
         "filterMode": {

@@ -772,8 +772,22 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         }
       } else {
         const parsedConfig = yaml.load(yamlContent)
-        if (typeof parsedConfig !== 'object' || parsedConfig === null) {
+        if (
+          typeof parsedConfig !== 'object' ||
+          parsedConfig === null ||
+          Array.isArray(parsedConfig)
+        ) {
           throw new Error(t('settings.modals.dns.errors.invalid'))
+        }
+        // Страница хранит только dns и hosts: остальное пропало бы молча.
+        const foreign = Object.keys(parsedConfig).filter(
+          (key) => key !== 'dns' && key !== 'hosts',
+        )
+        if (foreign.length > 0) {
+          showNotice.error('settings.modals.dns.errors.onlyDnsAndHosts', {
+            keys: foreign.join(', '),
+          })
+          return
         }
         config = parsedConfig as Record<string, any>
       }
@@ -947,6 +961,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           }}
         >
           {t('settings.modals.dns.dialog.note')}
+          {!visualization && ` ${t('settings.modals.dns.dialog.yamlNote')}`}
         </Box>
         <Button
           size="small"

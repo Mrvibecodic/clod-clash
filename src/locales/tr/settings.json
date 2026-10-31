@@ -578,7 +578,8 @@
       "dialog": {
         "title": "DNS Üzerine Yazma",
         "note": "Abonelik değerleri gösteriliyor. Yalnızca farklarınız kaydedilir — gerisi aboneliği izler. Emin değilseniz değiştirmeyin.",
-        "fakeIpIdle": "Etkisiz: redir-host modu seçili"
+        "fakeIpIdle": "Etkisiz: redir-host modu seçili",
+        "yamlNote": "Metin modunda yalnızca dns ve hosts blokları kaydedilir, yorumlar kaydedilmez."
       },
       "sections": {
         "behavior": "Davranış"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "onlyDnsAndHosts": "Yalnızca dns ve hosts kaydedilir — kaldırın: {{keys}}"
       },
       "options": {
         "filterMode": {

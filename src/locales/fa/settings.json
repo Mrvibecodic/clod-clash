@@ -578,7 +578,8 @@
       "dialog": {
         "title": "بازنویسی DNS",
         "note": "مقادیر اشتراک نمایش داده شده است. فقط تفاوت‌های شما ذخیره می‌شود و بقیه از اشتراک پیروی می‌کند. اگر مطمئن نیستید، تغییر ندهید.",
-        "fakeIpIdle": "بی‌اثر: حالت redir-host انتخاب شده است"
+        "fakeIpIdle": "بی‌اثر: حالت redir-host انتخاب شده است",
+        "yamlNote": "در حالت متن فقط بخش‌های dns و hosts ذخیره می‌شوند، بدون توضیحات."
       },
       "sections": {
         "behavior": "رفتار"
@@ -647,7 +648,8 @@
       },
       "errors": {
         "invalid": "پیکربندی نامعتبر",
-        "invalidYaml": "قالب YAML نامعتبر است"
+        "invalidYaml": "قالب YAML نامعتبر است",
+        "onlyDnsAndHosts": "فقط dns و hosts ذخیره می‌شوند — حذف کنید: {{keys}}"
       },
       "options": {
         "filterMode": {
