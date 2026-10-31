@@ -632,14 +632,6 @@ pub async fn rearm_after_wake() {
         );
         return;
     }
-    if was_suppressed && !rights_have_arrived() && !rearm_cooldown_expired() {
-        logging!(
-            info,
-            Type::Core,
-            "TUN stays down after the wake-up: the pause since the last attempt is not over"
-        );
-        return;
-    }
     if was_suppressed {
         clear_suppression();
     }
