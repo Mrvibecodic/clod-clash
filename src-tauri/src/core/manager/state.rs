@@ -413,9 +413,6 @@ impl CoreManager {
 
 async fn after_core_came_back(reason: &str) -> bool {
     handle::Handle::refresh_clash();
-    if let Err(e) = crate::core::tray::Tray::global().update_menu().await {
-        logging!(warn, Type::Core, "failed to refresh the tray after a restart: {}", e);
-    }
     if handle::Handle::global().is_exiting()
         || matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning)
     {
@@ -1486,5 +1483,9 @@ mod health_tests {
         let body = crate::utils::source_scan::fn_body(source, "async fn after_core_came_back").unwrap_or_default();
         assert!(!body.is_empty(), "тело after_core_came_back не найдено — тест ослеп");
         assert!(!body.contains("enforce_undesired_off"), "{body}");
+        assert!(
+            !body.contains("update_menu"),
+            "меню рисует возврат выбора узлов в new_core_is_up: {body}"
+        );
     }
 }

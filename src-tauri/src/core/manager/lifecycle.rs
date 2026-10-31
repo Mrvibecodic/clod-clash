@@ -209,6 +209,9 @@ enum HandoffOutcome {
 
 impl CoreManager {
     pub async fn start_core(&self) -> Result<()> {
+        defer! {
+            self.after_core_process();
+        }
         let _life = self.lifecycle_lock.lock().await;
         self.start_core_inner().await
     }
@@ -216,6 +219,9 @@ impl CoreManager {
     /// После отменённого выхода: пережившее остановку ядро снова рабочее, а
     /// если его тем временем не стало — поднимается заново.
     pub async fn resume_after_a_cancelled_exit(&self) -> Result<()> {
+        defer! {
+            self.after_core_process();
+        }
         let _life = self.lifecycle_lock.lock().await;
         // Пока шёл выход, смерть процесса никто не засчитывал: возвращать
         // можно только ядро, которое всё ещё в таблице процессов, — и именно
@@ -230,7 +236,6 @@ impl CoreManager {
             self.note_core_is_down();
         }
         if self.take_the_core_back() {
-            self.after_core_process();
             return Ok(());
         }
         self.start_core_inner().await
@@ -245,7 +250,6 @@ impl CoreManager {
         }
         self.take_the_core_back();
         self.watch_the_core_again_locked();
-        self.after_core_process();
         anyhow::bail!("{}", clash_verge_i18n::t!("core.previousStillRunning"))
     }
 
@@ -277,7 +281,6 @@ impl CoreManager {
         self.mark_starting();
         defer! {
             self.clear_starting();
-            self.after_core_process();
         }
         self.prepare_startup().await;
 
@@ -620,6 +623,9 @@ impl CoreManager {
     }
 
     pub async fn stop_core(&self) -> Result<()> {
+        defer! {
+            self.after_core_process();
+        }
         let _life = self.lifecycle_lock.lock().await;
         self.stop_core_inner().await
     }
@@ -666,9 +672,6 @@ impl CoreManager {
     /// Вызывающий должен уже удерживать `lifecycle_lock`.
     async fn stop_core_inner(&self) -> Result<()> {
         CLASH_LOGGER.clear_logs().await;
-        defer! {
-            self.after_core_process();
-        }
 
         match *self.get_running_mode() {
             RunningMode::Service => self.stop_core_by_service().await,
@@ -701,6 +704,9 @@ impl CoreManager {
         if Handle::global().is_exiting() {
             anyhow::bail!("{}", clash_verge_i18n::t!("common.exitInProgress"));
         }
+        defer! {
+            self.after_core_process();
+        }
         // Блокировка удерживается на весь stop+start, чтобы избежать вклинивания
         // других операций жизненного цикла.
         let _life = self.lifecycle_lock.lock().await;
@@ -726,6 +732,9 @@ impl CoreManager {
         swap: impl AsyncFnOnce() -> Result<()>,
         rollback: impl AsyncFnOnce() -> Result<()>,
     ) -> Result<()> {
+        defer! {
+            self.after_core_process();
+        }
         // clod:Э3-03 — подмена сборки тоже меняет ядро под ногами у применения
         // конфига: ждёт своей очереди.
         let Some(_turn) = self.queue_for_config_update().await else {
@@ -883,6 +892,9 @@ impl CoreManager {
         ));
     }
 
+    /// Трей и окно — по итогу операции с ядром. Зовётся отложенно, объявленным
+    /// раньше замка и паузы: под паузой ядро числится запускаемым, и показ,
+    /// сделанный до её снятия, не увидел бы, что ядра нет.
     pub(super) fn after_core_process(&self) {
         if Handle::global().is_exiting() {
             return;
@@ -1132,6 +1144,11 @@ impl CoreManager {
 
     /// После готовности службы останавливает sidecar и перезапускает ядро через service
     async fn try_handoff_sidecar_to_service(&self, reason: HandoffReason) -> HandoffOutcome {
+        let mut touched = scopeguard::guard(false, |touched| {
+            if touched {
+                self.after_core_process();
+            }
+        });
         if let Some(outcome) = self.handoff_is_out_of_reach().await {
             return outcome;
         }
@@ -1160,6 +1177,7 @@ impl CoreManager {
             Type::Core,
             "service became ready; handing off from sidecar to service"
         );
+        *touched = true;
         if let Err(error) = self.stop_core_by_sidecar().await {
             logging!(warn, Type::Core, "handoff aborted: {error:#}");
             return HandoffOutcome::Failed;
@@ -1419,6 +1437,85 @@ mod tests {
             follow_up.contains("spawn_start_verification(") && follow_up.contains("enforce_undesired_off()"),
             "{follow_up}"
         );
+    }
+
+    fn position(body: &str, what: &str) -> usize {
+        let found = body.find(what);
+        assert!(found.is_some(), "{what} не найдено — тест ослеп: {body}");
+        found.unwrap_or_default()
+    }
+
+    /// Показ отложен и объявлен раньше замка и паузы: снимаются они раньше него.
+    /// Под паузой ядро числится запускаемым, и показ после неудачного
+    /// перезапуска иначе мог бы не увидеть, что ядра нет.
+    #[test]
+    fn each_operation_on_the_core_draws_once_after_its_locks_are_released() {
+        for (signature, locks) in [
+            ("pub async fn start_core(", &["lifecycle_lock.lock()"][..]),
+            ("pub async fn stop_core(", &["lifecycle_lock.lock()"]),
+            (
+                "pub async fn resume_after_a_cancelled_exit(",
+                &["lifecycle_lock.lock()"],
+            ),
+            (
+                "pub(super) async fn restart_core_during_config_update(",
+                &["lifecycle_lock.lock()", "planned_pause()"],
+            ),
+            (
+                "pub async fn restart_core_swapped(",
+                &["queue_for_config_update()", "lifecycle_lock.lock()", "planned_pause()"],
+            ),
+        ] {
+            let body = production_body(signature);
+            assert_eq!(body.matches("after_core_process()").count(), 1, "{signature}: {body}");
+            let draw = position(body, "after_core_process()");
+            let deferred = body[..draw].rfind("defer!").unwrap_or(draw);
+            assert!(
+                deferred < draw && !body[deferred..draw].contains(';'),
+                "{signature}: показ не отложен"
+            );
+            for lock in locks {
+                assert!(draw < position(body, lock), "{signature}: показ объявлен после {lock}");
+            }
+        }
+        for inner in [
+            "async fn start_core_inner(",
+            "async fn stop_core_inner(",
+            "fn keep_the_core_that_would_not_stop(",
+        ] {
+            let body = production_body(inner);
+            assert!(!body.contains("after_core_process"), "{inner} рисует сам: {body}");
+        }
+    }
+
+    /// Передача, тронувшая ядро, показывает итог после своих замков: и значок
+    /// ядра, перешедшего к службе, и ядро, которое не поднялось ни под службой,
+    /// ни своим процессом. Сторож передачи, не дошедший до ядра, не рисует.
+    #[test]
+    fn a_handoff_that_touched_the_core_draws_after_its_locks() {
+        let body = production_body("async fn try_handoff_sidecar_to_service(");
+        let draw = position(body, "after_core_process()");
+        assert!(body[..draw].contains("if touched"), "{body}");
+        for lock in [
+            "handoff_is_out_of_reach()",
+            "claim_config_update()",
+            "lifecycle_lock.lock()",
+            "planned_pause()",
+        ] {
+            assert!(draw < position(body, lock), "показ объявлен после {lock}");
+        }
+        assert_eq!(body.matches("*touched = true;").count(), 1, "{body}");
+        let armed = position(body, "*touched = true;");
+        assert!(position(body, "planned_pause()") < armed, "{body}");
+        for touch in [
+            "stop_core_by_sidecar()",
+            "start_and_confirm(true)",
+            "roll_back_to_sidecar()",
+        ] {
+            assert!(armed < position(body, touch), "ядро тронуто до взвода: {touch}");
+        }
+        let roll_back = production_body("async fn roll_back_to_sidecar(");
+        assert!(!roll_back.contains("after_core_process"), "{roll_back}");
     }
 
     #[test]
