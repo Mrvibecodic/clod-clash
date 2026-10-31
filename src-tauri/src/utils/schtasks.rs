@@ -12,7 +12,8 @@ const TASK_NAME_USER: &str = "Clod Clash";
 const TASK_NAME_ADMIN: &str = "Clod Clash (Admin)";
 /// Прежние имена задач — те же, что у Clash Verge Rev: убираем только задачу,
 /// которая запускает именно наш exe.
-const LEGACY_TASK_NAMES: [&str; 2] = ["Clash Verge", "Clash Verge (Admin)"];
+const LEGACY_ADMIN_TASK_NAME: &str = "Clash Verge (Admin)";
+const LEGACY_TASK_NAMES: [&str; 2] = ["Clash Verge", LEGACY_ADMIN_TASK_NAME];
 const TASK_XML_DIR: &str = "tasks";
 const TASK_XML_USER: &str = "clash-verge-task-user.xml";
 const TASK_XML_ADMIN: &str = "clash-verge-task-admin.xml";
@@ -101,10 +102,16 @@ fn launches(command: &str, exe: &Path) -> bool {
 
 /// Задачи под прежними именами, которые запускают наш exe, — снять: теперь
 /// автозапуск под своими именами, а чужую задачу с тем же именем не трогаем.
-fn drop_our_legacy_tasks() {
+///
+/// Задачу администратора снять может только процесс с правами, а обновление
+/// перезапускает приложение без них. Ответ — осталась ли наша прежняя задача
+/// администратора: для автозапуска без прав она та же задача администратора,
+/// что и под новым именем.
+fn drop_our_legacy_tasks() -> bool {
     let Ok(exe) = get_exe_path() else {
-        return;
+        return false;
     };
+    let mut admin_task_left = false;
     for name in LEGACY_TASK_NAMES {
         let Ok(output) = schtasks_output({
             let mut cmd = Command::new("schtasks");
@@ -127,19 +134,26 @@ fn drop_our_legacy_tasks() {
             Ok(deleted) if deleted.status.success() => {
                 logging!(info, Type::Setup, "Removed the legacy auto-launch task {name}");
             }
-            Ok(deleted) => logging!(
-                warn,
-                Type::Setup,
-                "The legacy auto-launch task {name} was not removed: {}",
-                output_message(&deleted)
-            ),
-            Err(err) => logging!(
-                warn,
-                Type::Setup,
-                "The legacy auto-launch task {name} was not removed: {err}"
-            ),
+            Ok(deleted) => {
+                admin_task_left |= name == LEGACY_ADMIN_TASK_NAME;
+                logging!(
+                    warn,
+                    Type::Setup,
+                    "The legacy auto-launch task {name} was not removed: {}",
+                    output_message(&deleted)
+                );
+            }
+            Err(err) => {
+                admin_task_left |= name == LEGACY_ADMIN_TASK_NAME;
+                logging!(
+                    warn,
+                    Type::Setup,
+                    "The legacy auto-launch task {name} was not removed: {err}"
+                );
+            }
         }
     }
+    admin_task_left
 }
 
 fn task_xml_path(mode: TaskMode) -> Result<PathBuf> {
@@ -360,13 +374,13 @@ pub async fn set_auto_launch(is_enable: bool, is_admin: bool) -> Result<()> {
     // задач — вызовы тянутся секундами. Они идут в отдельном потоке и не
     // занимают рабочие, которые отвечают окну.
     tokio::task::spawn_blocking(move || {
-        drop_our_legacy_tasks();
-        apply_auto_launch(is_enable, is_admin)
+        let legacy_admin_task_left = drop_our_legacy_tasks();
+        apply_auto_launch(is_enable, is_admin, legacy_admin_task_left)
     })
     .await?
 }
 
-fn apply_auto_launch(is_enable: bool, is_admin: bool) -> Result<()> {
+fn apply_auto_launch(is_enable: bool, is_admin: bool, legacy_admin_task_left: bool) -> Result<()> {
     let target = if is_admin { TaskMode::Admin } else { TaskMode::User };
     let other = if is_admin { TaskMode::User } else { TaskMode::Admin };
 
@@ -378,7 +392,7 @@ fn apply_auto_launch(is_enable: bool, is_admin: bool) -> Result<()> {
                 return Err(err);
             }
         } else {
-            if is_task_enabled(other)? {
+            if legacy_admin_task_left || is_task_enabled(other)? {
                 return Err(anyhow!(
                     "clod-autostart-admin-task: an administrator auto-launch task exists; run the app as administrator to remove it"
                 ));
@@ -405,7 +419,7 @@ fn apply_auto_launch(is_enable: bool, is_admin: bool) -> Result<()> {
     }
 
     remove_task(TaskMode::User)?;
-    if is_task_enabled(TaskMode::Admin)? {
+    if legacy_admin_task_left || is_task_enabled(TaskMode::Admin)? {
         return Err(anyhow!(
             "clod-autostart-admin-task: an administrator auto-launch task exists; run the app as administrator to remove it"
         ));
