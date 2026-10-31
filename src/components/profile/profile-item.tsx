@@ -1019,6 +1019,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           mergeUid={option?.merge ?? ''}
           proxiesUid={option?.proxies ?? ''}
           profileUid={uid}
+          updated={updated}
           property={option?.groups ?? ''}
           open={true}
           onClose={() => {

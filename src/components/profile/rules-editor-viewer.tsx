@@ -61,6 +61,7 @@ import { readEachFile } from '@/utils/profile-files'
 import { BUILTIN_RULE_POLICIES } from '@/utils/proxy-groups'
 import { isBuiltinPolicy, policyName, ruleTypeName } from '@/utils/rule-labels'
 import { isNetwork, isPortList, normalizeNetwork } from '@/utils/rule-values'
+import { applySeq } from '@/utils/seq-apply'
 import { EMPTY_SEQ_LISTS } from '@/utils/seq-unsaved'
 import { parseYamlSafe } from '@/utils/yaml'
 
@@ -557,57 +558,30 @@ export const RulesEditorViewer = (props: Props) => {
     } = await readEachFile([profileUid, groupsUid, mergeUid], readProfileFile)
     setReadFailure(failure)
 
-    const rulesObj = parseYamlSafe(data) as { rules: [] } | null
-
-    const originGroupsObj = parseYamlSafe(data) as {
-      'proxy-groups': IProxyGroupConfig[]
+    const origin = parseYamlSafe(data) as {
+      rules?: string[]
+      'proxy-groups'?: IProxyGroupConfig[]
+      'rule-providers'?: Record<string, unknown>
+      'sub-rules'?: Record<string, unknown>
     } | null
-    const originGroups = originGroupsObj?.['proxy-groups'] || []
-    const moreGroupsObj = parseYamlSafe(groupsData) as ISeqProfileConfig | null
-    const rawPrependGroups = moreGroupsObj?.['prepend']
-    const morePrependGroups = Array.isArray(rawPrependGroups)
-      ? (rawPrependGroups as IProxyGroupConfig[])
-      : []
-    const rawAppendGroups = moreGroupsObj?.['append']
-    const moreAppendGroups = Array.isArray(rawAppendGroups)
-      ? (rawAppendGroups as IProxyGroupConfig[])
-      : []
-    const rawDeleteGroups = moreGroupsObj?.['delete']
-    const moreDeleteGroups: Array<string | { name: string }> = Array.isArray(
-      rawDeleteGroups,
+    const merge = parseYamlSafe(mergeData) as {
+      'rule-providers'?: Record<string, unknown>
+      'sub-rules'?: Record<string, unknown>
+    } | null
+    const groups = applySeq(
+      origin?.['proxy-groups'] || [],
+      parseYamlSafe(groupsData),
     )
-      ? (rawDeleteGroups as Array<string | { name: string }>)
-      : []
-    const groups = morePrependGroups.concat(
-      originGroups.filter((group: any) => {
-        if (group.name) {
-          return !moreDeleteGroups.includes(group.name)
-        } else {
-          return !moreDeleteGroups.includes(group)
-        }
-      }),
-      moreAppendGroups,
+    const ruleSet = Object.assign(
+      {},
+      origin?.['rule-providers'] || {},
+      merge?.['rule-providers'] || {},
     )
-
-    const originRuleSetObj = parseYamlSafe(data) as {
-      'rule-providers': Record<string, unknown>
-    } | null
-    const originRuleSet = originRuleSetObj?.['rule-providers'] || {}
-    const moreRuleSetObj = parseYamlSafe(mergeData) as {
-      'rule-providers': Record<string, unknown>
-    } | null
-    const moreRuleSet = moreRuleSetObj?.['rule-providers'] || {}
-    const ruleSet = Object.assign({}, originRuleSet, moreRuleSet)
-
-    const originSubRuleObj = parseYamlSafe(data) as {
-      'sub-rules': Record<string, unknown>
-    } | null
-    const originSubRule = originSubRuleObj?.['sub-rules'] || {}
-    const moreSubRuleObj = parseYamlSafe(mergeData) as {
-      'sub-rules': Record<string, unknown>
-    } | null
-    const moreSubRule = moreSubRuleObj?.['sub-rules'] || {}
-    const subRule = Object.assign({}, originSubRule, moreSubRule)
+    const subRule = Object.assign(
+      {},
+      origin?.['sub-rules'] || {},
+      merge?.['sub-rules'] || {},
+    )
     // Группы подписки — первыми: список политик показывает их под своим
     // заголовком, а встроенные — под своим.
     setProxyPolicyList(
@@ -617,7 +591,7 @@ export const RulesEditorViewer = (props: Props) => {
     )
     setRuleSetList(Object.keys(ruleSet))
     setSubRuleList(Object.keys(subRule))
-    setRuleList(rulesObj?.rules || [])
+    setRuleList(origin?.rules || [])
   }, [groupsUid, mergeUid, profileUid])
 
   useEffect(() => {

@@ -57,6 +57,7 @@ export const useSeqDocument = <T>(
   // нетронутого наглядного вида.
   const [cleanText, setCleanText] = useState('')
 
+  /** Разобранный документ; `undefined` — сломан, списки не тронуты. */
   const applyText = useCallback(
     (input: string) => {
       const parsed = readSeqConfig(input, isItem)
@@ -64,12 +65,12 @@ export const useSeqDocument = <T>(
         showNotice.error(
           'profiles.page.feedback.notifications.editorBrokenYaml',
         )
-        return false
+        return undefined
       }
       setPrependSeq(toList<T>(parsed?.prepend))
       setAppendSeq(toList<T>(parsed?.append))
       setDeleteSeq(readDelete(parsed?.delete))
-      return true
+      return parsed
     },
     [isItem, readDelete],
   )
@@ -82,7 +83,7 @@ export const useSeqDocument = <T>(
         if (cancelled) return
         setText(data)
         setCleanText(data)
-        const parsed = applyText(data) ? readSeqConfig(data, isItem) : undefined
+        const parsed = applyText(data)
         setVisualization(parsed !== undefined)
         setBaseline(
           parsed === undefined
@@ -103,7 +104,7 @@ export const useSeqDocument = <T>(
     return () => {
       cancelled = true
     }
-  }, [applyText, isItem, open, property, readDelete])
+  }, [applyText, open, property, readDelete])
 
   const dump = (prepend = prependSeq, append = appendSeq) =>
     yaml.dump({ prepend, append, delete: deleteSeq }, { forceQuotes: true })
@@ -125,7 +126,7 @@ export const useSeqDocument = <T>(
       setText(dumped)
       if (!seqDirty) setCleanText(dumped)
       setVisualization(false)
-    } else if (applyText(text)) {
+    } else if (applyText(text) !== undefined) {
       setVisualization(true)
     }
   }

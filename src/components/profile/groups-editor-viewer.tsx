@@ -56,6 +56,11 @@ import type { EditorReadFailure } from '@/utils/editor-save'
 import { optionalInt } from '@/utils/optional-int'
 import { readEachFile } from '@/utils/profile-files'
 import { BUILTIN_GROUP_POLICIES } from '@/utils/proxy-groups'
+import {
+  groupPolicyOptions,
+  groupsEditorSource,
+  seqDeleteNames,
+} from '@/utils/seq-apply'
 import { seqNameConflict, takenSeqNames } from '@/utils/seq-names'
 import { parseYamlSafe } from '@/utils/yaml'
 
@@ -63,6 +68,8 @@ interface Props {
   proxiesUid: string
   mergeUid: string
   profileUid: string
+  /** Когда подписку последний раз обновили: файл с диска перечитывается. */
+  updated: number
   property: string
   open: boolean
   onClose: () => void
@@ -86,33 +93,10 @@ const PROXY_POLICY_LABEL_KEYS: Record<string, TranslationKey> =
     {} as Record<string, TranslationKey>,
   )
 
-const normalizeDeleteSeq = (input?: unknown): string[] => {
-  if (!Array.isArray(input)) {
-    return []
-  }
-
-  const names = input
-    .map((item) => {
-      if (typeof item === 'string') {
-        return item
-      }
-
-      if (
-        item &&
-        typeof item === 'object' &&
-        'name' in item &&
-        typeof (item as { name: unknown }).name === 'string'
-      ) {
-        return (item as { name: string }).name
-      }
-
-      return undefined
-    })
-    .filter(
-      (name): name is string => typeof name === 'string' && name.length > 0,
-    )
-
-  return Array.from(new Set(names))
+const EMPTY_SOURCE: ReturnType<typeof groupsEditorSource> = {
+  groups: [],
+  providers: [],
+  proxyNames: [],
 }
 
 const isGroup = (item: unknown) =>
@@ -122,7 +106,8 @@ const isGroup = (item: unknown) =>
 const GROUP_INTERVAL_MAX = 86400
 
 export const GroupsEditorViewer = (props: Props) => {
-  const { mergeUid, proxiesUid, profileUid, property, open, onClose } = props
+  const { mergeUid, proxiesUid, profileUid, updated, property, open, onClose } =
+    props
   const { t } = useTranslation()
   const translateStrategy = useCallback(
     (value: string) =>
@@ -156,7 +141,7 @@ export const GroupsEditorViewer = (props: Props) => {
     save,
   } = useSeqDocument<IProxyGroupConfig>(property, open, {
     isItem: isGroup,
-    readDelete: normalizeDeleteSeq,
+    readDelete: seqDeleteNames,
   })
   const [match, setMatch] = useState(() => (_: string) => true)
   const [interfaceNameList, setInterfaceNameList] = useState<string[]>([])
@@ -170,14 +155,25 @@ export const GroupsEditorViewer = (props: Props) => {
       lazy: true,
     },
   })
-  const [groupList, setGroupList] = useState<IProxyGroupConfig[]>([])
-  const [proxyPolicyList, setProxyPolicyList] = useState<string[]>([])
-  const [proxyNameList, setProxyNameList] = useState<string[]>([])
-  const [proxyProviderList, setProxyProviderList] = useState<string[]>([])
-  const [profileReadFailure, setProfileReadFailure] =
-    useState<EditorReadFailure | null>(null)
-  const [policyReadFailure, setPolicyReadFailure] =
-    useState<EditorReadFailure | null>(null)
+  const [source, setSource] = useState(EMPTY_SOURCE)
+  const {
+    groups: groupList,
+    providers: proxyProviderList,
+    proxyNames: proxyNameList,
+  } = source
+  const proxyPolicyList = useMemo(
+    () =>
+      groupPolicyOptions({
+        builtin: BUILTIN_GROUP_POLICIES,
+        prepend: prependSeq,
+        origin: groupList,
+        deleted: deleteSeq,
+        append: appendSeq,
+        proxies: proxyNameList,
+      }),
+    [prependSeq, groupList, deleteSeq, appendSeq, proxyNameList],
+  )
+  const [readFailure, setReadFailure] = useState<EditorReadFailure | null>(null)
 
   const filteredPrependSeq = useMemo(
     () => prependSeq.filter((group) => match(group.name)),
@@ -326,96 +322,33 @@ export const GroupsEditorViewer = (props: Props) => {
       }
     }
   }
-  const fetchProxyPolicy = useCallback(async () => {
-    const {
-      texts: [data, proxiesData],
-      failure,
-    } = await readEachFile([profileUid, proxiesUid], readProfileFile)
-    setPolicyReadFailure(failure)
-    const originGroupsObj = parseYamlSafe(data) as {
-      'proxy-groups': IProxyGroupConfig[]
-    } | null
-
-    const originProxiesObj = parseYamlSafe(data) as { proxies: [] } | null
-    const originProxies = originProxiesObj?.proxies || []
-    const moreProxiesObj = parseYamlSafe(
-      proxiesData,
-    ) as ISeqProfileConfig | null
-    const morePrependProxies = moreProxiesObj?.prepend || []
-    const moreAppendProxies = moreProxiesObj?.append || []
-    const moreDeleteProxies = normalizeDeleteSeq(moreProxiesObj?.delete)
-
-    const proxies = morePrependProxies.concat(
-      originProxies.filter((proxy: any) => {
-        const proxyName =
-          typeof proxy === 'string'
-            ? proxy
-            : (proxy?.name as string | undefined)
-        return proxyName ? !moreDeleteProxies.includes(proxyName) : true
-      }),
-      moreAppendProxies,
-    )
-
-    const proxyNames = proxies
-      .map((proxy: any) =>
-        typeof proxy === 'string' ? proxy : (proxy?.name as string | undefined),
-      )
-      .filter(
-        (name): name is string => typeof name === 'string' && name.length > 0,
-      )
-
-    const computedPolicyList = BUILTIN_GROUP_POLICIES.concat(
-      prependSeq.map((group: IProxyGroupConfig) => group.name),
-      (originGroupsObj?.['proxy-groups'] || [])
-        .map((group: IProxyGroupConfig) => group.name)
-        .filter((name) => !deleteSeq.includes(name)),
-      appendSeq.map((group: IProxyGroupConfig) => group.name),
-      proxyNames,
-    )
-
-    setProxyPolicyList(Array.from(new Set(computedPolicyList)))
-    setProxyNameList(proxyNames)
-  }, [appendSeq, deleteSeq, prependSeq, profileUid, proxiesUid])
-  const fetchProfile = useCallback(async () => {
-    const {
-      texts: [data, mergeData],
-      failure,
-    } = await readEachFile([profileUid, mergeUid], readProfileFile)
-    setProfileReadFailure(failure)
-
-    const originGroupsObj = parseYamlSafe(data) as {
-      'proxy-groups': IProxyGroupConfig[]
-    } | null
-
-    const originProviderObj = parseYamlSafe(data) as {
-      'proxy-providers': Record<string, unknown>
-    } | null
-    const originProvider = originProviderObj?.['proxy-providers'] || {}
-
-    const moreProviderObj = parseYamlSafe(mergeData) as {
-      'proxy-providers': Record<string, unknown>
-    } | null
-    const moreProvider = moreProviderObj?.['proxy-providers'] || {}
-
-    const provider = Object.assign({}, originProvider, moreProvider)
-
-    setProxyProviderList(Object.keys(provider))
-    setGroupList(originGroupsObj?.['proxy-groups'] || [])
-  }, [mergeUid, profileUid])
-  const getInterfaceNameList = useCallback(async () => {
-    const list = await getNetworkInterfaces()
-    setInterfaceNameList(list)
-  }, [])
+  // Подписка, её merge и правки узлов — одним чтением; заново, когда
+  // подписку обновили, пока окно открыто.
   useEffect(() => {
     if (!open) return
-    fetchProxyPolicy()
-  }, [fetchProxyPolicy, open])
+    let cancelled = false
+    void readEachFile([profileUid, mergeUid, proxiesUid], readProfileFile).then(
+      ({ texts: [data, mergeData, proxiesData], failure }) => {
+        if (cancelled) return
+        setReadFailure(failure)
+        setSource(
+          groupsEditorSource(
+            parseYamlSafe(data),
+            parseYamlSafe(mergeData),
+            parseYamlSafe(proxiesData),
+          ),
+        )
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [open, profileUid, mergeUid, proxiesUid, updated])
 
   useEffect(() => {
     if (!open) return
-    fetchProfile()
-    getInterfaceNameList()
-  }, [fetchProfile, getInterfaceNameList, open])
+    getNetworkInterfaces().then(setInterfaceNameList)
+  }, [open])
 
   useEffect(() => {
     return () => {
@@ -1088,7 +1021,7 @@ export const GroupsEditorViewer = (props: Props) => {
 
       <DialogActions>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <ReadFailureNote failure={profileReadFailure ?? policyReadFailure} />
+          <ReadFailureNote failure={readFailure} />
         </Box>
         <Button onClick={onClose} variant="outlined">
           {t('shared.actions.cancel')}
