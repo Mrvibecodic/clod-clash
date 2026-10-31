@@ -6,17 +6,46 @@ const FRONTEND_DIR = 'src'
 const FRONTEND_EXT = ['.ts', '.tsx']
 const ALLOWED = new Set([])
 
+// Список берётся целиком, до парной скобки: атрибут вроде `#[cfg(...)]`
+// внутри списка иначе обрывал бы его на своей `]`, и остаток молча не
+// проверялся. Каждый элемент обязан быть путём к функции — непонятное роняет
+// проверку, а не прячет команду.
 function registeredCommands() {
   const source = readFileSync(HANDLER_FILE, 'utf8')
-  const block = source.match(/generate_handler!\[([\s\S]*?)\]/)
-  if (!block) {
+  const opener = 'generate_handler!['
+  const start = source.indexOf(opener)
+  if (start < 0) {
     throw new Error(`generate_handler! не найден в ${HANDLER_FILE}`)
   }
-  return block[1]
-    .split('\n')
-    .map((line) => line.trim().replace(/,$/, ''))
-    .filter((line) => line && !line.startsWith('//') && !line.startsWith('#'))
-    .map((path) => path.split('::').pop())
+  let depth = 1
+  let end = start + opener.length
+  for (; end < source.length && depth > 0; end++) {
+    if (source[end] === '[') depth++
+    else if (source[end] === ']') depth--
+  }
+  if (depth !== 0) {
+    throw new Error(`список generate_handler! не закрыт в ${HANDLER_FILE}`)
+  }
+  const list = source
+    .slice(start + opener.length, end - 1)
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ')
+    .replace(/#\[[^\]]*\]/g, ' ')
+  const names = []
+  for (const item of list.split(',')) {
+    const path = item.trim()
+    if (!path) continue
+    if (!/^[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)*$/.test(path)) {
+      throw new Error(
+        `не разобран элемент generate_handler! в ${HANDLER_FILE}: ${path}`,
+      )
+    }
+    names.push(path.split('::').pop())
+  }
+  if (names.length === 0) {
+    throw new Error(`в generate_handler! не найдено ни одной команды`)
+  }
+  return names
 }
 
 function frontendFiles(dir) {
