@@ -55,8 +55,10 @@ async fn write_backup(zip_path: PathBuf) -> Result<(), Error> {
     zip.start_file(dirs::VERGE_CONFIG, options)?;
     zip.write_all(serde_yaml_ng::to_string(&verge_config)?.as_bytes())?;
 
+    let profiles = fs::read_to_string(dirs::profiles_path()?).await?;
+    let profiles = crate::feat::without_machine_marks(&profiles).unwrap_or(profiles);
     zip.start_file(dirs::PROFILE_YAML, options)?;
-    zip.write_all(fs::read(dirs::profiles_path()?).await?.as_slice())?;
+    zip.write_all(profiles.as_bytes())?;
     zip.finish()?;
     Ok(())
 }

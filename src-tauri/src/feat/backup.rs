@@ -113,7 +113,15 @@ fn stage_entries(archive: &Path, target: &Path, staged: &mut Vec<(PathBuf, PathB
         let staging = crate::utils::help::staging_path(&destination);
         staged.push((staging.clone(), destination));
         let mut written = std::fs::File::create(&staging)?;
-        std::io::copy(&mut entry, &mut written)?;
+        if relative.as_os_str() == dirs::PROFILE_YAML {
+            // Копии прежних версий ещё несут поля подписок этой машины.
+            let mut text = std::string::String::new();
+            std::io::Read::read_to_string(&mut entry, &mut text)?;
+            let text = without_machine_marks(&text).unwrap_or(text);
+            std::io::Write::write_all(&mut written, text.as_bytes())?;
+        } else {
+            std::io::copy(&mut entry, &mut written)?;
+        }
         written.sync_all()?;
     }
     Ok(())
@@ -121,6 +129,7 @@ fn stage_entries(archive: &Path, target: &Path, staged: &mut Vec<(PathBuf, PathB
 
 pub(crate) const MACHINE_LOCAL_KEYS: &[&str] = &[
     "hwid",
+    "proxy_host",
     "tun_setup_declined",
     "startup_script",
     "common_tray_icon",
@@ -135,6 +144,29 @@ pub(crate) const MACHINE_LOCAL_KEYS: &[&str] = &[
     "tun_window_defaults_unpinned",
     "core_default_moved",
 ];
+
+/// Поля подписки, которые знает только эта машина: вердикт панели об этом
+/// устройстве, расхождение его часов с панелью, показанные им напоминания и
+/// исход его последнего обновления. Новая машина узнает свои при первом же
+/// обновлении подписки.
+const MACHINE_LOCAL_PROFILE_KEYS: &[&str] = &["hwid_state", "clock_skew", "clock_skew_at", "notified", "update_failed"];
+
+/// Реестр подписок без полей этой машины; `None` — текст не разобрался, и
+/// его место — как есть.
+pub(crate) fn without_machine_marks(profiles: &str) -> Option<std::string::String> {
+    let mut profiles = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(profiles).ok()?;
+    if let Some(items) = profiles
+        .get_mut("items")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+    {
+        for item in items.iter_mut().filter_map(serde_yaml_ng::Value::as_mapping_mut) {
+            for key in MACHINE_LOCAL_PROFILE_KEYS {
+                item.remove(*key);
+            }
+        }
+    }
+    serde_yaml_ng::to_string(&profiles).ok()
+}
 
 type Settings = serde_json::Map<std::string::String, serde_json::Value>;
 
@@ -504,6 +536,28 @@ mod tests {
     }
 
     #[test]
+    fn a_restored_registry_comes_without_the_old_machines_marks() {
+        let dir = std::env::temp_dir().join(format!("clod-restore-marks-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(std::fs::create_dir_all(&dir).is_ok());
+        let archive = dir.join("backup.zip");
+        let entries = [(
+            "profiles.yaml",
+            "items:\n- uid: a\n  hwid_state: limit\n  update_failed: true\n",
+        )];
+
+        assert!(write_archive(&archive, &entries, None).is_ok());
+        assert!(unpack(&archive, &dir).is_ok());
+        let restored = read(&dir.join("profiles.yaml"));
+        assert!(restored.contains("uid: a"), "{restored}");
+        assert!(
+            !restored.contains("hwid_state") && !restored.contains("update_failed"),
+            "{restored}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_restore_that_cannot_read_everything_touches_nothing() {
         let dir = std::env::temp_dir().join(format!("clod-restore-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -569,6 +623,7 @@ mod tests {
     fn this_machine() -> IVerge {
         IVerge {
             hwid: Some("this-machine".into()),
+            proxy_host: Some("127.0.0.1".into()),
             tun_setup_declined: Some("0.1.10".into()),
             startup_script: Some("/home/me/up.sh".into()),
             common_tray_icon: Some(true),
@@ -590,6 +645,7 @@ mod tests {
     fn the_other_machine() -> IVerge {
         IVerge {
             hwid: Some("their-machine".into()),
+            proxy_host: Some("192.168.50.7".into()),
             tun_setup_declined: Some("0.1.4".into()),
             startup_script: Some("C:\\Users\\them\\up.cmd".into()),
             common_tray_icon: Some(false),
@@ -670,7 +726,21 @@ mod tests {
         let restored = restored_here(&the_other_machine(), &this_machine());
 
         assert_eq!(restored.hwid.as_deref(), Some("this-machine"));
+        assert_eq!(restored.proxy_host.as_deref(), Some("127.0.0.1"));
         assert_eq!(restored.tun_setup_declined.as_deref(), Some("0.1.10"));
+    }
+
+    #[test]
+    fn the_subscriptions_lose_what_only_the_old_machine_knew() {
+        let profiles = "current: a\nitems:\n- uid: a\n  name: sub\n  hwid_state: limit\n  clock_skew: 40\n  clock_skew_at: 1700000000\n  notified:\n    expire-3: 1700000000\n  update_failed: true\n  not_applied: true\n  promo_seen: true\n";
+        let cleaned = super::without_machine_marks(profiles).unwrap_or_default();
+        for key in ["hwid_state", "clock_skew", "notified", "update_failed"] {
+            assert!(!cleaned.contains(key), "{key} stayed: {cleaned}");
+        }
+        for kept in ["current: a", "name: sub", "not_applied: true", "promo_seen: true"] {
+            assert!(cleaned.contains(kept), "{kept} was lost: {cleaned}");
+        }
+        assert!(super::without_machine_marks("items: [unclosed").is_none());
     }
 
     #[test]
@@ -702,14 +772,14 @@ mod tests {
 
     #[test]
     fn hand_written_values_are_read_the_way_the_settings_file_reads_them() {
-        let archived = "proxy_host: 123\nlanguage: 1.10\nenv_type: 0x10\n";
+        let archived = "pac_file_content: 123\nlanguage: 1.10\nenv_type: 0x10\n";
         let direct = serde_yaml_ng::from_str::<IVerge>(archived).unwrap_or_default();
         let restored = restored_settings(archived, machine_local_of(&this_machine()).unwrap_or_default());
 
         assert!(restored.is_ok(), "{restored:?}");
         let restored = restored.unwrap_or_default();
-        assert_eq!(direct.proxy_host.as_deref(), Some("123"));
-        assert_eq!(restored.proxy_host, direct.proxy_host);
+        assert_eq!(direct.pac_file_content.as_deref(), Some("123"));
+        assert_eq!(restored.pac_file_content, direct.pac_file_content);
         assert_eq!(restored.language.as_deref(), Some("1.10"));
         assert_eq!(restored.env_type.as_deref(), Some("0x10"));
     }
