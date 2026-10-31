@@ -980,23 +980,21 @@ impl std::fmt::Display for ServiceRefusedTheBundle {
 
 impl std::error::Error for ServiceRefusedTheBundle {}
 
-/// Ключи конфига, изменение которых требует пересоздания inbound-листенеров
-/// (`PUT /configs?force=true`). Всё остальное mihomo применяет мягко.
+/// Ключи конфига, которые mihomo применяет только под `PUT /configs?force=true`
+/// (`updateListeners`). Остальное — в том числе `tun`, `listeners`, `ipv6` и
+/// `authentication` — ядро применяет и мягко. Лишний `force` соединений не рвёт:
+/// слушатель с прежним адресом ядро не пересоздаёт.
 const LISTENER_KEYS: &[&str] = &[
     "mixed-port",
     "socks-port",
     "port",
     "redir-port",
     "tproxy-port",
-    "tun",
     "allow-lan",
     "bind-address",
     "lan-allowed-ips",
     "lan-disallowed-ips",
-    "authentication",
     "skip-auth-prefixes",
-    "listeners",
-    "ipv6",
     // clod:e3-05 — mihomo пересоздаёт эти inbound-ы только под `force`.
     "ss-config",
     "vmess-config",
@@ -1019,10 +1017,6 @@ fn inbound_options_changed(prev: Option<&serde_yaml_ng::Mapping>, next: &serde_y
         .any(|key| on(prev, key) != on(Some(next), key))
 }
 
-/// clod: сравнить «слушающую» часть двух runtime-конфигов.
-///
-/// `prev` — конфиг, применённый в прошлый раз; `None` (первый запуск) всегда
-/// означает полный reload.
 /// clod:port-ladder — адрес системного прокси обязан совпадать с портом,
 /// который ядро подтвердило. Если порт не менялся, запись сама себя
 /// пропускает; если прокси выключен, не трогаем ничего.
@@ -1067,6 +1061,10 @@ fn controller_changed(prev: Option<&serde_yaml_ng::Mapping>, next: &serde_yaml_n
     changed("external-controller") || (listening && (changed("secret") || changed("external-controller-cors")))
 }
 
+/// clod: сравнить «слушающую» часть двух runtime-конфигов.
+///
+/// `prev` — конфиг, применённый в прошлый раз; `None` (первый запуск) всегда
+/// означает полный reload.
 fn listeners_need_recreate(prev: Option<&serde_yaml_ng::Mapping>, next: Option<&serde_yaml_ng::Mapping>) -> bool {
     let (Some(prev), Some(next)) = (prev, next) else {
         return true;
@@ -1280,7 +1278,7 @@ mod tests {
     }
 
     #[test]
-    fn changed_ports_or_tun_force_a_full_reload() {
+    fn changed_ports_force_a_full_reload() {
         let prev = mapping("{mixed-port: 7890, tun: {enable: true}}");
         assert!(listeners_need_recreate(
             Some(&prev),
@@ -1288,34 +1286,18 @@ mod tests {
         ));
         assert!(listeners_need_recreate(
             Some(&prev),
-            Some(&mapping("{mixed-port: 7890, tun: {enable: false}}"))
+            Some(&mapping("{mixed-port: 7890, allow-lan: true, tun: {enable: true}}"))
         ));
     }
 
     #[test]
-    fn changed_extra_inbounds_force_a_full_reload() {
-        // clod:e3-05 — эти три inbound-а mihomo пересоздаёт только под `force`.
-        let prev = mapping(
-            "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: false}}",
+    fn what_the_core_applies_softly_does_not_force() {
+        // Туннель, именованные слушатели, ipv6 и пользователи ядро применяет без `force`.
+        let prev = mapping("{mixed-port: 7890, tun: {enable: true}, ipv6: true, authentication: [a:b], listeners: []}");
+        let next = mapping(
+            "{mixed-port: 7890, tun: {enable: false}, ipv6: false, authentication: [c:d], listeners: [{name: x, type: mixed, port: 1}]}",
         );
-        assert!(listeners_need_recreate(
-            Some(&prev),
-            Some(&mapping(
-                "{mixed-port: 7890, ss-config: 'ss://z@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: false}}"
-            ))
-        ));
-        assert!(listeners_need_recreate(
-            Some(&prev),
-            Some(&mapping(
-                "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://z@:1081', tuic-server: {enable: false}}"
-            ))
-        ));
-        assert!(listeners_need_recreate(
-            Some(&prev),
-            Some(&mapping(
-                "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: true}}"
-            ))
-        ));
+        assert!(!listeners_need_recreate(Some(&prev), Some(&next)));
     }
 
     #[test]
@@ -1343,6 +1325,32 @@ mod tests {
             &mapping("{inbound-tfo: true}")
         ));
         assert!(!inbound_options_changed(None, &plain));
+    }
+
+    #[test]
+    fn changed_extra_inbounds_force_a_full_reload() {
+        // clod:e3-05 — эти три inbound-а mihomo пересоздаёт только под `force`.
+        let prev = mapping(
+            "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: false}}",
+        );
+        assert!(listeners_need_recreate(
+            Some(&prev),
+            Some(&mapping(
+                "{mixed-port: 7890, ss-config: 'ss://z@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: false}}"
+            ))
+        ));
+        assert!(listeners_need_recreate(
+            Some(&prev),
+            Some(&mapping(
+                "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://z@:1081', tuic-server: {enable: false}}"
+            ))
+        ));
+        assert!(listeners_need_recreate(
+            Some(&prev),
+            Some(&mapping(
+                "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: true}}"
+            ))
+        ));
     }
 
     #[test]
