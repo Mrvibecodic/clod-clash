@@ -3,9 +3,7 @@ use crate::utils::dirs;
 use crate::{
     config::Config,
     constants::timing,
-    core::{
-        handle::Handle, owner_identity::current_owner_credentials, runtime_bundle::collect_runtime_bundle, tray::Tray,
-    },
+    core::{handle::Handle, owner_identity::current_owner_credentials, runtime_bundle::collect_runtime_bundle},
 };
 use anyhow::{Context as _, Result, bail};
 use backon::{ConstantBuilder, Retryable as _};
@@ -1469,14 +1467,6 @@ impl ServiceManager {
 
             operation.await?
         };
-
-        if let Err(e) = Tray::global().update_menu().await {
-            logging!(
-                warn,
-                Type::Tray,
-                "tray menu refresh failed after a service operation: {e}"
-            );
-        }
         Ok(value)
     }
 
@@ -1790,6 +1780,20 @@ mod probe_service_tests {
         ] {
             assert_eq!(body.matches("probe_service()").count(), 1, "{body}");
             assert!(!body.contains("is_service_available"), "{body}");
+        }
+    }
+
+    /// Меню трея о службе не знает: опрос службы его не перерисовывает. Начнёт
+    /// читать — понадобится своя перерисовка по смене статуса.
+    #[test]
+    fn asking_the_service_does_not_redraw_the_tray_menu() {
+        let run = body_of(include_str!("service.rs"), "async fn run_operation");
+        assert!(!run.contains("Tray") && !run.contains("update_menu"), "{run}");
+        for signature in ["async fn update_menu_internal(", "async fn create_tray_menu_model("] {
+            let body = body_of(include_str!("tray/mod.rs"), signature);
+            for read in ["SERVICE_MANAGER", "service::", "capability"] {
+                assert!(!body.contains(read), "{signature}: {read}");
+            }
         }
     }
 

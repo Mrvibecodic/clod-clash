@@ -217,6 +217,7 @@ pub async fn follow_up_on_a_new_core() {
 pub fn suppress(reason: &str) {
     if !SUPPRESSED.swap(true, Ordering::AcqRel) {
         logging!(warn, Type::Core, "TUN suppressed for this session: {}", reason);
+        the_tray_follows_the_suppression(false, true);
     }
 }
 
@@ -234,10 +235,33 @@ pub fn clear_suppression_by_hand() {
 /// неудача после каждого пробуждения уходит в журнал, а не новым тостом.
 pub fn clear_suppression() {
     clear_failure();
-    SUPPRESSED.store(false, Ordering::Release);
+    let was_suppressed = SUPPRESSED.swap(false, Ordering::AcqRel);
     START_FAILED.store(false, Ordering::Release);
     START_ATTEMPTS.store(0, Ordering::Release);
     NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
+    if was_suppressed {
+        the_tray_follows_the_suppression(true, false);
+    }
+}
+
+/// Пункт TUN в меню трея — «хочется и не подавлен»: смену подавления меню
+/// узнаёт только отсюда.
+fn the_tray_follows_the_suppression(was_suppressed: bool, now_suppressed: bool) {
+    if crate::APP_HANDLE.get().is_none() || Handle::global().is_exiting() {
+        return;
+    }
+    AsyncHandler::spawn(move || async move {
+        // Подавление снимает и включение TUN посреди правки настроек, а её
+        // черновик могут отбросить: меню — по её итогу.
+        drop(crate::feat::patch_verge_lock().lock().await);
+        if the_shown_tun_changes(desired().await, was_suppressed, now_suppressed) {
+            crate::core::tray::Tray::global().update_menu_if_present().await;
+        }
+    });
+}
+
+const fn the_shown_tun_changes(desired: bool, was_suppressed: bool, now_suppressed: bool) -> bool {
+    is_claimed(desired, was_suppressed) != is_claimed(desired, now_suppressed)
 }
 
 pub async fn desired() -> bool {
@@ -1824,6 +1848,41 @@ mod tests {
         );
         clear_suppression_by_hand();
         assert_eq!(*LAST_NOTICED.lock(), None, "повтор по действию человека — забывает");
+    }
+
+    #[test]
+    fn the_tray_menu_follows_every_flip_of_the_suppression() {
+        for (desired, was, now, changes) in [
+            (true, true, false, true),
+            (true, false, true, true),
+            (false, true, false, false),
+            (false, false, true, false),
+            (true, false, false, false),
+            (true, true, true, false),
+        ] {
+            assert_eq!(
+                the_shown_tun_changes(desired, was, now),
+                changes,
+                "хочется {desired}, подавлен {was} → {now}"
+            );
+        }
+        let tun = crate::utils::source_scan::without_test_modules(include_str!("tun.rs"));
+        for (signature, flip) in [
+            ("pub fn suppress(", "if !SUPPRESSED.swap(true"),
+            ("pub fn clear_suppression()", "if was_suppressed {"),
+        ] {
+            let body = crate::utils::source_scan::fn_body(tun, signature).unwrap_or_default();
+            let branch = body.split(flip).nth(1).unwrap_or_default();
+            assert!(
+                branch.contains("the_tray_follows_the_suppression("),
+                "{signature}: {body}"
+            );
+        }
+        let follows =
+            crate::utils::source_scan::fn_body(tun, "fn the_tray_follows_the_suppression(").unwrap_or_default();
+        let settled = follows.find("patch_verge_lock()").unwrap_or(usize::MAX);
+        let drawn = follows.find("update_menu_if_present()").unwrap_or_default();
+        assert!(settled < drawn, "меню рисуется после правки настроек: {follows}");
     }
 
     #[test]
