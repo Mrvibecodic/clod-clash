@@ -340,8 +340,18 @@ async fn settings_section(out: &mut std::string::String) {
 }
 
 /// Название, которое не прислала панель, у подписки по ссылке — кусок её
-/// адреса, обычно токен: в отчёт оно не идёт, как и сам адрес.
+/// адреса, обычно токен: в отчёт оно не идёт, как и сам адрес. Своё имя
+/// человека — как в окне.
 fn subscription_name(item: &PrfItem) -> std::string::String {
+    if item
+        .custom_name
+        .as_deref()
+        .is_some_and(|custom| !custom.trim().is_empty())
+    {
+        return item
+            .display_name()
+            .map_or_else(|| "—".to_owned(), |name| panel_text(&name));
+    }
     match item.name.as_deref() {
         None => "—".to_owned(),
         Some(_) if item.url.is_some() && item.name_from_panel != Some(true) => "панель не прислала".to_owned(),
@@ -557,6 +567,20 @@ mod tests {
             ..crate::config::PrfItem::default()
         };
         assert_eq!(super::subscription_name(&local), "Мой файл");
+        // Своё имя человека — как в окне, даже если панель имени не прислала.
+        let renamed = crate::config::PrfItem {
+            custom_name: Some("Дом".into()),
+            ..unnamed_again()
+        };
+        assert_eq!(super::subscription_name(&renamed), "Дом");
+    }
+
+    fn unnamed_again() -> crate::config::PrfItem {
+        crate::config::PrfItem {
+            name: Some("AbCdEf123".into()),
+            url: Some("https://sub.example.com/sub/AbCdEf123".into()),
+            ..crate::config::PrfItem::default()
+        }
     }
 
     #[test]
