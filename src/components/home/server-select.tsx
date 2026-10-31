@@ -52,6 +52,15 @@ import {
   failedDelay,
   usableDelay,
 } from '@/utils/delay-color'
+import {
+  firstMeasureCounts,
+  groupTestAhead,
+  groupTestKey,
+  livePingDue,
+  nodesLeftToTest,
+  PING_GAP_MS,
+  PING_RETRY_MS,
+} from '@/utils/live-ping'
 import { pressable } from '@/utils/pressable'
 import {
   AUTO_GROUP_TYPES,
@@ -663,10 +672,8 @@ const CORE_MEASURED_TYPES = new Set(['urltest', 'fallback', 'loadbalance'])
 
 let lastKnownPing: { key: string; delay: number } | undefined
 
-const PING_MAX_AGE_MS = 60_000
-const PING_GAP_MS = 60_000
-const PING_RETRY_MS = 5_000
 const PING_RETRY_LIMIT = 6
+const LIVE_PING_DELAY_MS = 600
 let lastAutoPingAt = 0
 
 export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
@@ -707,6 +714,8 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
     : undefined
   const measuredAtRef = useRef(measuredAt)
   measuredAtRef.current = measuredAt
+  const recordsRef = useRef(records)
+  recordsRef.current = records
   const hasPing = usableDelay(delay)
   const pingProvider = pingTarget
     ? (records[pingTarget]?.provider as string | undefined)
@@ -737,41 +746,72 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const coreMeasures = CORE_MEASURED_TYPES.has(group?.type?.toLowerCase() ?? '')
   // clod: автотест — только пока окно на экране и подключение включено, и по
   // узлам: групповой обработчик ядра снимал закрепление url-test/fallback.
+  const autoTestKey =
+    autoPing && groupName && testNodesSig && !coreMeasures
+      ? groupTestKey(groupName, updatedAt, testNodesSig)
+      : ''
   useEffect(() => {
-    if (!autoPing || !groupName || !testNodesSig || coreMeasures) return
-    const key = `${groupName}|${updatedAt}|${testNodesSig}`
-    if (lastAutoDelayKey === key) return
-    // Узлы берём из свежего ответа ядра, а не из отрисованных: после смены
-    // профиля они приезжают позже `updated`, и таймер застал бы прежние.
+    if (!groupName || !groupTestAhead(autoTestKey, lastAutoDelayKey)) return
+    // Текущий узел — сразу и по показанному, как его мерил бы живой пинг;
+    // остальные — по свежему ответу ядра: после смены профиля узлы приезжают
+    // позже `updated`, и таймер застал бы прежние.
+    let first: string | undefined
+    const firstTimer = window.setTimeout(() => {
+      const record = current
+        ? (recordsRef.current[current] as IProxyItem | undefined)
+        : undefined
+      if (!record) return
+      first = record.name
+      lastAutoPingAt = Date.now()
+      delayManager
+        .checkListDelay([record], groupName, timeout, record.name)
+        .finally(() => {
+          refreshProxy().catch(() => {})
+        })
+    }, LIVE_PING_DELAY_MS)
     // Сменилась первая группа — эффект перезапустится сам с её именем.
     const timer = window.setTimeout(() => {
-      lastAutoDelayKey = key
+      lastAutoDelayKey = autoTestKey
       refreshProxy()
         .then(({ data }) => {
           const fresh = groupsDecidingTraffic(data, mode)[0]
           if (fresh?.name !== groupName) return
-          const nodes = testNodesOf(fresh, data?.records ?? {})
-          lastAutoDelayKey = `${groupName}|${updatedAt}|${nodesSignature(nodes)}`
+          const freshRecords = data?.records ?? {}
+          const nodes = testNodesOf(fresh, freshRecords)
+          lastAutoDelayKey = groupTestKey(
+            groupName,
+            updatedAt,
+            nodesSignature(nodes),
+          )
           lastAutoPingAt = Date.now()
+          // Текущий узел второй раз не меряем: его замер уже идёт или снят.
+          // Смена подписки или состава узлов меняет ключ и запускает
+          // автозамер заново, с новым первым замером.
+          const measured =
+            first &&
+            firstMeasureCounts(
+              delayManager.getDelayUpdate(first, groupName)?.delay,
+            )
+              ? first
+              : undefined
           return delayManager
-            .checkListDelay(nodes, groupName, timeout, fresh.now)
+            .checkListDelay(
+              nodesLeftToTest(nodes, measured),
+              groupName,
+              timeout,
+              fresh.now,
+            )
             .finally(() => {
               refreshProxy().catch(() => {})
             })
         })
         .catch(() => {})
     }, 800)
-    return () => window.clearTimeout(timer)
-  }, [
-    autoPing,
-    groupName,
-    updatedAt,
-    testNodesSig,
-    coreMeasures,
-    timeout,
-    refreshProxy,
-    mode,
-  ])
+    return () => {
+      window.clearTimeout(firstTimer)
+      window.clearTimeout(timer)
+    }
+  }, [autoTestKey, groupName, updatedAt, current, timeout, refreshProxy, mode])
 
   useEffect(() => {
     if (!autoPing || !groupName || !pingTarget) return
@@ -781,9 +821,17 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
     const measure = () => {
       if (cancelled) return
       const now = Date.now()
-      const measuredAt = measuredAtRef.current
-      if (measuredAt && now - measuredAt < PING_MAX_AGE_MS) return
-      if (now - lastAutoPingAt < (hasPing ? PING_GAP_MS : PING_RETRY_MS)) return
+      const due = livePingDue({
+        now,
+        measuredAt: measuredAtRef.current,
+        lastPingAt: lastAutoPingAt,
+        hasPing,
+        batchOwns:
+          groupTestAhead(autoTestKey, lastAutoDelayKey) ||
+          delayManager.isQueued(pingTarget, groupName) ||
+          (!!current && delayManager.isQueued(current, groupName)),
+      })
+      if (!due) return
 
       lastAutoPingAt = now
       attempts += 1
@@ -795,7 +843,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
         .catch(() => {})
     }
 
-    const timer = window.setTimeout(measure, 600)
+    const timer = window.setTimeout(measure, LIVE_PING_DELAY_MS)
     // Живой пинг, пока окно на экране и подключение включено (`autoPing`; иначе эффект снят, на
     // возврате — заново): раз в PING_GAP_MS шлём свой запрос, только если свежего
     // замера нет — у url-test групп ядро мерит само, а его замеры приносит общий
@@ -823,6 +871,8 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
     hasPing,
     pingTarget,
     pingProvider,
+    current,
+    autoTestKey,
     timeout,
     refreshProxy,
   ])

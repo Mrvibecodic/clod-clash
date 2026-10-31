@@ -3,6 +3,7 @@ import {
   healthcheckNodeInProvider,
 } from 'tauri-plugin-mihomo-api'
 
+import { BatchQueue } from '@/utils/batch-queue'
 import { currentFirst } from '@/utils/current-first'
 import { debugLog } from '@/utils/debug'
 import { isValidUrl } from '@/utils/network'
@@ -70,7 +71,7 @@ class DelayManager {
   private freeCheckSlots = MAX_PARALLEL_CHECKS
   /** Сколько пакетных проверок идёт по группе: пока идёт, сортировка по задержке стоит. */
   private checkingGroups = new Map<string, number>()
-  private queuedChecks = new Set<string>()
+  private queuedChecks = new BatchQueue()
   private checkSlotWaiters: (() => void)[] = []
 
   /**
@@ -222,7 +223,10 @@ class DelayManager {
    * заголовок группы попадёт на экран.
    */
   setProfile(uid: string, userUrls: Map<string, string>) {
-    if (this.profile && this.profile !== uid) this.cache.clear()
+    if (this.profile && this.profile !== uid) {
+      this.cache.clear()
+      this.queuedChecks.clear()
+    }
     this.profile = uid
     this.urlMap = new Map([...userUrls].filter(([, url]) => isValidUrl(url)))
   }
@@ -434,6 +438,11 @@ class DelayManager {
     return this.checkingGroups.has(group)
   }
 
+  /** Узел ждёт или проходит пакетную проверку этой подписки. */
+  isQueued(name: string, group: string) {
+    return this.queuedChecks.has(hashKey(name, group))
+  }
+
   /**
    * Когда сняли тот замер, который видит пользователь: мс epoch, 0 — не знаем.
    *
@@ -560,10 +569,10 @@ class DelayManager {
     const proxies = currentFirst(list, current)
     const names = proxies.map((p) => p.name)
     // Выставляем статус «идёт тест задержки»
-    names.forEach((name) => {
-      this.setDelay(name, group, -2)
-      this.queuedChecks.add(hashKey(name, group))
-    })
+    names.forEach((name) => this.setDelay(name, group, -2))
+    const batch = this.queuedChecks.enqueue(
+      names.map((name) => hashKey(name, group)),
+    )
 
     let index = 0
     const startTime = Date.now()
@@ -575,7 +584,7 @@ class DelayManager {
       // прежней ставила бы им метку «идёт проверка» без замера за ней
       if (this.profile !== profile) {
         for (const name of names.slice(index)) {
-          this.queuedChecks.delete(hashKey(name, group))
+          this.queuedChecks.dequeue(hashKey(name, group), batch)
         }
         return
       }
@@ -619,7 +628,7 @@ class DelayManager {
         // Как и отказ внутри checkDelay — «не мерили», а не приговор узлу
         this.setDelay(currName, group, -1)
       } finally {
-        this.queuedChecks.delete(hashKey(currName, group))
+        this.queuedChecks.dequeue(hashKey(currName, group), batch)
       }
 
       return help()
