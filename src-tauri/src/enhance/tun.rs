@@ -39,7 +39,14 @@ fn shape_dns_for_tun(config: &mut Mapping) -> bool {
     let fake_ip = current_mode == "fake-ip" || !dns_val.contains_key(&mode_key);
 
     if fake_ip {
-        revise!(dns_val, "ipv6", ipv6_val);
+        // Корневой ipv6 — только умолчание: явный `dns.ipv6` подписки или
+        // страницы DNS остаётся, ядро всё равно берёт оба значения вместе.
+        // Не булево значение ядро не разберёт — его заменяем, как раньше.
+        let dns_ipv6_key = Value::from("ipv6");
+        if dns_val.get(&dns_ipv6_key).and_then(Value::as_bool).is_none() {
+            revise!(dns_val, "ipv6", ipv6_val);
+        }
+        let ipv6_answered = ipv6_val && dns_val.get(&dns_ipv6_key).and_then(Value::as_bool).unwrap_or(false);
 
         if !dns_val.contains_key(&mode_key) {
             revise!(dns_val, "enhanced-mode", "fake-ip");
@@ -49,7 +56,7 @@ fn shape_dns_for_tun(config: &mut Mapping) -> bool {
             revise!(dns_val, "fake-ip-range", "198.18.0.1/16");
         }
 
-        if ipv6_val && !dns_val.contains_key(Value::from("fake-ip-range6")) {
+        if ipv6_answered && !dns_val.contains_key(Value::from("fake-ip-range6")) {
             revise!(dns_val, "fake-ip-range6", "2001:2::0/64");
         }
     }
@@ -141,6 +148,52 @@ mod tests {
         let dns = dns_of(&config);
         assert_eq!(dns.get(Value::from("enable")), Some(&Value::from(true)));
         assert!(dns.contains_key(Value::from("nameserver")));
+    }
+
+    fn tun_config(ipv6: bool, dns_ipv6: Option<bool>) -> Mapping {
+        let mut dns = Mapping::new();
+        if let Some(value) = dns_ipv6 {
+            dns.insert(Value::from("ipv6"), Value::from(value));
+        }
+        let mut config = Mapping::new();
+        config.insert(Value::from("ipv6"), Value::from(ipv6));
+        config.insert(Value::from("dns"), Value::from(dns));
+        config
+    }
+
+    #[test]
+    fn the_root_ipv6_fills_only_a_missing_dns_ipv6() {
+        let config = ensure_dns_for_tun(tun_config(true, None), true);
+        let dns = dns_of(&config);
+        assert_eq!(dns.get(Value::from("ipv6")), Some(&Value::from(true)));
+        assert_eq!(
+            dns.get(Value::from("fake-ip-range6")),
+            Some(&Value::from("2001:2::0/64"))
+        );
+
+        let config = ensure_dns_for_tun(tun_config(false, None), true);
+        assert_eq!(dns_of(&config).get(Value::from("ipv6")), Some(&Value::from(false)));
+
+        let mut garbled = tun_config(true, None);
+        if let Some(dns) = garbled.get_mut(Value::from("dns")).and_then(Value::as_mapping_mut) {
+            dns.insert(Value::from("ipv6"), Value::from("yes"));
+        }
+        let config = ensure_dns_for_tun(garbled, true);
+        assert_eq!(dns_of(&config).get(Value::from("ipv6")), Some(&Value::from(true)));
+    }
+
+    #[test]
+    fn an_explicit_dns_ipv6_survives_the_tunnel() {
+        // Подписка или страница DNS выключила IPv6 в DNS — туннель не включает его обратно.
+        let config = ensure_dns_for_tun(tun_config(true, Some(false)), true);
+        let dns = dns_of(&config);
+        assert_eq!(dns.get(Value::from("ipv6")), Some(&Value::from(false)));
+        assert!(!dns.contains_key(Value::from("fake-ip-range6")));
+
+        let config = ensure_dns_for_tun(tun_config(false, Some(true)), true);
+        let dns = dns_of(&config);
+        assert_eq!(dns.get(Value::from("ipv6")), Some(&Value::from(true)));
+        assert!(!dns.contains_key(Value::from("fake-ip-range6")));
     }
 
     #[test]
