@@ -522,21 +522,27 @@ fn cold_misses() -> &'static std::sync::Mutex<HashMap<String, ColdMiss>> {
     COLD_MISSES.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
 }
 
+/// Неудача помнится по картинке и её адресу: новый адрес от панели — новая
+/// попытка сразу.
+fn cold_miss_key(stem: &str, url: Option<&str>) -> String {
+    format!("{stem}\n{}", url.unwrap_or_default()).into()
+}
+
 /// Ответ окну, пока прошлая неудача свежая.
-fn recent_cold_miss(stem: &str) -> Option<Shown> {
-    let (at, refused) = cold_misses().lock().ok()?.get(stem).copied()?;
+fn recent_cold_miss(key: &str) -> Option<Shown> {
+    let (at, refused) = cold_misses().lock().ok()?.get(key).copied()?;
     (at.elapsed() < RETRY_AFTER).then_some(if refused { Shown::Never } else { Shown::Pending })
 }
 
 const MAX_COLD_MISSES: usize = 256;
 
-fn remember_cold_miss(stem: &str, refused: bool) -> Shown {
+fn remember_cold_miss(key: &str, refused: bool) -> Shown {
     if let Ok(mut slot) = cold_misses().lock() {
         if slot.len() >= MAX_COLD_MISSES {
             slot.retain(|_, (at, _)| at.elapsed() < RETRY_AFTER);
         }
         if slot.len() < MAX_COLD_MISSES {
-            slot.insert(stem.into(), (std::time::Instant::now(), refused));
+            slot.insert(key.into(), (std::time::Instant::now(), refused));
         }
     }
     if refused { Shown::Never } else { Shown::Pending }
@@ -548,7 +554,8 @@ async fn cached_or_fetched(stem: &str, url: Option<&str>, max_bytes: usize) -> S
     if let Some(cached) = read(stem).await {
         return Shown::Ready(cached);
     }
-    if let Some(shown) = recent_cold_miss(stem) {
+    let miss_key = cold_miss_key(stem, url);
+    if let Some(shown) = recent_cold_miss(&miss_key) {
         return shown;
     }
     let Some(url) = url else {
@@ -563,7 +570,7 @@ async fn cached_or_fetched(stem: &str, url: Option<&str>, max_bytes: usize) -> S
     };
     match read(stem).await {
         Some(fresh) => Shown::Ready(fresh),
-        None => remember_cold_miss(stem, refused),
+        None => remember_cold_miss(&miss_key, refused),
     }
 }
 
@@ -606,6 +613,22 @@ mod tests {
             headers.insert(LAST_MODIFIED, HeaderValue::from_str(since).expect("test date"));
         }
         headers
+    }
+
+    /// Отказ по прежнему адресу не держит картинку, когда панель прислала новый.
+    #[test]
+    fn a_refusal_is_remembered_per_address() {
+        let old = super::cold_miss_key("logo-a", Some("https://cdn.example.com/old.png"));
+        let new = super::cold_miss_key("logo-a", Some("https://cdn.example.com/new.png"));
+        assert_ne!(old, new);
+        assert_eq!(
+            old,
+            super::cold_miss_key("logo-a", Some("https://cdn.example.com/old.png"))
+        );
+        assert_ne!(
+            old,
+            super::cold_miss_key("logo-b", Some("https://cdn.example.com/old.png"))
+        );
     }
 
     #[test]
