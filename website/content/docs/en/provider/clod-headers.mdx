@@ -7,7 +7,8 @@ description: "Clod Clash's own headers — values, what each one does and on whi
 are entered in the subscription settings in `customResponseHeaders`. Each one applies only to its own
 subscription. Standard Remnawave headers are on the [Headers](/en/docs/provider/headers) page.
 A standard header can also be sent as `clod-<name>` (for example, `clod-support-url`): it overrides
-the header of the same name that the panel sends itself.
+the header of the same name that the panel sends itself. Except `Date`, `Age` and
+`content-disposition` — they are read only by their own name.
 
 ## All headers
 

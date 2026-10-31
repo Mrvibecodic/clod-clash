@@ -51,6 +51,10 @@ address.
 
 Our own headers. The "Platforms" column shows which Clod Clash clients support the header.
 
+A standard header can also be sent as `clod-<name>` (for example, `clod-support-url`): it overrides
+the header of the same name that the panel sends itself. Except `Date`, `Age` and
+`content-disposition` — they are read only by their own name.
+
 | Header | Value | What it does | Platforms |
 | --- | --- | --- | --- |
 | `clod-portal-url` | an `https://` link | the "Account" button | PC and Android |

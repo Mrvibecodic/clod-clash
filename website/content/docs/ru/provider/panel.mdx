@@ -51,8 +51,8 @@ description: "Что нужно сделать на стороне панели,
 группе, а у `rule-providers` указан `proxy:` на основную группу.
 
 Клиент всегда задаёт сам `external-controller`, `secret`, `socks-port`, `port`,
-`redir-port` (Linux и macOS) и `tproxy-port` (Linux); `external-ui*` из шаблона
-выбрасываются. `mode`, `mixed-port`, `log-level` и `unified-delay` берутся из
+`redir-port` (Linux и macOS) и `tproxy-port` (Linux); `external-ui*` и
+`external-controller-tls` из шаблона выбрасываются. `mode`, `mixed-port`, `log-level` и `unified-delay` берутся из
 шаблона, пока пользователь не выбрал своё (без ключа в шаблоне — `rule`, `7897`,
 `info`, `true`); закрепить режим можно заголовком `clod-lock-mode`. `ipv6` — из
 шаблона, без ключа выключен. Правила, группы, `sniffer` отдаются шаблону целиком;

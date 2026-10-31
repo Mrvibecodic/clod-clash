@@ -51,8 +51,8 @@ In the MIHOMO response template the `# LEAVE THIS LINE!` marker must remain in t
 group, and `rule-providers` must have `proxy:` pointing to the main group.
 
 The client always sets `external-controller`, `secret`, `socks-port`, `port`,
-`redir-port` (Linux and macOS) and `tproxy-port` (Linux) itself; `external-ui*` from the template
-are dropped. `mode`, `mixed-port`, `log-level` and `unified-delay` are taken from the
+`redir-port` (Linux and macOS) and `tproxy-port` (Linux) itself; `external-ui*` and
+`external-controller-tls` from the template are dropped. `mode`, `mixed-port`, `log-level` and `unified-delay` are taken from the
 template until the user picks their own (with no key in the template — `rule`, `7897`,
 `info`, `true`); the mode can be locked with the `clod-lock-mode` header. `ipv6` comes from the
 template; with no key it's off. Rules, groups and `sniffer` are left entirely to the template;

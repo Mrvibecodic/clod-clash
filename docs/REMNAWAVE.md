@@ -127,7 +127,8 @@ tun.enable, tun.auto-route, tun.auto-detect-interface,
 profile.store-selected: true, profile.store-fake-ip: true
 ```
 
-* `external-ui`, `external-ui-url` и `external-ui-name` из шаблона **выбрасываются**.
+* `external-ui`, `external-ui-url`, `external-ui-name` и `external-controller-tls` из шаблона
+  **выбрасываются**.
 * На Windows приложение не задаёт `redir-port` и `tproxy-port`, на macOS — `tproxy-port`: не
   пишите их в шаблоне, они дойдут до ядра.
 * Порт управления ядром и `secret` шаблоном подставить нельзя.
@@ -182,7 +183,13 @@ profile.store-selected: true, profile.store-fake-ip: true
   `allow-lan: true` без списка, с `0.0.0.0/0` или публичной сетью раздачу не включает. К списку
   дописывается петля, если её нет, а записи `lan-disallowed-ips`, закрывающие петлю, удаляются.
   При включённой раздаче `bind-address: *`, при выключенной оба списка и `bind-address`
-  снимаются.
+  снимаются. Список, который не читается как список сетей (в `lan-allowed-ips` ни одной годной
+  сети, в `lan-disallowed-ips` хоть одна негодная запись), раздачу не открывает, даже если её
+  включил сам пользователь, — ему приходит уведомление.
+* **Пока раздача закрыта, порты шаблона слушают только петлю.** `listeners` (в том числе без
+  `listen`), `tuic-server`, `ss-config`, `vmess-config` и `tunnels` (если пользователь не сохранял
+  страницу «Туннели») переводятся на `127.0.0.1` с тем же портом. Встроенный сервер без адреса
+  или с адресом, который не разбирается, снимается; туннель с таким адресом — тоже.
 * **Встроенный скрипт:** у узлов `type: hysteria` (не hysteria2) `alpn` строкой превращается в
   список.
 * **Группы приводятся в порядок.** Ссылки на несуществующие узлы вычищаются. Пустая группа
@@ -207,7 +214,8 @@ profile.store-selected: true, profile.store-fake-ip: true
 
 * `sniffer`, `find-process-mode`, `geodata-mode`, `geox-url`, `global-client-fingerprint`;
 * `rules`, `rule-providers`, `proxy-groups`, `proxy-providers`;
-* `listeners`, `tunnels`, `authentication`, `skip-auth-prefixes`, `experimental`, `tls`;
+* `authentication`, `skip-auth-prefixes`, `experimental`, `tls`;
+* `listeners` и `tunnels` — с оговоркой из 4.3: пока раздача закрыта, они слушают только петлю;
 * `dns` — пока пользователь не включил «Переопределение настроек DNS»; `hosts` — пока
   пользователь не включил его и не задал там свои.
 
@@ -220,7 +228,8 @@ DNS создаются из текущего блока `dns` подписки �
 `https://`, иначе с адресов MetaCubeX по умолчанию.
 
 **Шаблон — доверенный код.** Он может открыть на компьютере пользователя дополнительный порт
-(`listeners`) или завести туннель (`tunnels`). Клиент это не фильтрует — держите доступ к
+(`listeners`) или завести туннель (`tunnels`). Для соседей по сети они открываются только вместе
+с раздачей в локальную сеть, но весь остальной шаблон клиент не фильтрует — держите доступ к
 шаблону так же строго, как к панели.
 
 ## 5. Подводные камни
