@@ -468,7 +468,10 @@ impl NetworkManager {
                 let port = Config::effective_mixed_port().await;
                 Some(format!("http://127.0.0.1:{port}"))
             }
-            ProxyType::System => system_proxy_url(),
+            ProxyType::System => crate::process::AsyncHandler::spawn_blocking(system_proxy_url)
+                .await
+                .ok()
+                .flatten(),
         };
 
         let mut headers = HeaderMap::new();

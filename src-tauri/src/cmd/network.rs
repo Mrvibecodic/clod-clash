@@ -17,7 +17,10 @@ pub async fn get_sys_proxy() -> CmdResult<Mapping> {
     logging!(debug, Type::Network, "асинхронное получение конфига системного прокси");
 
     Sysopt::global().wait_idle().await;
-    let sys_proxy = Sysproxy::get_system_proxy().stringify_err()?;
+    let sys_proxy = AsyncHandler::spawn_blocking(Sysproxy::get_system_proxy)
+        .await
+        .stringify_err()?
+        .stringify_err()?;
     let Sysproxy {
         ref host,
         ref bypass,
@@ -57,7 +60,10 @@ pub async fn get_sys_proxy() -> CmdResult<Mapping> {
 #[tauri::command]
 pub async fn get_auto_proxy() -> CmdResult<Mapping> {
     Sysopt::global().wait_idle().await;
-    let auto_proxy = Autoproxy::get_auto_proxy().stringify_err()?;
+    let auto_proxy = AsyncHandler::spawn_blocking(Autoproxy::get_auto_proxy)
+        .await
+        .stringify_err()?
+        .stringify_err()?;
     let Autoproxy { ref enable, ref url } = auto_proxy;
 
     let mut map = Mapping::new();
