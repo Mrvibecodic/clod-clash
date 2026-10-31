@@ -401,7 +401,8 @@ impl CoreManager {
                 changed("mode"),
                 // Хост системного прокси зависит и от раздачи, и от её списков.
                 changed("allow-lan") || changed("lan-allowed-ips") || changed("lan-disallowed-ips"),
-                controller_changed(prev.config.as_ref(), config),
+                controller_changed(prev.config.as_ref(), config)
+                    || inbound_options_changed(prev.config.as_ref(), config),
                 // Поводы для проверки 16–20: другая подписка; её узлы или
                 // провайдеры, другое ядро. Туннель, DNS и прочие настройки — нет.
                 prev.profile_uid != build.profile_uid,
@@ -1002,6 +1003,22 @@ const LISTENER_KEYS: &[&str] = &[
     "tuic-server",
 ];
 
+/// TFO и MPTCP входящих ядро запоминает при любом применении, но действуют они
+/// только на слушатель, созданный после этого, — а слушатель с прежним адресом
+/// ядро не пересоздаёт даже под `force`. Новое значение начинает работать
+/// только с перезапуском ядра. Сравниваем по смыслу: нет ключа = выключено.
+fn inbound_options_changed(prev: Option<&serde_yaml_ng::Mapping>, next: &serde_yaml_ng::Mapping) -> bool {
+    let on = |config: Option<&serde_yaml_ng::Mapping>, key: &str| {
+        config
+            .and_then(|config| config.get(key))
+            .and_then(serde_yaml_ng::Value::as_bool)
+            .unwrap_or(false)
+    };
+    ["inbound-tfo", "inbound-mptcp"]
+        .into_iter()
+        .any(|key| on(prev, key) != on(Some(next), key))
+}
+
 /// clod: сравнить «слушающую» часть двух runtime-конфигов.
 ///
 /// `prev` — конфиг, применённый в прошлый раз; `None` (первый запуск) всегда
@@ -1060,8 +1077,8 @@ fn listeners_need_recreate(prev: Option<&serde_yaml_ng::Mapping>, next: Option<&
 #[cfg(test)]
 mod tests {
     use super::{
-        Delivered, StageAttempt, controller_changed, listeners_need_recreate, matches_the_running,
-        stage_with_confirmation, the_core_changed_hands,
+        Delivered, StageAttempt, controller_changed, inbound_options_changed, listeners_need_recreate,
+        matches_the_running, stage_with_confirmation, the_core_changed_hands,
     };
     use crate::core::manager::CoreManager;
     use crate::core::manager::RunningMode::{NotRunning, Service, Sidecar};
@@ -1299,6 +1316,33 @@ mod tests {
                 "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: true}}"
             ))
         ));
+    }
+
+    #[test]
+    fn inbound_tfo_and_mptcp_need_a_restart() {
+        let plain = mapping("{mixed-port: 7890}");
+        assert!(inbound_options_changed(
+            Some(&plain),
+            &mapping("{mixed-port: 7890, inbound-tfo: true}")
+        ));
+        assert!(inbound_options_changed(
+            Some(&plain),
+            &mapping("{mixed-port: 7890, inbound-mptcp: true}")
+        ));
+        assert!(inbound_options_changed(
+            Some(&mapping("{inbound-tfo: true}")),
+            &mapping("{inbound-tfo: false}")
+        ));
+        // Нет ключа и явный false — одно и то же: перезапуск был бы впустую.
+        assert!(!inbound_options_changed(
+            Some(&plain),
+            &mapping("{mixed-port: 7890, inbound-tfo: false}")
+        ));
+        assert!(!inbound_options_changed(
+            Some(&mapping("{inbound-tfo: true}")),
+            &mapping("{inbound-tfo: true}")
+        ));
+        assert!(!inbound_options_changed(None, &plain));
     }
 
     #[test]
