@@ -60,7 +60,7 @@ pub async fn get_sys_proxy() -> CmdResult<Mapping> {
 #[tauri::command]
 pub async fn get_auto_proxy() -> CmdResult<Mapping> {
     Sysopt::global().wait_idle().await;
-    let auto_proxy = AsyncHandler::spawn_blocking(Autoproxy::get_auto_proxy)
+    let auto_proxy = AsyncHandler::spawn_blocking(crate::core::sysopt::read_auto_proxy)
         .await
         .stringify_err()?
         .stringify_err()?;

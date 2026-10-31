@@ -107,6 +107,41 @@ struct AppliedProxy {
 
 const AUTO_SWITCH_READBACK_IS_TRUSTWORTHY: bool = !cfg!(target_os = "windows");
 
+/// Включена ли автонастройка прокси (PAC) в системе — для показа и решений.
+/// Блокирующий вызов.
+///
+/// Windows при выключении автонастройки снимает только флаг соединения, а
+/// адрес `AutoConfigURL` остаётся в реестре: по одному адресу выключенный PAC
+/// читался бы включённым. Включённость — по флагу соединения; не прочитался
+/// флаг — как раньше, по адресу.
+pub(crate) fn read_auto_proxy() -> sysproxy::Result<Autoproxy> {
+    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
+    let mut auto = Autoproxy::get_auto_proxy()?;
+    #[cfg(target_os = "windows")]
+    if let Some(switched_on) = windows_auto_config_flag() {
+        auto.enable = auto.enable && switched_on;
+    }
+    Ok(auto)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_auto_config_flag() -> Option<bool> {
+    let connections = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Internet Settings\Connections")
+        .ok()?;
+    let settings = connections.get_raw_value("DefaultConnectionSettings").ok()?;
+    auto_config_flag_of(&settings.bytes)
+}
+
+/// Флаг «автонастройка по адресу» (`PROXY_TYPE_AUTO_PROXY_URL`) из записи
+/// соединения WinINet: четыре байта флагов идут после версии и счётчика.
+#[cfg(any(target_os = "windows", test))]
+fn auto_config_flag_of(settings: &[u8]) -> Option<bool> {
+    const PROXY_TYPE_AUTO_PROXY_URL: u32 = 0x04;
+    let flags = u32::from_le_bytes(settings.get(8..12)?.try_into().ok()?);
+    Some(flags & PROXY_TYPE_AUTO_PROXY_URL != 0)
+}
+
 /// Адрес нашего PAC-файла.
 fn pac_url_for(host: &str, pac_port: u16) -> std::string::String {
     format!("http://{host}:{pac_port}/commands/pac")
@@ -765,7 +800,7 @@ impl Sysopt {
                 &ours,
                 manual_may_be_on,
                 || Sysproxy::get_system_proxy().ok(),
-                || Autoproxy::get_auto_proxy().ok(),
+                || read_auto_proxy().ok(),
             )
         });
         match read.await.ok().flatten() {
@@ -1167,6 +1202,27 @@ fn with_system_call_retry(mut apply: impl FnMut() -> sysproxy::Result<()>) -> sy
 
 #[cfg(test)]
 mod tests {
+    /// Выключенный PAC на Windows оставляет адрес в реестре: включённость —
+    /// только по флагу соединения, а запись, которую не разобрать, не решает.
+    #[test]
+    fn the_auto_config_switch_is_read_from_the_connection_flags() {
+        let settings = |flags: u32| {
+            let mut bytes = vec![0x46, 0, 0, 0, 7, 0, 0, 0];
+            bytes.extend_from_slice(&flags.to_le_bytes());
+            bytes.extend_from_slice(&[0; 8]);
+            bytes
+        };
+        assert_eq!(super::auto_config_flag_of(&settings(0x01)), Some(false), "direct");
+        assert_eq!(super::auto_config_flag_of(&settings(0x05)), Some(true), "PAC");
+        assert_eq!(
+            super::auto_config_flag_of(&settings(0x0d)),
+            Some(true),
+            "PAC and detect"
+        );
+        assert_eq!(super::auto_config_flag_of(&settings(0x03)), Some(false), "manual");
+        assert_eq!(super::auto_config_flag_of(&[0x46, 0, 0, 0, 7]), None, "cut short");
+    }
+
     /// Под заголовком «Система не приняла настройки прокси» (тост и
     /// системное уведомление) отказ системы не повторяет его второй раз.
     #[test]
