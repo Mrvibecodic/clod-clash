@@ -95,7 +95,7 @@ async fn bring_tun_back(reason: &str) {
             Ok(Ok(_)) => {
                 spawn_start_verification(anchor);
                 Handle::refresh_verge();
-                let _ = crate::core::tray::Tray::global().update_menu().await;
+                crate::core::tray::Tray::global().redraw().await;
                 return;
             }
             Ok(Err(outcome @ ValidationOutcome::Skipped { .. })) => {
@@ -244,8 +244,8 @@ pub fn clear_suppression() {
     }
 }
 
-/// Пункт TUN в меню трея — «хочется и не подавлен»: смену подавления меню
-/// узнаёт только отсюда.
+/// TUN в трее (пункт меню, значок, подсказка) — «хочется и не подавлен»:
+/// смену подавления трей узнаёт только отсюда.
 fn the_tray_follows_the_suppression(was_suppressed: bool, now_suppressed: bool) {
     if crate::APP_HANDLE.get().is_none() || Handle::global().is_exiting() {
         return;
@@ -255,7 +255,7 @@ fn the_tray_follows_the_suppression(was_suppressed: bool, now_suppressed: bool) 
         // черновик могут отбросить: меню — по её итогу.
         drop(crate::feat::patch_verge_lock().lock().await);
         if the_shown_tun_changes(desired().await, was_suppressed, now_suppressed) {
-            crate::core::tray::Tray::global().update_menu_if_present().await;
+            crate::core::tray::Tray::global().redraw_if_present().await;
         }
     });
 }
@@ -502,7 +502,7 @@ fn drop_tun_from_the_running_config(reason: &str) {
             );
         }
         Handle::refresh_verge();
-        let _ = crate::core::tray::Tray::global().update_menu().await;
+        crate::core::tray::Tray::global().redraw().await;
     });
 }
 
@@ -1888,8 +1888,8 @@ mod tests {
         let follows =
             crate::utils::source_scan::fn_body(tun, "fn the_tray_follows_the_suppression(").unwrap_or_default();
         let settled = follows.find("patch_verge_lock()").unwrap_or(usize::MAX);
-        let drawn = follows.find("update_menu_if_present()").unwrap_or_default();
-        assert!(settled < drawn, "меню рисуется после правки настроек: {follows}");
+        let drawn = follows.find("redraw_if_present()").unwrap_or_default();
+        assert!(settled < drawn, "трей рисуется после правки настроек: {follows}");
     }
 
     #[test]

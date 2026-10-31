@@ -584,13 +584,13 @@ impl Tray {
         logging_error!(Type::Tray, self.update_tooltip().await);
     }
 
-    /// Меню заново, если трей уже есть: созданный позже трей рисуется целиком
-    /// в конце загрузки.
-    pub async fn update_menu_if_present(&self) {
+    /// Трей целиком (меню, значок, подсказка), если он уже есть: созданный
+    /// позже трей рисуется целиком в конце загрузки.
+    pub async fn redraw_if_present(&self) {
         if !ksni_active() && handle::Handle::app_handle().tray_by_id(TRAY_ID).is_none() {
             return;
         }
-        logging_error!(Type::Tray, self.update_menu().await);
+        self.redraw().await;
     }
 
     pub async fn update_menu_and_icon(&self) {
