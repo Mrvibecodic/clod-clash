@@ -15,7 +15,7 @@ interface LivePingState {
   measuredAt: number
   lastPingAt: number
   hasPing: boolean
-  /** Текущий узел померит пакет: автозамер впереди или узел уже в очереди. */
+  /** Текущий узел меряет пакет: автозамер впереди или замер узла уже идёт. */
   batchOwns: boolean
 }
 

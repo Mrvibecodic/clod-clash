@@ -438,9 +438,14 @@ class DelayManager {
     return this.checkingGroups.has(group)
   }
 
-  /** Узел ждёт или проходит пакетную проверку этой подписки. */
-  isQueued(name: string, group: string) {
-    return this.queuedChecks.has(hashKey(name, group))
+  /** Пакет этой подписки меряет узел прямо сейчас. */
+  isMeasuredByBatch(name: string, group: string) {
+    return this.queuedChecks.isMeasuring(hashKey(name, group))
+  }
+
+  /** Узел, ждущий пакета, померит вызывающий: пакет его пропустит. */
+  takeFromBatch(name: string, group: string) {
+    this.queuedChecks.takeOver(hashKey(name, group))
   }
 
   /**
@@ -592,6 +597,9 @@ class DelayManager {
       if (!currProxy) return
       const currName = currProxy.name
       const currProviderName = currProxy.provider
+      const key = hashKey(currName, group)
+      if (!this.queuedChecks.isWaiting(key)) return help()
+      let started = false
 
       try {
         // Убеждаемся, что перед вызовом API статус «тестируется»
@@ -607,13 +615,16 @@ class DelayManager {
 
         await this.takeCheckSlot()
         try {
-          await this.checkDelay(
-            currName,
-            group,
-            timeout,
-            currProviderName,
-            false,
-          )
+          started = this.queuedChecks.start(key)
+          if (started) {
+            await this.checkDelay(
+              currName,
+              group,
+              timeout,
+              currProviderName,
+              false,
+            )
+          }
         } finally {
           this.releaseCheckSlot()
         }
@@ -626,9 +637,10 @@ class DelayManager {
           error,
         )
         // Как и отказ внутри checkDelay — «не мерили», а не приговор узлу
-        this.setDelay(currName, group, -1)
+        if (started) this.setDelay(currName, group, -1)
       } finally {
-        this.queuedChecks.dequeue(hashKey(currName, group), batch)
+        if (started) this.queuedChecks.finish(key, batch)
+        else this.queuedChecks.dequeue(key, batch)
       }
 
       return help()

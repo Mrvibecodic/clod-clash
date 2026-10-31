@@ -68,4 +68,33 @@ describe('очередь пакетных проверок', () => {
     queue.dequeue('g::a', newer)
     assert.equal(queue.has('g::a'), false)
   })
+
+  it('узел, до которого пакет не дошёл, забирает живой пинг, и пакет его пропускает', () => {
+    const queue = new BatchQueue()
+    const batch = queue.enqueue(['g::a', 'g::b'])
+    assert.equal(queue.isMeasuring('g::b'), false)
+    assert.equal(queue.isWaiting('g::b'), true)
+    assert.equal(queue.takeOver('g::b'), true)
+    assert.equal(queue.isWaiting('g::b'), false, 'пакет пропустит его сразу')
+    assert.equal(queue.has('g::b'), false)
+    assert.equal(queue.start('g::b'), false, 'пакет не меряет забранный узел')
+
+    assert.equal(queue.start('g::a'), true)
+    assert.equal(queue.isMeasuring('g::a'), true)
+    assert.equal(queue.takeOver('g::a'), false, 'идущий замер не забирается')
+    assert.equal(queue.has('g::a'), true)
+    queue.finish('g::a', batch)
+    assert.equal(queue.isMeasuring('g::a'), false)
+    assert.equal(queue.has('g::a'), false)
+  })
+
+  it('замер, начатый до смены подписки, кончается без следа', () => {
+    const queue = new BatchQueue()
+    const batch = queue.enqueue(['g::a'])
+    assert.equal(queue.start('g::a'), true)
+    queue.clear()
+    queue.finish('g::a', batch)
+    assert.equal(queue.has('g::a'), false)
+    assert.equal(queue.isMeasuring('g::a'), false)
+  })
 })

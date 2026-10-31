@@ -828,13 +828,14 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
         hasPing,
         batchOwns:
           groupTestAhead(autoTestKey, lastAutoDelayKey) ||
-          delayManager.isQueued(pingTarget, groupName) ||
-          (!!current && delayManager.isQueued(current, groupName)),
+          delayManager.isMeasuredByBatch(pingTarget, groupName) ||
+          (!!current && delayManager.isMeasuredByBatch(current, groupName)),
       })
       if (!due) return
 
       lastAutoPingAt = now
       attempts += 1
+      delayManager.takeFromBatch(pingTarget, groupName)
       // Через менеджер: замер виден сразу, а не только из истории ядра — у узлов
       // провайдеров её приносит кэш провайдеров
       delayManager
