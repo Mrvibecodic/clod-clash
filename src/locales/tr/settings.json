@@ -594,7 +594,7 @@
         "fakeIpFilterMode": "fake-ip verilecekler",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6 adresleriyle yanıt ver. fake-ip ile TUN'da abonelik belirler"
+          "description": "IPv6 adresleriyle yanıt ver. Yalnızca abonelikte IPv6 açıksa çalışır"
         },
         "preferH3": {
           "label": "DoH için HTTP/3'ü tercih et"

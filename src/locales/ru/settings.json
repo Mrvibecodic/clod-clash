@@ -600,7 +600,7 @@
         "fakeIpFilterMode": "Выдавать fake-ip",
         "ipv6": {
           "label": "IPv6",
-          "description": "Отвечать IPv6-адресами. В TUN с fake-ip решает подписка"
+          "description": "Отвечать IPv6-адресами. Действует, только если IPv6 включён в подписке"
         },
         "preferH3": {
           "label": "Предпочитать HTTP/3 для DoH"

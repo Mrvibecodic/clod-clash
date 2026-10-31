@@ -594,7 +594,7 @@
         "fakeIpFilterMode": "Give fake-ip to",
         "ipv6": {
           "label": "IPv6",
-          "description": "Answer with IPv6 addresses. In TUN with fake-ip the subscription decides"
+          "description": "Answer with IPv6 addresses. Works only if IPv6 is enabled in the subscription"
         },
         "preferH3": {
           "label": "Prefer HTTP/3 for DoH"

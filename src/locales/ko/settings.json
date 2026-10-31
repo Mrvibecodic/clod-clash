@@ -594,7 +594,7 @@
         "fakeIpFilterMode": "fake-ip 할당 대상",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6 주소로 응답합니다. TUN과 fake-ip에서는 구독이 결정합니다"
+          "description": "IPv6 주소로 응답합니다. 구독에서 IPv6가 켜져 있을 때만 적용됩니다"
         },
         "preferH3": {
           "label": "DoH에 HTTP/3 우선"

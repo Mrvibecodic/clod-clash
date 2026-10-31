@@ -594,7 +594,7 @@
         "fakeIpFilterMode": "منح fake-ip لـ",
         "ipv6": {
           "label": "IPv6",
-          "description": "الرد بعناوين IPv6. في TUN مع fake-ip يقرر الاشتراك"
+          "description": "الرد بعناوين IPv6. يعمل فقط إذا كان IPv6 مفعّلًا في الاشتراك"
         },
         "preferH3": {
           "label": "تفضيل HTTP/3 لـ DoH"

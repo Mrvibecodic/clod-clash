@@ -594,7 +594,7 @@
         "fakeIpFilterMode": "fake-ip の割り当て先",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6 アドレスで応答します。TUN と fake-ip ではサブスクリプションが決定します"
+          "description": "IPv6 アドレスで応答します。サブスクリプションで IPv6 が有効な場合のみ機能します"
         },
         "preferH3": {
           "label": "DoH で HTTP/3 を優先"

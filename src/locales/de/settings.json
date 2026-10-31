@@ -594,7 +594,7 @@
         "fakeIpFilterMode": "fake-ip vergeben an",
         "ipv6": {
           "label": "IPv6",
-          "description": "Mit IPv6-Adressen antworten. Bei TUN mit fake-ip entscheidet das Abonnement"
+          "description": "Mit IPv6-Adressen antworten. Wirkt nur, wenn IPv6 im Abonnement aktiviert ist"
         },
         "preferH3": {
           "label": "HTTP/3 für DoH bevorzugen"

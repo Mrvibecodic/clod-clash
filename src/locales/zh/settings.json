@@ -594,7 +594,7 @@
         "fakeIpFilterMode": "分配 fake-ip 给",
         "ipv6": {
           "label": "IPv6",
-          "description": "使用 IPv6 地址应答。TUN 搭配 fake-ip 时由订阅决定"
+          "description": "使用 IPv6 地址应答。仅在订阅启用 IPv6 时生效"
         },
         "preferH3": {
           "label": "DoH 优先使用 HTTP/3"

@@ -594,7 +594,7 @@
         "fakeIpFilterMode": "Beri fake-ip ke",
         "ipv6": {
           "label": "IPv6",
-          "description": "Menjawab dengan alamat IPv6. Di TUN dengan fake-ip, langganan yang menentukan"
+          "description": "Menjawab dengan alamat IPv6. Hanya berlaku jika IPv6 diaktifkan di langganan"
         },
         "preferH3": {
           "label": "Utamakan HTTP/3 untuk DoH"

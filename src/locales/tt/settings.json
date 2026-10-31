@@ -594,7 +594,7 @@
         "fakeIpFilterMode": "fake-ip кемгә бирелә",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6 адреслары белән җавап бирү. TUN һәм fake-ip белән язылу хәл итә"
+          "description": "IPv6 адреслары белән җавап бирү. Язылуда IPv6 кабызылган булса гына эшли"
         },
         "preferH3": {
           "label": "DoH өчен HTTP/3 өстенрәк"
