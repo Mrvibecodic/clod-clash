@@ -142,6 +142,23 @@ fn auto_config_flag_of(settings: &[u8]) -> Option<bool> {
     Some(flags & PROXY_TYPE_AUTO_PROXY_URL != 0)
 }
 
+/// Ручной прокси для решения «наш ли он» на Linux, когда режим уже прочитан
+/// включённым: адрес — в том же порядке, что у библиотеки (socks, затем
+/// https, затем http), но без чтения остальных и списка исключений.
+#[cfg(target_os = "linux")]
+fn linux_manual_proxy_when_on() -> Option<Sysproxy> {
+    for read in [Sysproxy::get_socks, Sysproxy::get_https, Sysproxy::get_http] {
+        let found = read().ok()?;
+        if !found.host.is_empty() {
+            return Some(Sysproxy { enable: true, ..found });
+        }
+    }
+    Some(Sysproxy {
+        enable: true,
+        ..Sysproxy::default()
+    })
+}
+
 /// Адрес нашего PAC-файла.
 fn pac_url_for(host: &str, pac_port: u16) -> std::string::String {
     format!("http://{host}:{pac_port}/commands/pac")
@@ -794,14 +811,12 @@ impl Sysopt {
         let manual_may_be_on = || Sysproxy::get_enable().ok();
         #[cfg(not(target_os = "linux"))]
         let manual_may_be_on = || Some(true);
+        #[cfg(target_os = "linux")]
+        let manual = linux_manual_proxy_when_on;
+        #[cfg(not(target_os = "linux"))]
+        let manual = || Sysproxy::get_system_proxy().ok();
         let read = tokio::task::spawn_blocking(move || {
-            our_proxy_is_on_in(
-                pac,
-                &ours,
-                manual_may_be_on,
-                || Sysproxy::get_system_proxy().ok(),
-                || read_auto_proxy().ok(),
-            )
+            our_proxy_is_on_in(pac, &ours, manual_may_be_on, manual, || read_auto_proxy().ok())
         });
         match read.await.ok().flatten() {
             Some(on) => on,
