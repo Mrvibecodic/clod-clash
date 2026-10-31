@@ -122,7 +122,7 @@ export const ProxyItem = (props: Props) => {
               ) : (
                 showType &&
                 chip && (
-                  <CodeChip title={proxy.label?.text} sx={{ mr: '6px' }}>
+                  <CodeChip title={chip} sx={{ mr: '6px' }}>
                     {chip}
                   </CodeChip>
                 )

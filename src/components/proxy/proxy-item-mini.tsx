@@ -108,7 +108,7 @@ export const ProxyItemMini = (props: Props) => {
             ) : (
               <>
                 {chip && (
-                  <CodeChip title={proxy.label?.text} sx={{ minWidth: 0 }}>
+                  <CodeChip title={chip} sx={{ minWidth: 0 }}>
                     {chip}
                   </CodeChip>
                 )}
