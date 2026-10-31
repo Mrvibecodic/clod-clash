@@ -203,11 +203,8 @@ pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated
             "restarting the core after a crash (attempt {})",
             attempt
         );
-        let restarted = manager.start_core().await;
-        manager.set_restart_pending(false);
-        if let Err(e) = restarted {
+        if let Err(e) = manager.start_core_after_a_crash().await {
             logging!(error, Type::Core, "failed to restart the core after a crash: {}", e);
-            manager.after_core_process();
             return;
         }
         after_core_came_back(&message).await;

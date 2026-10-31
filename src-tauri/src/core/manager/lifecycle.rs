@@ -216,6 +216,17 @@ impl CoreManager {
         self.start_core_inner().await
     }
 
+    /// Подъём после падения: признак «перезапуск впереди» снимается раньше
+    /// показа, иначе показ неудачного подъёма видел бы ядро запускаемым.
+    pub(super) async fn start_core_after_a_crash(&self) -> Result<()> {
+        defer! {
+            self.set_restart_pending(false);
+            self.after_core_process();
+        }
+        let _life = self.lifecycle_lock.lock().await;
+        self.start_core_inner().await
+    }
+
     /// После отменённого выхода: пережившее остановку ядро снова рабочее, а
     /// если его тем временем не стало — поднимается заново.
     pub async fn resume_after_a_cancelled_exit(&self) -> Result<()> {
@@ -1454,6 +1465,10 @@ mod tests {
             ("pub async fn start_core(", &["lifecycle_lock.lock()"][..]),
             ("pub async fn stop_core(", &["lifecycle_lock.lock()"]),
             (
+                "pub(super) async fn start_core_after_a_crash(",
+                &["lifecycle_lock.lock()"],
+            ),
+            (
                 "pub async fn resume_after_a_cancelled_exit(",
                 &["lifecycle_lock.lock()"],
             ),
@@ -1470,14 +1485,17 @@ mod tests {
             assert_eq!(body.matches("after_core_process()").count(), 1, "{signature}: {body}");
             let draw = position(body, "after_core_process()");
             let deferred = body[..draw].rfind("defer!").unwrap_or(draw);
-            assert!(
-                deferred < draw && !body[deferred..draw].contains(';'),
-                "{signature}: показ не отложен"
-            );
+            let closed = body[deferred..].find('}').map_or(0, |at| deferred + at);
+            assert!(deferred < draw && draw < closed, "{signature}: показ не отложен");
             for lock in locks {
                 assert!(draw < position(body, lock), "{signature}: показ объявлен после {lock}");
             }
         }
+        let crash = production_body("pub(super) async fn start_core_after_a_crash(");
+        assert!(
+            position(crash, "set_restart_pending(false)") < position(crash, "after_core_process()"),
+            "показ неудачного подъёма увидел бы ядро запускаемым: {crash}"
+        );
         for inner in [
             "async fn start_core_inner(",
             "async fn stop_core_inner(",
