@@ -99,7 +99,7 @@ Every build is on the [download page](https://mrvibecodic.github.io/clod-clash/e
 
 | System | What to download |
 | --- | --- |
-| Windows x64 | the `.exe` installer — installs the app, the TUN service and a firewall rule for the cores. There is also a portable `.zip`: it runs without installing but does not download updates in the background |
+| Windows x64 | the `.exe` installer — installs the app, the TUN service and a firewall rule for the cores. There is also a portable `.zip`: it runs without installing but does not update itself — get new versions from the download page |
 | macOS 11+ (Apple Silicon and Intel) | `.dmg`. The build has no Apple certificate: allow the first launch in "System Settings → Privacy & Security". Or run one command in Terminal: `curl -fsSL https://mrvibecodic.github.io/clod-clash/install-macos.sh \| bash` |
 | Linux x86_64 | `.deb` or `.rpm`. On systemd systems the package registers the TUN service right away |
 
