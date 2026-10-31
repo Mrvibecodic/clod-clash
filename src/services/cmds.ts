@@ -10,7 +10,6 @@ import {
   forgetLegacyConnections,
   legacyConnectedChains,
 } from '@/services/proxy-chain-store'
-import { debugLog } from '@/utils/debug'
 import { enumText } from '@/utils/plugin-enum'
 import type { ProviderPicture } from '@/utils/provider-image'
 import { ambiguousNames, labelFor, own } from '@/utils/proxy-label'
@@ -468,23 +467,11 @@ export async function getSystemProxy() {
 }
 
 export async function getAutotemProxy() {
-  try {
-    debugLog('[API] Начало вызова get_auto_proxy')
-    const result = await invoke<{
-      enable: boolean
-      url: string
-      ours: boolean
-    }>('get_auto_proxy')
-    debugLog('[API] Вызов get_auto_proxy выполнен успешно:', result)
-    return result
-  } catch (error) {
-    console.error('[API] Ошибка вызова get_auto_proxy:', error)
-    return {
-      enable: false,
-      url: '',
-      ours: false,
-    }
-  }
+  return invoke<{
+    enable: boolean
+    url: string
+    ours: boolean
+  }>('get_auto_proxy')
 }
 
 export async function changeClashCore(clashCore: string) {
