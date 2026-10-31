@@ -237,9 +237,7 @@ impl SubHeaders {
         let lock_permanent =
             value(headers, "clod-lock-mode").is_some_and(|raw| raw.trim().eq_ignore_ascii_case("lock"));
 
-        let notify_expire_days = value(headers, "notify-expire-days")
-            .and_then(|raw| thresholds(&raw, 1, 365))
-            .or_else(|| (flag(headers, "notification-subs-expire")).then(|| DEFAULT_NOTIFY_EXPIRE_DAYS.to_vec()));
+        let notify_expire_days = value(headers, "notify-expire-days").and_then(|raw| thresholds(&raw, 1, 365));
 
         let new_sub = value(headers, "clod-new-sub").and_then(|raw| spare_domain(&raw));
 
@@ -561,8 +559,8 @@ pub fn spare_address(main: &str, domain: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ANNOUNCE_MAX_CHARS, ConnectMode, DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, LatencyStyle, ProviderTheme,
-        SubHeaders, ThemeMode, contact_url, decode_value, raw_value, spare_address, thresholds, truncate_banner,
+        ANNOUNCE_MAX_CHARS, ConnectMode, HwidState, LatencyStyle, ProviderTheme, SubHeaders, ThemeMode, contact_url,
+        decode_value, raw_value, spare_address, thresholds, truncate_banner,
     };
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
@@ -1232,18 +1230,6 @@ mod tests {
             thresholds("1,2,3,4,5,6,7,8,9,10,11,12", 1, 365).map(|v| v.len()),
             Some(10)
         );
-    }
-
-    #[test]
-    fn happ_expire_toggle_enables_defaults() {
-        let parsed = SubHeaders::parse(&headers(&[("notification-subs-expire", "true")]));
-        assert_eq!(parsed.notify_expire_days.as_deref(), Some(DEFAULT_NOTIFY_EXPIRE_DAYS));
-
-        let parsed = SubHeaders::parse(&headers(&[
-            ("notification-subs-expire", "true"),
-            ("notify-expire-days", "off"),
-        ]));
-        assert_eq!(parsed.notify_expire_days, Some(Vec::new()));
     }
 
     #[test]

@@ -300,7 +300,6 @@ interval; an unchecked "Allow Auto Update" forbids it.
 | --- | --- | --- |
 | `notify-expire-days` | comma-separated days, e.g. `7,3,1`; `off` turns it off | expiry reminders. Without the header — `7,3,1` |
 | `notify-traffic-percent` | comma-separated percentages, e.g. `80,90,100`; `off` turns it off | traffic reminders. Without the header — `80,90,100` |
-| `notification-subs-expire` | `true` / `false` | Happ compatibility; changes nothing: `true` gives the same `7,3,1`, and `false` does not turn reminders off (use `notify-expire-days: off` for that) |
 
 Days are 1 to 365, percentages 1 to 100, at most ten values. Reminders are sent only for the
 active subscription. The user turns them all off with the "Subscription notifications" switch
