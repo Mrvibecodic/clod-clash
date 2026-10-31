@@ -1,8 +1,6 @@
 import { getRunningMode, isServiceAvailable } from '@/services/cmds'
 import { useQuery } from '@/services/query-client'
 
-import { useVisibility } from './use-visibility'
-
 type RunningMode = 'Sidecar' | 'Service' | 'NotRunning' | 'Starting'
 
 interface SystemState {
@@ -15,6 +13,20 @@ const defaultSystemState = {
   isServiceOk: false,
 } as SystemState
 
+/** Как часто окно перечитывает режим работы и доступность службы. */
+export const SYSTEM_STATE_POLL_MS = 30_000
+
+export const SYSTEM_STATE_QUERY = {
+  queryKey: ['getSystemState'],
+  queryFn: async () => {
+    const [runningMode, isServiceOk] = await Promise.all([
+      getRunningMode(),
+      isServiceAvailable(),
+    ])
+    return { runningMode, isServiceOk } as SystemState
+  },
+} as const
+
 /**
  * Пользовательский hook для получения состояния работы системы
  * Включает режим работы и доступность системной службы
@@ -26,21 +38,15 @@ const defaultSystemState = {
  * тосты. Теперь состоянием TUN распоряжается бэкенд: он подавляет режим на
  * сессию, если ядро не смогло поднять устройство, и присылает уведомление.
  * Хук снова только читает.
+ *
+ * Опрос — один на окно, в `AppDataProvider`; почему здесь
+ * `refetchInterval: false`, сказано у `useTunState`.
  */
 export function useSystemState() {
-  const pageVisible = useVisibility()
-
   const { data: systemState = defaultSystemState, refetch: mutateSystemState } =
     useQuery({
-      queryKey: ['getSystemState'],
-      queryFn: async () => {
-        const [runningMode, isServiceOk] = await Promise.all([
-          getRunningMode(),
-          isServiceAvailable(),
-        ])
-        return { runningMode, isServiceOk } as SystemState
-      },
-      refetchInterval: pageVisible ? 30000 : false,
+      ...SYSTEM_STATE_QUERY,
+      refetchInterval: false,
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
     })

@@ -107,4 +107,47 @@ describe('окно не перечитывает лишнего', () => {
     )
     assert.match(layout, /drainedRef\.current = false/)
   })
+
+  it('опросы состояния TUN, службы и PAC — по одному на окно, в провайдере', () => {
+    const provider = source('../../providers/app-data-provider.tsx')
+    for (const [path, query, poll] of [
+      ['../../hooks/use-tun-state.ts', 'TUN_STATE_QUERY', 'TUN_STATE_POLL_MS'],
+      [
+        '../../hooks/use-system-state.ts',
+        'SYSTEM_STATE_QUERY',
+        'SYSTEM_STATE_POLL_MS',
+      ],
+    ]) {
+      const hook = source(path)
+      const own = block(hook, `...${query},`, '})')
+      assert.ok(own, `${query} в хуке не найден — тест ослеп`)
+      // Именно false, а не отсутствие поля: отказ не должен ложиться в кэш.
+      assert.match(own, /refetchInterval: false,/, path)
+      const shared = block(provider, `...${query},`, '})')
+      assert.ok(shared, `${query} в провайдере не найден — тест ослеп`)
+      assert.match(
+        shared,
+        new RegExp(`refetchInterval: visible \\? ${poll} : false`),
+      )
+      // Фокус SWR отдаёт первому подписчику ключа — у всех одинаково.
+      assert.match(shared, /refetchOnWindowFocus: true,/, query)
+    }
+    const sharedPac = block(provider, "queryKey: ['getAutotemProxy'],", '})')
+    assert.ok(sharedPac, 'getAutotemProxy в провайдере не найден — тест ослеп')
+    assert.match(sharedPac, /refetchOnWindowFocus: true,/)
+    const pac = block(
+      source('../../hooks/use-system-proxy-state.ts'),
+      "queryKey: ['getAutotemProxy'],",
+      '})',
+    )
+    assert.ok(pac, 'getAutotemProxy в хуке не найден — тест ослеп')
+    assert.match(pac, /refetchInterval: false,/)
+    for (const key of ['getTunState', 'getSystemState']) {
+      assert.match(
+        block(provider, 'const refreshOnReturn = () =>', '])'),
+        new RegExp(`\\['${key}'\\]`),
+        key,
+      )
+    }
+  })
 })

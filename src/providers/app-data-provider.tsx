@@ -13,6 +13,11 @@ import {
 } from 'tauri-plugin-mihomo-api'
 
 import { useRefreshOnReturn } from '@/hooks/use-refresh-on-return'
+import {
+  SYSTEM_STATE_POLL_MS,
+  SYSTEM_STATE_QUERY,
+} from '@/hooks/use-system-state'
+import { TUN_STATE_POLL_MS, TUN_STATE_QUERY } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
 import { router } from '@/pages/_routers'
 import {
@@ -54,6 +59,10 @@ const refreshOnReturn = () =>
     // `get_profiles` отдаёт уже разобранный конфиг профилей из памяти, в сеть
     // за ним не ходит (за обновление подписки отвечает таймер бэкенда).
     ['getProfiles'],
+    // Опрос этих двух ждёт полный интервал (10 и 30 с), а событие фокуса при
+    // показе из трея приходит не всегда.
+    ['getTunState'],
+    ['getSystemState'],
   ])
 
 /**
@@ -189,12 +198,37 @@ export const AppDataProvider = ({
   // `server` системного прокси (см. `use-system-proxy-state`). Опрос заводим
   // здесь, в единственном экземпляре: сам хук живёт в нескольких местах сразу,
   // и интервал в нём означал бы столько же параллельных опросов.
+  //
+  // Фокус и сеть — как у хука: SWR отдаёт эти события только первому
+  // подписавшемуся экземпляру ключа и решает по его настройкам. Окажись первым
+  // этот экземпляр с выключенным фокусом — перечитывание по фокусу пропало бы
+  // у всех.
   useQuery({
     queryKey: ['getAutotemProxy'],
     queryFn: getAutotemProxy,
     ...TQ_DEFAULTS,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     refetchInterval: visible ? SYS_PROXY_POLL_MS : false,
     refetchIntervalInBackground: false,
+  })
+
+  // Состояние TUN и службы — так же: один опрос на окно вместо таймера в
+  // каждом экземпляре хука. Склейка повторов — обычные 2 с, фокус и сеть — как
+  // у самих хуков (см. выше про первый экземпляр).
+  useQuery({
+    ...TUN_STATE_QUERY,
+    refetchInterval: visible ? TUN_STATE_POLL_MS : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  })
+  useQuery({
+    ...SYSTEM_STATE_QUERY,
+    refetchInterval: visible ? SYSTEM_STATE_POLL_MS : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
 
   const refreshProxy = useStableFn(_refetchProxy)

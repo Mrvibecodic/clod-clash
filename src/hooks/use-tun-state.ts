@@ -1,8 +1,6 @@
 import { getTunState } from '@/services/cmds'
 import { useQuery } from '@/services/query-client'
 
-import { useVisibility } from './use-visibility'
-
 const defaultTunState: ITunState = {
   desired: false,
   active: false,
@@ -14,13 +12,28 @@ const defaultTunState: ITunState = {
   failure: null,
 }
 
-export const useTunState = () => {
-  const pageVisible = useVisibility()
+/** Как часто окно перечитывает состояние TUN, пока оно на экране. */
+export const TUN_STATE_POLL_MS = 10_000
 
+export const TUN_STATE_QUERY = {
+  queryKey: ['getTunState'],
+  queryFn: getTunState,
+} as const
+
+/**
+ * Опрос заведён один раз на окно — в `AppDataProvider`. Хук живёт в десятке
+ * мест сразу, а таймер опроса у SWR свой у каждого экземпляра: интервал здесь
+ * означал бы столько же параллельных опросов со своими фазами.
+ *
+ * `refetchInterval: false` — не «без опроса», а «запрос с опросом»: отказ
+ * оставляет прошлые данные и в кэш не попадает. Ошибка в кэше остановила бы
+ * общий опрос, а перечитывание по событиям бэкенда идёт загрузчиком первого
+ * подписавшегося экземпляра — то есть одного из хуков.
+ */
+export const useTunState = () => {
   const { data: tun = defaultTunState, refetch: mutateTunState } = useQuery({
-    queryKey: ['getTunState'],
-    queryFn: getTunState,
-    refetchInterval: pageVisible ? 10000 : false,
+    ...TUN_STATE_QUERY,
+    refetchInterval: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   })

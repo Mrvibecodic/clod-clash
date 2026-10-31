@@ -13,9 +13,12 @@ export const PAC_URL = `http://127.0.0.1:${import.meta.env.DEV ? 11233 : 33331}/
 export const useSystemProxyState = () => {
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { sysproxy } = useSystemData()
+  // Опрос — в `AppDataProvider`; `refetchInterval: false` держит отказ чтения
+  // вне кэша, иначе он остановил бы тот общий опрос (см. `useTunState`).
   const { data: autoproxy } = useQuery({
     queryKey: ['getAutotemProxy'],
     queryFn: getAutotemProxy,
+    refetchInterval: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   })
