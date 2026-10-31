@@ -592,8 +592,7 @@ async fn announce_the_failure(uid: &String, status: &str, message: &str) {
     handle::Handle::notice_message(status, message);
 }
 
-/// Добавить подписку: запись в реестр, реестр на диск, расписание. Что сказать
-/// человеку о неудаче, решает вызывающий.
+/// Чем кончилось добавление подписки по ссылке.
 pub enum Adding<T> {
     Added(T),
     AlreadyAdded,
@@ -620,6 +619,8 @@ pub async fn add_subscription_once<T>(url: &str, add: impl AsyncFnOnce() -> T) -
     Adding::AlreadyAdded
 }
 
+/// Добавить подписку: запись в реестр, реестр на диск, расписание. Что сказать
+/// человеку о неудаче, решает вызывающий.
 pub async fn add_profile(item: &mut PrfItem) -> Result<()> {
     crate::config::profiles_append_item_safe(item).await?;
     crate::config::profiles::profiles_save_file_safe().await?;
