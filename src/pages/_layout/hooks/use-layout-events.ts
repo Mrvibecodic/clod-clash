@@ -28,6 +28,8 @@ const CLASH_CONFIG_KEYS_WHEN_VISIBLE = [
   // а страница настроек после смены профиля держала прежний порт.
   'getCoreLadder',
   'getClashInfo',
+  // Адрес нашего прокси зависит от раздачи в локальную сеть.
+  'getSystemProxy',
 ] as const
 
 const CLASH_CONFIG_KEYS_ON_RETURN = CLASH_CONFIG_KEYS_WHEN_VISIBLE.filter(
