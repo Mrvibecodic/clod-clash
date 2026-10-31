@@ -987,13 +987,15 @@ async fn create_tray_menu_model(
     let quit_accelerator = quit_accelerator.or(Some("Cmd+Q"));
 
     menu_items.push(MenuNode::Separator);
-    if system_proxy_allowed {
+    // Запертая провайдером цель прячется, только когда она выключена:
+    // включённую должно быть чем выключить и из трея.
+    if system_proxy_allowed || system_proxy_enabled {
         menu_items.push(
             MenuNode::check(MenuIds::SYSTEM_PROXY, texts.system_proxy.as_ref(), system_proxy_enabled)
                 .with_accelerator(hotkeys.get("toggle_system_proxy").copied()),
         );
     }
-    if tun_allowed {
+    if tun_allowed || tun_mode_enabled {
         menu_items.push(
             MenuNode::check(MenuIds::TUN_MODE, texts.tun_mode.as_ref(), tun_mode_enabled)
                 .with_accelerator(hotkeys.get("toggle_tun_mode").copied()),
