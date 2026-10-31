@@ -43,7 +43,7 @@
         "traffic": "Out of traffic",
         "provider": "The provider sent no servers",
         "deviceLimit": "已達裝置數量上限",
-        "deviceNotIdentified": "The provider did not recognise this device"
+        "deviceNotIdentified": "Device identification required"
       },
       "body": {
         "expired": "The provider will hand out servers once the plan is renewed. It ran out on {{date}}.",
@@ -52,7 +52,7 @@
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the provider’s response has no servers at all. This is on the provider’s side.",
         "deviceLimit": "此訂閱的裝置數量已達上限。請聯絡服務商客服。",
-        "deviceNotIdentified": "The provider did not recognise this device and served no servers."
+        "deviceNotIdentified": "The provider served no servers without device identification."
       },
       "panelSays": "已從訂閱中移除佔位節點：{{text}}",
       "partiallyDropped": "已隱藏無法連線的伺服器：{{total}}（{{names}}）",
@@ -63,7 +63,7 @@
         "trafficNoDate": "Out of traffic",
         "provider": "The provider sent no servers",
         "deviceLimit": "已達裝置數量上限",
-        "deviceNotIdentified": "The provider did not recognise this device",
+        "deviceNotIdentified": "Device identification required",
         "partiallyDropped": "已隱藏無法連線的伺服器：{{total}}"
       }
     },

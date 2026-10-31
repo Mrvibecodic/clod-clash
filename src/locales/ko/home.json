@@ -43,7 +43,7 @@
         "traffic": "Out of traffic",
         "provider": "The provider sent no servers",
         "deviceLimit": "기기 수 한도 초과",
-        "deviceNotIdentified": "The provider did not recognise this device"
+        "deviceNotIdentified": "Device identification required"
       },
       "body": {
         "expired": "The provider will hand out servers once the plan is renewed. It ran out on {{date}}.",
@@ -52,7 +52,7 @@
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the provider’s response has no servers at all. This is on the provider’s side.",
         "deviceLimit": "이 구독의 기기 한도에 도달했습니다. 제공업체 고객지원에 문의하세요.",
-        "deviceNotIdentified": "The provider did not recognise this device and served no servers."
+        "deviceNotIdentified": "The provider served no servers without device identification."
       },
       "panelSays": "구독에서 자리표시자 노드를 제거했습니다: {{text}}",
       "partiallyDropped": "연결할 수 없어 숨긴 서버: {{total}} ({{names}})",
@@ -63,7 +63,7 @@
         "trafficNoDate": "Out of traffic",
         "provider": "The provider sent no servers",
         "deviceLimit": "기기 수 한도 초과",
-        "deviceNotIdentified": "The provider did not recognise this device",
+        "deviceNotIdentified": "Device identification required",
         "partiallyDropped": "연결할 수 없어 숨긴 서버: {{total}}"
       }
     },

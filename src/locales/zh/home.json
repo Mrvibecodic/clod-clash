@@ -43,7 +43,7 @@
         "traffic": "流量已用尽",
         "provider": "服务商未下发服务器",
         "deviceLimit": "已达设备数量上限",
-        "deviceNotIdentified": "The provider did not recognise this device"
+        "deviceNotIdentified": "Device identification required"
       },
       "body": {
         "expired": "续费后服务商才会下发服务器。到期时间：{{date}}。",
@@ -52,7 +52,7 @@
         "trafficNoDate": "已使用 {{used}} / {{total}}。请购买流量以继续使用。",
         "provider": "The subscription is active, but the provider’s response has no servers at all. This is on the provider’s side.",
         "deviceLimit": "该订阅的设备数量已达上限。请联系服务商客服。",
-        "deviceNotIdentified": "The provider did not recognise this device and served no servers."
+        "deviceNotIdentified": "The provider served no servers without device identification."
       },
       "panelSays": "已从订阅中移除占位节点：{{text}}",
       "partiallyDropped": "已隐藏无法连接的服务器：{{total}}（{{names}}）",
@@ -63,7 +63,7 @@
         "trafficNoDate": "流量已用尽",
         "provider": "服务商未下发服务器",
         "deviceLimit": "已达设备数量上限",
-        "deviceNotIdentified": "The provider did not recognise this device",
+        "deviceNotIdentified": "Device identification required",
         "partiallyDropped": "已隐藏无法连接的服务器：{{total}}"
       }
     },
