@@ -199,9 +199,10 @@ jobs:
   # The build itself does not lint or test. The checks of the same commit
   # already run on main (Clippy Lint with the Rust tests, Frontend Check), so
   # the release waits for them instead of repeating them: builds go on in
-  # parallel, and only publishing needs them green. A tag on a commit that
-  # never ran them (not on main) is not published either. Dependency Audit is
-  # left out: fresh advisories in other people's crates turn it red, not code.
+  # parallel, and only publishing needs them green. A tag on a commit whose
+  # checks never ran (not the tip of a push to main) is not published either.
+  # Dependency Audit is left out: fresh advisories in other people's crates
+  # turn it red, not code. The same gate guards publish-clod.yml.
   ci_green:
     name: Wait for the checks of this commit
     runs-on: ubuntu-latest
@@ -210,40 +211,13 @@ jobs:
       actions: read
       contents: read
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
       - name: Require Clippy Lint and Frontend Check to pass
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHA: ${{ github.sha }}
-        run: |
-          deadline=$((SECONDS + 110 * 60))
-          appear_by=$((SECONDS + 15 * 60))
-          for workflow in lint-clippy.yml frontend-check.yml; do
-            while :; do
-              run=$(gh api "repos/${{ github.repository }}/actions/workflows/$workflow/runs?head_sha=$SHA&event=push&per_page=20" \
-                --jq '.workflow_runs | sort_by(.created_at) | last | if . == null then "" else "\(.status) \(.conclusion) \(.html_url)" end')
-              if [ -z "$run" ]; then
-                if [ "$SECONDS" -ge "$appear_by" ]; then
-                  echo "::error::$workflow never ran for $SHA — release only from a commit pushed to main"
-                  exit 1
-                fi
-              else
-                read -r status conclusion url <<< "$run"
-                if [ "$status" = "completed" ]; then
-                  if [ "$conclusion" = "success" ]; then
-                    echo "$workflow: success ($url)"
-                    break
-                  fi
-                  echo "::error::$workflow ended with '$conclusion' for $SHA: $url"
-                  exit 1
-                fi
-              fi
-              if [ "$SECONDS" -ge "$deadline" ]; then
-                echo "::error::$workflow did not finish in time for $SHA"
-                exit 1
-              fi
-              sleep 30
-            done
-          done
+        run: bash scripts/ci-green.sh "${{ github.sha }}"
 
   publish_release:
     name: Publish the release and roll the updater tag

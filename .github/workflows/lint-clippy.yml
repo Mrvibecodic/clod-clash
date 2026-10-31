@@ -12,7 +12,9 @@ env:
 permissions:
   contents: read
 concurrency:
-  group: clippy-${{ github.workflow }}-${{ github.ref }}
+  # На main — своя группа у каждого коммита: следующий пуш не отменяет
+  # ожидающую проверку, которой ждёт релиз.
+  group: clippy-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -136,5 +138,5 @@ jobs:
         working-directory: ./src-tauri
         shell: bash
         run: |
-          cargo install --git https://github.com/clash-verge-rev/clash-verge-logging-check.git
+          cargo install --git https://github.com/clash-verge-rev/clash-verge-logging-check.git --rev d4a8d9c950bbde6c79c27c4e9fc9e2a21ddc8201 --locked
           clash-verge-logging-check

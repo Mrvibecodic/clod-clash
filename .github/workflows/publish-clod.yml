@@ -32,9 +32,23 @@ jobs:
   publish:
     name: Publish and roll the updater tag
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      # Как в release-clod.yml: в обновление уходит только коммит с зелёными
+      # проверками — запасной путь их не обходит.
+      - name: Require Clippy Lint and Frontend Check to pass
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="${GITHUB_REF_NAME#publish-}"
+          SHA=$(gh api "repos/${{ github.repository }}/commits/$RELEASE_TAG" --jq .sha)
+          bash scripts/ci-green.sh "$SHA"
 
       - name: Publish the draft as a pre-release
         id: publish
