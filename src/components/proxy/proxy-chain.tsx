@@ -335,7 +335,7 @@ export const ProxyChain = ({
     setIsConnecting(true)
     try {
       if (!targetGroup) {
-        throw new Error('Необходимо выбрать группу прокси в режиме правил')
+        throw new Error(t('proxies.page.chain.groupRequired'))
       }
 
       const chainProxies = proxyChain.map((node) => node.name)

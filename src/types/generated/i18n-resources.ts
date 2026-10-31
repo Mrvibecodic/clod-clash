@@ -570,6 +570,7 @@ export interface TranslationResources {
           duplicateNode: string
           entryNode: string
           exitNode: string
+          groupRequired: string
           header: string
           instruction: string
           minimumNodes: string

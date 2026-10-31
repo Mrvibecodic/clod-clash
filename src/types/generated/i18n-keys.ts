@@ -368,6 +368,7 @@ export const translationKeys = [
   'proxies.page.chain.instruction',
   'proxies.page.chain.minimumNodes',
   'proxies.page.chain.minimumNodesHint',
+  'proxies.page.chain.groupRequired',
   'proxies.page.chain.connectFailed',
   'proxies.page.chain.disconnectFailed',
   'proxies.page.chain.duplicateNode',
