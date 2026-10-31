@@ -79,6 +79,9 @@ fn tun_setup_refusal_text(marker: &str) -> Option<Cow<'static, str>> {
         "tun::setup_busy" => clash_verge_i18n::t!("notifications.tunSetup.busy"),
         "tun::setup_pending" => clash_verge_i18n::t!("notifications.tunSetup.pending"),
         "tun::volume_without_rights" => clash_verge_i18n::t!("notifications.tunSetup.volumeWithoutRights"),
+        "tun::rights_declined" => clash_verge_i18n::t!("notifications.tunSetup.rightsDeclined"),
+        "tun::setup_failed" => clash_verge_i18n::t!("notifications.tunSetup.setupFailed"),
+        "tun::service_silent" => clash_verge_i18n::t!("notifications.tunSetup.serviceSilent"),
         crate::core::notification::EXIT_REFUSAL_STATUS => clash_verge_i18n::t!("common.exitInProgress"),
         _ => return None,
     })
