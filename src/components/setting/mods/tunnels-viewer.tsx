@@ -52,6 +52,17 @@ interface TunnelEntry {
   proxy?: string
 }
 
+/** Пустая форма нового туннеля: при открытии окна и по «Сбросить». */
+const EMPTY_FORM = {
+  localAddr: '',
+  localPort: '',
+  targetAddr: '',
+  targetPort: '',
+  network: 'tcp+udp',
+  group: '',
+  proxy: '',
+}
+
 const NETWORK_OPTIONS = [
   { value: 'tcp', label: 'TCP' },
   { value: 'udp', label: 'UDP' },
@@ -93,15 +104,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
   const { refreshProxy } = useAppRefreshers()
 
   const [open, setOpen] = useState(false)
-  const [values, setValues] = useState({
-    localAddr: '',
-    localPort: '',
-    targetAddr: '',
-    targetPort: '',
-    network: 'tcp+udp',
-    group: '',
-    proxy: '',
-  })
+  const [values, setValues] = useState(EMPTY_FORM)
   const [draftTunnels, setDraftTunnels] = useState<TunnelEntry[]>([])
   const [initialTunnels, setInitialTunnels] = useState<TunnelEntry[]>([])
   const changes = useChangeCount(
@@ -111,15 +114,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
 
   useImperativeHandle(ref, () => ({
     open: () => {
-      setValues(() => ({
-        localAddr: '',
-        localPort: '',
-        targetAddr: '',
-        targetPort: '',
-        network: 'tcp+udp',
-        group: '',
-        proxy: '',
-      }))
+      setValues(EMPTY_FORM)
       setDraftTunnels(() => runtime?.tunnels ?? [])
       setInitialTunnels(runtime?.tunnels ?? [])
       // Группы опрашиваются, только пока они на Главной или «Прокси», — здесь
@@ -299,7 +294,10 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       title={t('settings.sections.clash.form.fields.tunnels.title')}
       dividers
       changes={changes + (formFilled ? 1 : 0)}
-      onReset={() => setDraftTunnels(initialTunnels)}
+      onReset={() => {
+        setDraftTunnels(initialTunnels)
+        setValues(EMPTY_FORM)
+      }}
       contentSx={{ width: 532 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
