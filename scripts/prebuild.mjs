@@ -435,7 +435,6 @@ async function resolveResource(binInfo) {
     }
     await fsp.mkdir(baseDir, { recursive: true })
     await downloadFile(downloadURL, targetPath)
-    await updateHashCache(targetPath)
   }
 
   if (localPath) {
@@ -616,7 +615,6 @@ async function resolveServiceBundle() {
 
       await fsp.copyFile(extractedFile, targetPath)
       if (platform !== 'win32') await fsp.chmod(targetPath, 0o755)
-      await updateHashCache(targetPath)
       log_success(`Extracted service file: ${targetFile}`)
     }
 
