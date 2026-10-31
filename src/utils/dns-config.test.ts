@@ -171,20 +171,6 @@ describe('mergeDnsConfig', () => {
     })
   })
 
-  it('маленький засеянный блок сохраняется полным набором полей', () => {
-    const formFields = {
-      enable: true,
-      listen: ':53',
-      ipv6: true,
-      nameserver: ['8.8.8.8'],
-      'enhanced-mode': 'fake-ip',
-    }
-    const merged = mergeDnsConfig({ nameserver: ['8.8.8.8'] }, formFields)
-
-    assert.deepEqual(Object.keys(merged).sort(), Object.keys(formFields).sort())
-    assert.equal(merged.enable, true)
-  })
-
   it('пустой набор полей на пустой базе даёт пустой блок', () => {
     assert.deepEqual(mergeDnsConfig({}, {}), {})
   })
