@@ -47,10 +47,12 @@ const RulesPage = () => {
       lineNo: index + 1,
     }))
 
-    return rulesWithLineNo.filter((item) =>
-      match(
-        `${enumText(item.type)},${item.payload ?? ''},${policyName(t, item.proxy)}`,
-      ),
+    // Адрес — ещё и отдельно: выражение с ^…$ находит его целиком, как раньше.
+    return rulesWithLineNo.filter(
+      (item) =>
+        match(
+          `${enumText(item.type)},${item.payload ?? ''},${policyName(t, item.proxy)}`,
+        ) || match(item.payload ?? ''),
     )
   }, [rules, match, t])
 
