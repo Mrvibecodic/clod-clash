@@ -150,4 +150,10 @@ describe('окно не перечитывает лишнего', () => {
       )
     }
   })
+
+  it('строка настроек рисует только свой диалог', () => {
+    const text = source('../../components/shared/proxy-control-switches.tsx')
+    assert.match(text, /target === 'sysproxy' && <SysproxyViewer /)
+    assert.match(text, /target === 'tun' && <TunViewer /)
+  })
 })

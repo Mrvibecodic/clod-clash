@@ -324,8 +324,10 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
         />
       )}
 
-      <SysproxyViewer ref={sysproxyRef} />
-      <TunViewer ref={tunRef} />
+      {/* Строки TUN и прокси — два экземпляра этого компонента: диалог у
+          каждой свой, второй закрытый экземпляр открыть нечем. */}
+      {target === 'sysproxy' && <SysproxyViewer ref={sysproxyRef} />}
+      {target === 'tun' && <TunViewer ref={tunRef} />}
     </Box>
   )
 }
