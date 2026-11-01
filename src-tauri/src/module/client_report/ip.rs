@@ -1,6 +1,6 @@
 //! Внешний адрес клиента в текущей сети — тот, с которого идут замеры.
 //!
-//! Спрашивается у Яндекса (адреса страницы yandex.ru/internet), только у
+//! Спрашивается у ipify, только у
 //! защищённой подписки: сразу, как сменилась сеть, и раз в час в одной сети. Запрос идёт без прокси приложения. При TUN он проходит по
 //! правилам подписки, поэтому провайдеру нужно отправить эти два адреса в
 //! DIRECT своего шаблона — иначе виден адрес выхода узла, а не клиента.
@@ -10,8 +10,8 @@ use std::time::Duration;
 
 use crate::utils::network::{NetworkManager, ProxyType};
 
-const IPV4_URL: &str = "https://ipv4-internet.yandex.net/api/v0/ip";
-const IPV6_URL: &str = "https://ipv6-internet.yandex.net/api/v0/ip";
+const IPV4_URL: &str = "https://api.ipify.org";
+const IPV6_URL: &str = "https://api6.ipify.org";
 const TIMEOUT_SECS: u64 = 10;
 const BROWSER_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
 
