@@ -62,12 +62,12 @@ described below covers the requests this app makes itself.
     answer comes without that confirmation, the app stops collecting and deletes the collected
     measurements. The app keeps unsent
     measurements for at most 7 days. Turning off the secure channel for a subscription stops its reports.
-*   **To Yandex, to learn the external IP address.** For the report above, the app asks
-    `ipv4-internet.yandex.net` and `ipv6-internet.yandex.net` (operated by Yandex) for the
+*   **To ipify, to learn the external IP address.** For the report above, the app asks
+    `api.ipify.org` and `api6.ipify.org` (the ipify service) for the
     address your connection appears from — when the network changes or the computer wakes up,
     and at most once an hour on the same network — and only while it collects a report for a
     subscription with the secure channel. The request carries a generic browser `User-Agent`
-    and no identifier or device headers, but Yandex sees your IP address (with TUN mode on,
+    and no identifier or device headers, but ipify sees your IP address (with TUN mode on,
     your subscription's rules decide whether the request goes directly or through a server).
 *   **To a connectivity-check address, through each server.** Measuring latency sends a tiny
     request to a test address through every server being measured. The address is the one set
@@ -134,7 +134,7 @@ therefore not the controller (operator) of it. The data that leaves your compute
 *   your subscription provider — it is the controller for the subscription requests, device
     values and quality reports it receives, and its own privacy policy governs how long it
     keeps them, what it uses them for and how you can exercise your rights;
-*   the third parties named above (GitHub, Cloudflare, Yandex, the operators of addresses in
+*   the third parties named above (GitHub, Cloudflare, ipify, the operators of addresses in
     your configuration), each under its own policy.
 
 An IP address and a device identifier linked to a subscription can be personal data under the
@@ -157,7 +157,7 @@ legal basis, retention, recipients) and inform its users.
 **International transfers**
 
 The services the app contacts may be located outside your country — for example GitHub and
-Cloudflare in the United States and Yandex in Russia; your provider's servers are wherever the
+Cloudflare in the United States; your provider's servers are wherever the
 provider places them.
 
 **Children's privacy**

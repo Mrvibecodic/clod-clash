@@ -127,14 +127,14 @@ your privacy policy (purposes, legal basis, retention periods, recipients) and n
 exactly the client sends is described in the
 [client's privacy policy](https://github.com/Mrvibecodic/clod-clash/blob/main/PRIVACY_POLICY.ru.md).
 
-The client learns the measurement address from Yandex. In TUN mode this request follows the
+The client learns the measurement address from ipify. In TUN mode this request follows the
 template's rules, so add both addresses to `DIRECT` above all other rules —
 otherwise the report will contain the server's exit address, not the user's:
 
 ```yaml
 rules:
-  - DOMAIN,ipv4-internet.yandex.net,DIRECT
-  - DOMAIN,ipv6-internet.yandex.net,DIRECT
+  - DOMAIN,api.ipify.org,DIRECT
+  - DOMAIN,api6.ipify.org,DIRECT
   # … the rest of the rules
 ```
 

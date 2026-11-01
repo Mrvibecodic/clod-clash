@@ -125,14 +125,14 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://sub.example.com/c1/test
 именно отправляет клиент — в
 [политике конфиденциальности клиента](https://github.com/Mrvibecodic/clod-clash/blob/main/PRIVACY_POLICY.ru.md).
 
-Адрес замеров клиент узнаёт у Яндекса. В режиме TUN этот запрос идёт по
+Адрес замеров клиент узнаёт у ipify. В режиме TUN этот запрос идёт по
 правилам шаблона, поэтому добавьте оба адреса в `DIRECT` выше остальных правил —
 иначе в отчёт попадёт адрес выхода сервера, а не пользователя:
 
 ```yaml
 rules:
-  - DOMAIN,ipv4-internet.yandex.net,DIRECT
-  - DOMAIN,ipv6-internet.yandex.net,DIRECT
+  - DOMAIN,api.ipify.org,DIRECT
+  - DOMAIN,api6.ipify.org,DIRECT
   # … остальные правила
 ```
 
