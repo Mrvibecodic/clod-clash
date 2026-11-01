@@ -1010,7 +1010,7 @@ dependencies = [
 
 [[package]]
 name = "clash-verge"
-version = "0.1.14-alpha.4"
+version = "0.1.14-alpha.5"
 dependencies = [
  "anyhow",
  "arc-swap",
