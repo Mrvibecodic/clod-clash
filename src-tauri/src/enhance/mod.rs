@@ -63,8 +63,10 @@ fn parse_tun_overrides(stack: Option<&str>, strict_route: Option<&str>, dns_hija
     }
 }
 
+const CAP_SUBSCRIPTION_STACK: bool = cfg!(target_os = "windows");
+
 fn ladder_tun(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides) {
-    ladder_tun_on(tun, app_tun, overrides, cfg!(target_os = "windows"));
+    ladder_tun_on(tun, app_tun, overrides, CAP_SUBSCRIPTION_STACK);
 }
 
 fn subscription_stack(tun: &Mapping) -> Option<&'static str> {
@@ -74,9 +76,13 @@ fn subscription_stack(tun: &Mapping) -> Option<&'static str> {
         .find(|known| *known == stack)
 }
 
+fn the_stack_is_capped(stack: &str, cap_subscription_stack: bool) -> bool {
+    cap_subscription_stack && matches!(stack, "system" | "mixed")
+}
+
 fn ladder_tun_on(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides, cap_subscription_stack: bool) {
     match subscription_stack(tun) {
-        Some("system" | "mixed") if cap_subscription_stack => {
+        Some(stack) if the_stack_is_capped(stack, cap_subscription_stack) => {
             tun.remove("stack");
         }
         Some(stack) => {
@@ -381,6 +387,32 @@ fn get_config_values(sources: &Resolved) -> ConfigValues {
     }
 }
 
+pub(crate) struct ChainUids {
+    pub merge: String,
+    pub script: String,
+    pub rules: String,
+    pub proxies: String,
+    pub groups: String,
+}
+
+impl ChainUids {
+    pub(crate) fn of(item: &PrfItem) -> Self {
+        Self {
+            merge: item.current_merge().cloned().unwrap_or_default(),
+            script: item.current_script().cloned().unwrap_or_default(),
+            rules: item.current_rules().cloned().unwrap_or_else(|| "Rules".into()),
+            proxies: item.current_proxies().cloned().unwrap_or_else(|| "Proxies".into()),
+            groups: item.current_groups().cloned().unwrap_or_else(|| "Groups".into()),
+        }
+    }
+
+    pub(crate) fn contains(&self, uid: &str) -> bool {
+        [&self.merge, &self.script, &self.rules, &self.proxies, &self.groups]
+            .into_iter()
+            .any(|chain| chain == uid)
+    }
+}
+
 #[allow(clippy::cognitive_complexity)]
 async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems> {
     let current_profile_uid = match profiles_arc.get_current().cloned() {
@@ -412,17 +444,13 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
         }
     };
 
-    let merge_uid = current_item.current_merge().cloned().unwrap_or_default();
-    let script_uid = current_item.current_script().cloned().unwrap_or_default();
-    let rules_uid = current_item.current_rules().cloned().unwrap_or_else(|| "Rules".into());
-    let proxies_uid = current_item
-        .current_proxies()
-        .cloned()
-        .unwrap_or_else(|| "Proxies".into());
-    let groups_uid = current_item
-        .current_groups()
-        .cloned()
-        .unwrap_or_else(|| "Groups".into());
+    let ChainUids {
+        merge: merge_uid,
+        script: script_uid,
+        rules: rules_uid,
+        proxies: proxies_uid,
+        groups: groups_uid,
+    } = ChainUids::of(current_item);
 
     let name = current_item
         .custom_name
@@ -1337,6 +1365,14 @@ fn merge_default_config(
     config
 }
 
+fn a_usable_subscription_port(value: &Value) -> bool {
+    value
+        .as_u64()
+        .filter(|port| (1..=65535).contains(port))
+        .and_then(|port| u16::try_from(port).ok())
+        .is_some_and(|port| port != crate::config::IVerge::get_singleton_port())
+}
+
 /// clod:port-ladder — порт из подписки идёт в ядро как есть, поэтому его нужно
 /// проверить здесь: наш собственный `ladder_value_is_usable` смотрит только на
 /// наше значение. Ядро принимает `0` (слушатель просто не поднимается), обрезает
@@ -1347,10 +1383,7 @@ fn drop_an_unusable_subscription_port(config: &mut Mapping) {
     let Some(value) = config.get("mixed-port") else {
         return;
     };
-    let port = value.as_u64().filter(|port| (1..=65535).contains(port));
-    let taken_by_our_api = port
-        .is_some_and(|port| u16::try_from(port).is_ok_and(|port| port == crate::config::IVerge::get_singleton_port()));
-    if port.is_some() && !taken_by_our_api {
+    if a_usable_subscription_port(value) {
         return;
     }
     logging!(
@@ -2349,7 +2382,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
 
     let mut discarded_keys = control_plane_discards(&config, &control_plane);
     let config = enforce_control_plane(config, control_plane);
-    let (config, tun_discards) = enforce_tun(config, tun_snapshot, cfg!(target_os = "windows"));
+    let (config, tun_discards) = enforce_tun(config, tun_snapshot, CAP_SUBSCRIPTION_STACK);
     discarded_keys.extend(tun_discards);
     let (config, dns_page_discards) = enforce_dns_page(config, dns_page.as_ref());
     discarded_keys.extend(dns_page_discards);
