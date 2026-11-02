@@ -64,7 +64,7 @@ pub async fn restart_app() {
 /// запросом: на нагруженной машине это сотни последовательных обращений к ядру,
 /// притом что `DELETE /connections` закрывает всё разом. Делать это на бэкенде
 /// по-прежнему нужно — режим меняют и трей, и горячие клавиши, мимо интерфейса.
-fn close_connections_after_mode_change() {
+pub(super) fn close_connections_after_mode_change() {
     AsyncHandler::spawn(|| async {
         if let Err(err) = handle::Handle::mihomo().close_all_connections().await {
             logging!(warn, Type::Core, "Warning: не удалось разорвать соединения: {err}");

@@ -12,12 +12,28 @@ import {
 } from '@/services/proxy-chain-store'
 import { enumText } from '@/utils/plugin-enum'
 import type { ProviderPicture } from '@/utils/provider-image'
+import type {
+  ProviderValuesOutcome,
+  ProviderValuesView,
+  SeenLine,
+} from '@/utils/provider-values'
 import { ambiguousNames, labelFor, own } from '@/utils/proxy-label'
 import type { ServiceUninstallOutcome } from '@/utils/service-uninstall'
 import type { UpdatesInFlight } from '@/utils/subscription-status'
 
 export async function getCoreLadder() {
   return invoke<ICoreLadder>('get_core_ladder')
+}
+
+export async function getProviderValues() {
+  return invoke<ProviderValuesView | null>('get_provider_values')
+}
+
+export async function returnProviderValues(uid: string, lines: SeenLine[]) {
+  return invoke<ProviderValuesOutcome>('return_provider_values', {
+    uid,
+    lines,
+  })
 }
 
 export async function copyClashEnv() {

@@ -196,6 +196,8 @@ mod app_init {
             cmd::adopt_proxy_chains,
             cmd::invoke_uwp_tool,
             cmd::get_core_ladder,
+            cmd::get_provider_values,
+            cmd::return_provider_values,
             cmd::copy_clash_env,
             cmd::save_dns_config,
             cmd::apply_dns_config,

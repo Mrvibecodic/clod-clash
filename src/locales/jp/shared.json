@@ -182,6 +182,43 @@
     "guide": "ガイド",
     "openError": "リンクを開けませんでした"
   },
+  "providerValues": {
+    "title": "Restore provider values",
+    "same": "Everything matches the subscription",
+    "intro": "Subscription “{{name}}”. Checked items will be set the way the subscription template sets them.",
+    "shared": "all subscriptions",
+    "selected": "Checked: {{count}} of {{total}}",
+    "ok": "Restore",
+    "returned": "Provider values restored",
+    "stale": "The values changed while the window was open. Open it again.",
+    "failed": "Could not restore provider values",
+    "unreadable": "Couldn't read the subscription template",
+    "editsWarning": "Your own edits are deleted for good.",
+    "asTemplate": "As in the subscription ({{value}})",
+    "keptByEdits": "Stays as your own template edits set it",
+    "groups": {
+      "mode": "Mode",
+      "logs": "Logs and delay",
+      "ports": "Port and sharing",
+      "tun": "TUN",
+      "tunnels": "Tunnels",
+      "dns": "This subscription's DNS",
+      "edits": "Own template edits"
+    },
+    "edits": {
+      "rules": "Rules",
+      "proxies": "Proxies",
+      "groups": "Proxy groups",
+      "merge": "Merge config",
+      "script": "Script"
+    },
+    "values": {
+      "seq": "own: {{own}}, hidden: {{hidden}}",
+      "keys": "own keys: {{count}}",
+      "own": "own",
+      "entries": "entries: {{count}}"
+    }
+  },
   "dialog": {
     "noChanges": "No changes",
     "unsaved": "Unsaved: {{count}} changes",

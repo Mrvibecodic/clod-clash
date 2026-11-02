@@ -1724,6 +1724,43 @@ export interface TranslationResources {
         support: string
         title: string
       }
+      providerValues: {
+        asTemplate: string
+        edits: {
+          groups: string
+          merge: string
+          proxies: string
+          rules: string
+          script: string
+        }
+        editsWarning: string
+        failed: string
+        groups: {
+          dns: string
+          edits: string
+          logs: string
+          mode: string
+          ports: string
+          tun: string
+          tunnels: string
+        }
+        intro: string
+        keptByEdits: string
+        ok: string
+        returned: string
+        same: string
+        selected: string
+        shared: string
+        stale: string
+        title: string
+        unreadable: string
+        values: {
+          entries: string
+          keys: string
+          own: string
+          seq: string
+        }
+      }
       statuses: {
         disabled: string
         empty: string

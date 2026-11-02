@@ -194,7 +194,7 @@ impl IClashTemp {
         }
     }
 
-    pub const SUBSCRIPTION_LADDER_KEYS: &[&str] = &["log-level", "unified-delay", "mixed-port"];
+    pub const SUBSCRIPTION_LADDER_KEYS: &[&str] = &["log-level", "unified-delay", "mixed-port", "tunnels"];
     pub const FOLLOW_THE_SUBSCRIPTION: &str = "auto";
 
     pub fn follows_the_subscription(key: &Value, value: &Value) -> bool {

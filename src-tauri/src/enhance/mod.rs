@@ -2,6 +2,7 @@ mod chain;
 pub mod dns_page;
 pub mod field;
 mod merge;
+pub mod provider_reset;
 pub mod proxy_chain;
 mod script;
 pub mod seq;
