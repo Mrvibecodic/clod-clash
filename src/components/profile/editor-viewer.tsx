@@ -139,13 +139,6 @@ export const EditorViewer = ({
     syncEditorValue()
   }, [unavailable, open, syncEditorValue])
 
-  useEffect(() => {
-    return () => {
-      editorRef.current?.dispose()
-      editorRef.current = null
-    }
-  }, [])
-
   return (
     <Dialog
       open={open}

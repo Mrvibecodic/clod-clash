@@ -32,7 +32,7 @@ import {
   styled,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -51,7 +51,6 @@ import { useSeqDocument } from '@/hooks/use-seq-document'
 import { getNetworkInterfaces, readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
-import type { MonacoEditorInstance } from '@/types/monaco'
 import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
 import type { EditorReadFailure } from '@/utils/editor-save'
 import { optionalInt } from '@/utils/optional-int'
@@ -124,7 +123,6 @@ export const GroupsEditorViewer = (props: Props) => {
         : value,
     [t],
   )
-  const editorRef = useRef<MonacoEditorInstance | null>(null)
   const {
     loading,
     ready,
@@ -358,13 +356,6 @@ export const GroupsEditorViewer = (props: Props) => {
     if (!open) return
     getNetworkInterfaces().then(setInterfaceNameList)
   }, [open])
-
-  useEffect(() => {
-    return () => {
-      editorRef.current?.dispose()
-      editorRef.current = null
-    }
-  }, [])
 
   const validateGroup = () => {
     const group = formIns.getValues()
@@ -1015,9 +1006,6 @@ export const GroupsEditorViewer = (props: Props) => {
             height="100%"
             language="yaml"
             value={text}
-            onMount={(editorInstance) => {
-              editorRef.current = editorInstance
-            }}
             options={{
               padding: {
                 top: 33, // Верхний padding, чтобы не перекрывать snippets

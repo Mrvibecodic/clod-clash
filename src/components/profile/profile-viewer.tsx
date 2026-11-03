@@ -446,8 +446,6 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
   const isLocal = formType === 'local'
   const isNew = openType === 'new'
   const needFile = isLocal && isNew && !added && !fileName
-  // При правке поля нужны сразу: сюда заходят именно за ними.
-  const detailsOpen = !isNew
 
   const title = added
     ? t('profiles.modals.profileForm.title.added')
@@ -908,7 +906,6 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
 
           {isNew ? (
             <Accordion
-              defaultExpanded={detailsOpen}
               disableGutters
               elevation={0}
               sx={{

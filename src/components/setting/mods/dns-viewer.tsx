@@ -40,7 +40,6 @@ import { useClash } from '@/hooks/use-clash'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
 import { showNotice } from '@/services/notice-service'
-import type { MonacoEditorInstance } from '@/types/monaco'
 import {
   asDnsMapping,
   listenFieldFrom,
@@ -442,7 +441,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   )
   const touchedRef = useRef(new Set<string>())
   const renderedTextRef = useRef({ nameserverPolicy: '', hosts: '' })
-  const editorRef = useRef<MonacoEditorInstance | null>(null)
   const [tab, setTab] = useState(0)
   const [values, setValues] = useState<DnsValues>({
     enable: CORE_DEFAULTS.enable,
@@ -694,13 +692,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
     updateYamlFromValues()
   }, [updateYamlFromValues])
-
-  useEffect(() => {
-    return () => {
-      editorRef.current?.dispose()
-      editorRef.current = null
-    }
-  }, [])
 
   // Редактор показывает подписку, поверх неё — отличия со страницы; бэкенд
   // при сохранении оставит от присланного ровно отличия.
@@ -1028,9 +1019,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           language="yaml"
           value={yamlContent}
           className="flex-grow"
-          onMount={(editorInstance) => {
-            editorRef.current = editorInstance
-          }}
           options={{
             padding: {
               top: 8,

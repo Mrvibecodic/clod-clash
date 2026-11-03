@@ -29,7 +29,7 @@ import {
   styled,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -44,7 +44,6 @@ import { SeqListItem } from '@/components/profile/seq-list-item'
 import { useSeqDocument } from '@/hooks/use-seq-document'
 import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import type { MonacoEditorInstance } from '@/types/monaco'
 import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
 import type { EditorReadFailure } from '@/utils/editor-save'
 import { readEachFile } from '@/utils/profile-files'
@@ -62,7 +61,6 @@ interface Props {
 export const ProxiesEditorViewer = (props: Props) => {
   const { profileUid, property, open, onClose } = props
   const { t } = useTranslation()
-  const editorRef = useRef<MonacoEditorInstance | null>(null)
   const {
     loading,
     ready,
@@ -343,13 +341,6 @@ export const ProxiesEditorViewer = (props: Props) => {
     fetchProfile()
   }, [fetchProfile, open])
 
-  useEffect(() => {
-    return () => {
-      editorRef.current?.dispose()
-      editorRef.current = null
-    }
-  }, [])
-
   const handleSave = useLockFn(async () => {
     try {
       if (await save()) onClose()
@@ -476,9 +467,6 @@ export const ProxiesEditorViewer = (props: Props) => {
             height="100%"
             language="yaml"
             value={text}
-            onMount={(editorInstance) => {
-              editorRef.current = editorInstance
-            }}
             options={{
               padding: {
                 top: 33, // Верхний padding, чтобы не перекрывать snippets

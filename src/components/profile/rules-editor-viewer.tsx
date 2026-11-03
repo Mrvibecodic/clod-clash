@@ -32,7 +32,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,7 +51,6 @@ import { NARROW } from '@/pages/_theme'
 import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
-import type { MonacoEditorInstance } from '@/types/monaco'
 import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
 import type { EditorReadFailure } from '@/utils/editor-save'
 import getSystem from '@/utils/get-system'
@@ -343,8 +341,6 @@ export const RulesEditorViewer = (props: Props) => {
   const { groupsUid, mergeUid, profileUid, property, open, onClose } = props
   const { t } = useTranslation()
 
-  const editorRef = useRef<MonacoEditorInstance | null>(null)
-
   const {
     loading,
     ready,
@@ -598,13 +594,6 @@ export const RulesEditorViewer = (props: Props) => {
     if (!open) return
     fetchProfile()
   }, [fetchProfile, open])
-
-  useEffect(() => {
-    return () => {
-      editorRef.current?.dispose()
-      editorRef.current = null
-    }
-  }, [])
 
   const required = ruleType.required ?? true
   const value = ruleType.normalize
@@ -1133,9 +1122,6 @@ export const RulesEditorViewer = (props: Props) => {
             height="100%"
             language="yaml"
             value={text}
-            onMount={(editorInstance) => {
-              editorRef.current = editorInstance
-            }}
             options={{
               padding: {
                 top: 33, // Верхний отступ, чтобы не перекрывать snippets
