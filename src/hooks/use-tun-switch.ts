@@ -50,5 +50,23 @@ export const useTunSwitch = () => {
     }
   }
 
-  return { prepareTun, switchTun }
+  /**
+   * Починить TUN, который человек уже включил (`wanted` — по состоянию
+   * бэкенда, а не по кэшу окна): служба, затем повторная подача
+   * той же настройки — ядро пересобирается с туннелем, подавление снимается.
+   * Способ подключения не трогаем: это не тумблер. После отказа в правах
+   * настройку не подаём — ядро пошло бы на заведомо провальную попытку.
+   */
+  const repairTun = async (wanted: boolean) => {
+    const ready = await prepareTun()
+    if (!ready || !wanted) return ready
+    try {
+      await patchVerge({ enable_tun_mode: true })
+    } finally {
+      await mutateTunState().catch(() => undefined)
+    }
+    return ready
+  }
+
+  return { prepareTun, switchTun, repairTun }
 }

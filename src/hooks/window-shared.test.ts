@@ -30,6 +30,25 @@ describe('общие хуки и функции окна', () => {
     )
   })
 
+  it('починка TUN — тот же хук и не меняет способ подключения', () => {
+    for (const file of [
+      '../components/home/tun-status.tsx',
+      '../components/shared/proxy-control-switches.tsx',
+    ]) {
+      const text = source(file)
+      assert.match(text, /repairTun\(tunDesired\)/, file)
+      assert.doesNotMatch(text, /ensureTunReady|patchVerge/, file)
+    }
+    const repair =
+      /const repairTun = async \(wanted: boolean\) => \{([\s\S]*?)\n  \}/.exec(
+        source('./use-tun-switch.ts'),
+      )
+    assert.ok(repair, 'repairTun не найден')
+    assert.match(repair[1], /await prepareTun\(\)/)
+    assert.match(repair[1], /patchVerge\(\{ enable_tun_mode: true \}\)/)
+    assert.doesNotMatch(repair[1], /connect_tun_mode/)
+  })
+
   it('кнопка «Подключить» на обеих Главных — один хук', () => {
     for (const file of [
       '../pages/home-simple.tsx',

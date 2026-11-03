@@ -26,7 +26,6 @@ import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useTunState } from '@/hooks/use-tun-state'
 import { useTunSwitch } from '@/hooks/use-tun-switch'
-import { useVerge } from '@/hooks/use-verge'
 import { showNotice } from '@/services/notice-service'
 import { tunSetupKey, tunSetupNotice } from '@/utils/tun-notice'
 
@@ -157,8 +156,7 @@ const SwitchRow = ({
 
 const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
   const { t } = useTranslation()
-  const { verge, patchVerge } = useVerge()
-  const { prepareTun, switchTun } = useTunSwitch()
+  const { prepareTun, switchTun, repairTun } = useTunSwitch()
   const { uninstallServiceAndRestartCore } = useServiceUninstaller()
   const {
     indicator: systemProxyIndicator,
@@ -174,6 +172,7 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
   // здесь не появлялось — а TUN всё равно не работал.
   const {
     tunActive,
+    tunDesired,
     tunCapable,
     tunNeedsRepair,
     tunServiceServesThisCopy,
@@ -211,17 +210,10 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
   // это единственный путь, у которого одинаковая логика с тумблером.
   const onFixService = useLockFn(async () => {
     try {
-      const ready = await prepareTun()
       // clod:e7 — служба поднялась, но конфиг ядра собирали, когда её ещё не
       // было: TUN в него не попал. Без повторной подачи настройки кнопка
       // «починить» оставляла тумблер включённым над выключенным туннелем.
-      // Только после удавшейся установки: после отказа в правах повторная
-      // подача сняла бы подавление и погнала ядро на заведомо провальную
-      // попытку — с перезапуском ядра на Linux и подменой DNS на macOS.
-      if (ready && verge?.enable_tun_mode) {
-        await patchVerge({ enable_tun_mode: true })
-        await mutateTunState()
-      }
+      await repairTun(tunDesired)
     } catch (err) {
       showNotice.error(tunSetupNotice(err))
     }
