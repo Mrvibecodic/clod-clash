@@ -1,21 +1,15 @@
 import { WarningAmberRounded } from '@mui/icons-material'
-import {
-  alpha,
-  Button,
-  CircularProgress,
-  Stack,
-  Typography,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTunState } from '@/hooks/use-tun-state'
-import { TINT } from '@/pages/_theme'
 import { fixCoreFirewall, getCoreFirewallOk } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
+
+import { StatusBusyLine, StatusStrip } from './status-strip'
 
 const OS = getSystem()
 const LISTENING_STACKS = ['system', 'mixed']
@@ -55,46 +49,22 @@ export const FirewallStatus = () => {
   if (!relevant) return null
 
   if (busy) {
-    return (
-      <Stack
-        direction="row"
-        sx={{ alignItems: 'center', justifyContent: 'center', gap: 1, py: 0.5 }}
-      >
-        <CircularProgress size={14} />
-        <Typography variant="caption" color="text.secondary">
-          {t('home.components.firewallStatus.fixing')}
-        </Typography>
-      </Stack>
-    )
+    return <StatusBusyLine text={t('home.components.firewallStatus.fixing')} />
   }
 
   if (allowed !== false) return null
 
   return (
-    <Stack
-      direction="row"
-      sx={{
-        alignItems: 'center',
-        gap: 1,
-        px: 1.25,
-        py: 0.75,
-        borderRadius: '12px',
-        bgcolor: (theme) => alpha(theme.palette.warning.main, TINT.base),
-        border: (theme) =>
-          `1px solid ${alpha(theme.palette.warning.main, TINT.edge)}`,
+    <StatusStrip
+      tone="warning"
+      icon={
+        <WarningAmberRounded sx={{ fontSize: 16, color: 'warning.main' }} />
+      }
+      text={t('home.components.firewallStatus.blocked')}
+      action={{
+        label: t('home.components.firewallStatus.fix'),
+        onClick: () => void fix(),
       }}
-    >
-      <WarningAmberRounded sx={{ fontSize: 16, color: 'warning.main' }} />
-      <Typography
-        variant="caption"
-        color="text.primary"
-        sx={{ flex: 1, minWidth: 0 }}
-      >
-        {t('home.components.firewallStatus.blocked')}
-      </Typography>
-      <Button size="small" sx={{ flex: 'none' }} onClick={() => void fix()}>
-        {t('home.components.firewallStatus.fix')}
-      </Button>
-    </Stack>
+    />
   )
 }

@@ -1,11 +1,4 @@
 import { WarningAmberRounded } from '@mui/icons-material'
-import {
-  alpha,
-  Button,
-  CircularProgress,
-  Stack,
-  Typography,
-} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,10 +6,11 @@ import { useTranslation } from 'react-i18next'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
-import { TINT } from '@/pages/_theme'
 import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { tunFailureKey, tunSetupNotice } from '@/utils/tun-notice'
+
+import { StatusBusyLine, StatusStrip } from './status-strip'
 
 export const TunStatus = () => {
   const { t } = useTranslation()
@@ -43,17 +37,7 @@ export const TunStatus = () => {
   })
 
   if (busy) {
-    return (
-      <Stack
-        direction="row"
-        sx={{ alignItems: 'center', justifyContent: 'center', gap: 1, py: 0.5 }}
-      >
-        <CircularProgress size={14} />
-        <Typography variant="caption" color="text.secondary">
-          {t('home.components.tunStatus.settingUp')}
-        </Typography>
-      </Stack>
-    )
+    return <StatusBusyLine text={t('home.components.tunStatus.settingUp')} />
   }
 
   const reasonKey = tunDesired ? tunFailureKey(tunFailure) : undefined
@@ -61,32 +45,20 @@ export const TunStatus = () => {
   if (!tunBroken && !tunNoTraffic) return null
 
   return (
-    <Stack
-      direction="row"
-      sx={{
-        alignItems: 'center',
-        gap: 1,
-        px: 1.25,
-        py: 0.75,
-        borderRadius: '12px',
-        bgcolor: (theme) => alpha(theme.palette.warning.main, TINT.base),
-        border: (theme) =>
-          `1px solid ${alpha(theme.palette.warning.main, TINT.edge)}`,
-      }}
-    >
-      <WarningAmberRounded sx={{ fontSize: 16, color: 'warning.main' }} />
-      <Typography
-        variant="caption"
-        color="text.primary"
-        sx={{ flex: 1, minWidth: 0 }}
-      >
-        {t(reasonKey ?? 'home.components.tunStatus.broken')}
-      </Typography>
-      {tunBroken && (
-        <Button size="small" sx={{ flex: 'none' }} onClick={() => void fix()}>
-          {t('home.components.tunStatus.fix')}
-        </Button>
-      )}
-    </Stack>
+    <StatusStrip
+      tone="warning"
+      icon={
+        <WarningAmberRounded sx={{ fontSize: 16, color: 'warning.main' }} />
+      }
+      text={t(reasonKey ?? 'home.components.tunStatus.broken')}
+      action={
+        tunBroken
+          ? {
+              label: t('home.components.tunStatus.fix'),
+              onClick: () => void fix(),
+            }
+          : undefined
+      }
+    />
   )
 }
