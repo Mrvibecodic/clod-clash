@@ -12,6 +12,7 @@ import { copyClashEnv, getDeviceIdentity } from '@/services/cmds'
 import { supportedLanguages } from '@/services/i18n'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
+import { themeModeOf } from '@/utils/theme-mode'
 
 import { GuardState } from './mods/guard-state'
 import { HotkeyViewer } from './mods/hotkey-viewer'
@@ -57,7 +58,6 @@ const SettingVergeBasic = ({ onError, variant }: Props) => {
 
   const { verge, patchVerge, mutateVerge, patchVergeOrRevert } = useVerge()
   const {
-    theme_mode,
     language,
     tray_event,
     env_type,
@@ -145,7 +145,7 @@ const SettingVergeBasic = ({ onError, variant }: Props) => {
             label={t('settings.components.verge.basic.fields.themeMode')}
           >
             <GuardState
-              value={theme_mode}
+              value={themeModeOf(verge)}
               onCatch={onError}
               onChange={(e) => onChangeData({ theme_mode: e })}
               onGuard={(e) => patchVerge({ theme_mode: e })}

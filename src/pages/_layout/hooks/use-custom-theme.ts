@@ -16,6 +16,7 @@ import { useProviderTheme } from '@/hooks/use-provider-theme'
 import { useVerge } from '@/hooks/use-verge'
 import { accentForMode, defaultDarkTheme, defaultTheme } from '@/pages/_theme'
 import { useSetThemeMode, useThemeMode } from '@/services/states'
+import { themeModeOf } from '@/utils/theme-mode'
 
 const THEME_FADE_MS = 380
 
@@ -65,7 +66,8 @@ const cardSurfaceVars = (mode: 'light' | 'dark') =>
 export const useCustomTheme = () => {
   const appWindow: WebviewWindow = useMemo(() => getCurrentWebviewWindow(), [])
   const { verge } = useVerge()
-  const { theme_mode, theme_setting } = verge ?? {}
+  const theme_mode = themeModeOf(verge)
+  const theme_setting = verge?.theme_setting
   const mode = useThemeMode()
   const setMode = useSetThemeMode()
   const providerTheme = useProviderTheme()
