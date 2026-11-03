@@ -16,40 +16,7 @@ import {
 } from './use-head-state'
 import { useWindowWidth } from './use-window-width'
 
-// Определение интерфейса элемента прокси
-interface IProxyItem {
-  name: string
-  type: string
-  tfo: boolean
-  mptcp: boolean
-  smux: boolean
-  history: {
-    time: string
-    delay: number
-  }[]
-  provider?: string
-  testUrl?: string
-  [key: string]: any // Индексная сигнатура для прочих возможных свойств
-}
-
-// Тип группы прокси
-type ProxyGroup = {
-  name: string
-  type: string
-  tfo: boolean
-  mptcp: boolean
-  smux: boolean
-  history: {
-    time: string
-    delay: number
-  }[]
-  now: string
-  all: IProxyItem[]
-  hidden?: boolean
-  icon?: string
-  testUrl?: string
-  provider?: string
-}
+type ProxyGroup = IProxyGroupItem
 
 /** Когда конфиг цепочки мерили: повтор — не раньше, чем замеры уйдут из кэша менеджера. */
 const chainMeasuredAt = new WeakMap<object, number>()
@@ -68,14 +35,10 @@ export interface IRenderItem {
   proxyCol?: IProxyItem[]
   headState?: HeadState
   last?: boolean
-  // Поддержка иконки и прочих метаданных
-  icon?: string
-  provider?: string
-  testUrl?: string
 }
 
 type GroupCache = {
-  now: string
+  now?: string
   all: IProxyItem[]
   headState: HeadState
   col: number
@@ -242,7 +205,6 @@ export const useRenderList = (
               headState: DEFAULT_STATE,
               col,
               proxyCol,
-              provider: proxyCol[0]?.provider,
             }))
           } else {
             return proxies.map((proxy) => ({
@@ -251,7 +213,6 @@ export const useRenderList = (
               group: targetGroup,
               proxy,
               headState: DEFAULT_STATE,
-              provider: proxy.provider,
             }))
           }
         }
@@ -270,7 +231,6 @@ export const useRenderList = (
           headState: DEFAULT_STATE,
           col,
           proxyCol,
-          provider: proxyCol[0]?.provider,
         }))
       } else {
         return proxies.map((proxy) => ({
@@ -279,7 +239,6 @@ export const useRenderList = (
           group: firstGroup,
           proxy,
           headState: DEFAULT_STATE,
-          provider: proxy.provider,
         }))
       }
     }
@@ -326,7 +285,6 @@ export const useRenderList = (
             headState: DEFAULT_STATE,
             col,
             proxyCol,
-            provider: proxyCol[0]?.provider,
           }),
         )
       } else {
@@ -336,7 +294,6 @@ export const useRenderList = (
           group: virtualGroup,
           proxy,
           headState: DEFAULT_STATE,
-          provider: proxy.provider,
         }))
       }
     }
@@ -379,8 +336,6 @@ export const useRenderList = (
           key: group.name,
           group,
           headState,
-          icon: group.icon,
-          testUrl: group.testUrl,
         },
       ]
 
@@ -427,7 +382,6 @@ export const useRenderList = (
               headState,
               col,
               proxyCol,
-              provider: proxyCol[0].provider,
             })),
           )
         } else {
@@ -438,7 +392,6 @@ export const useRenderList = (
               group,
               proxy,
               headState,
-              provider: proxy.provider,
             })),
           )
         }
@@ -482,7 +435,6 @@ export const useRenderList = (
     renderList,
     onProxies: refreshProxy,
     onHeadState: setHeadState,
-    currentColumns: col,
   }
 }
 

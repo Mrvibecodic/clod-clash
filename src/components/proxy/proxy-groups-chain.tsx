@@ -61,7 +61,6 @@ interface ChainRuleHeaderProps {
   title: string
   selectLabel: string
   currentGroup: ProxyGroupOption | null
-  canSelectGroup: boolean
   onMenuOpen: (event: MouseEvent<HTMLElement>) => void
 }
 
@@ -103,7 +102,6 @@ function ChainRuleHeader({
   title,
   selectLabel,
   currentGroup,
-  canSelectGroup,
   onMenuOpen,
 }: ChainRuleHeaderProps) {
   return (
@@ -142,23 +140,21 @@ function ChainRuleHeader({
           )}
         </Box>
 
-        {canSelectGroup && (
-          <IconButton
-            size="small"
-            onClick={onMenuOpen}
-            sx={{
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: '4px',
-              padding: '4px 8px',
-            }}
-          >
-            <Typography variant="body2" sx={{ mr: 0.5, fontSize: '12px' }}>
-              {selectLabel}
-            </Typography>
-            <ExpandMoreRounded fontSize="small" />
-          </IconButton>
-        )}
+        <IconButton
+          size="small"
+          onClick={onMenuOpen}
+          sx={{
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: '4px',
+            padding: '4px 8px',
+          }}
+        >
+          <Typography variant="body2" sx={{ mr: 0.5, fontSize: '12px' }}>
+            {selectLabel}
+          </Typography>
+          <ExpandMoreRounded fontSize="small" />
+        </IconButton>
       </Box>
     </Box>
   )
@@ -232,7 +228,6 @@ function ProxyVirtualList({
   virtualItems,
   renderList,
   activeStickyIndex,
-  isChainMode,
   measureElement,
   onLocation,
   onCheckAll,
@@ -247,7 +242,6 @@ function ProxyVirtualList({
   virtualItems: VirtualListItem[]
   renderList: IRenderItem[]
   activeStickyIndex: number | null
-  isChainMode?: boolean
   measureElement: (node: Element | null) => void
   onLocation: (group: any) => void
   onCheckAll: (groupName: string) => void
@@ -299,7 +293,7 @@ function ProxyVirtualList({
               onCheckAll={onCheckAll}
               onHeadState={onHeadState}
               onChangeProxy={onChangeProxy}
-              isChainMode={isChainMode}
+              isChainMode
               pingBounds={pingBounds}
               hideBadges={hideBadges}
               descriptions={descriptions}
@@ -440,7 +434,6 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
       virtualItems={virtualItems}
       renderList={renderList}
       activeStickyIndex={activeStickyIndex}
-      isChainMode
       measureElement={measureElement}
       onLocation={onLocation}
       onCheckAll={onCheckAll}
@@ -469,7 +462,6 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
               title={t('proxies.page.rules.title')}
               selectLabel={t('proxies.page.rules.select')}
               currentGroup={currentGroup}
-              canSelectGroup={availableGroups.length > 0}
               onMenuOpen={handleGroupMenuOpen}
             />
           )}

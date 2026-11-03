@@ -36,7 +36,6 @@ export interface StickyVirtualListHandle {
   getScrollElement: () => HTMLDivElement | null
   isItemScrolledPastStart: (index: number, tolerance?: number) => boolean
   scrollToIndex: (index: number, options?: ScrollToIndexOptions) => void
-  isScrolling: () => boolean
   waitForScrollEnd: () => Promise<void>
 }
 
@@ -172,7 +171,6 @@ export const StickyVirtualList = forwardRef(function StickyVirtualListInner<
       scrollToIndex: (index, options) => {
         rowVirtualizer.scrollToIndex(index, options)
       },
-      isScrolling: () => rowVirtualizer.isScrolling,
       waitForScrollEnd: () => {
         return new Promise((resolve) => {
           let maxCheckCount = 5
