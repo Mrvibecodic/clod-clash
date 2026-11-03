@@ -264,7 +264,7 @@ const ConnectionsPage = () => {
       )
     })
 
-    return orderFunc ? orderFunc(matchConns) : matchConns
+    return orderFunc(matchConns)
   }, [selectedConnections, isTableLayout, hasSearch, match, curOrderOpt])
 
   const displayRows = useConnectionRowViews(

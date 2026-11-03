@@ -49,7 +49,6 @@ const ROW_HEIGHT = 44
 const TILE_GAP = 3
 const RESIZE_HANDLE_WIDTH = 6
 const OVERSCAN_ROWS = 6
-const MAX_ROW_SNAPSHOT_CACHE_SIZE = 2_000
 
 const reconcileColumnOrder = (
   storedOrder: string[],
@@ -86,7 +85,6 @@ interface BaseColumn {
   headerShort?: string
   width: number
   minWidth: number
-  maxWidth?: number
   align?: 'left' | 'right'
 }
 
@@ -123,10 +121,7 @@ const resolveColumnSize = (
     return column.width
   }
 
-  const boundedMin = Math.max(column.minWidth, storedSize)
-  return column.maxWidth === undefined
-    ? boundedMin
-    : Math.min(column.maxWidth, boundedMin)
+  return Math.max(column.minWidth, storedSize)
 }
 
 const sameStaticConnection = (
@@ -492,7 +487,6 @@ const RowComponent = memo(
               boxSizing: 'border-box',
               flex: `0 0 ${column.size}px`,
               minWidth: column.minWidth,
-              maxWidth: column.maxWidth,
               padding: '0 8px',
               fontSize: 13,
               display: 'flex',
@@ -684,21 +678,6 @@ export const ConnectionTable = (props: Props) => {
     ]
   }, [t])
 
-  useEffect(() => {
-    setColumnOrder((prevValue) => {
-      const baseFields = baseColumns.map((col) => col.field)
-      const prev = Array.isArray(prevValue) ? prevValue : []
-      const reconciled = reconcileColumnOrder(prev, baseFields)
-      if (
-        reconciled.length === prev.length &&
-        reconciled.every((field, i) => field === prev[i])
-      ) {
-        return prevValue
-      }
-      return reconciled
-    })
-  }, [baseColumns, setColumnOrder])
-
   const orderedColumns = useMemo(() => {
     const baseFields = baseColumns.map((column) => column.field)
     const reconciledOrder = reconcileColumnOrder(columnOrder, baseFields)
@@ -734,7 +713,14 @@ export const ConnectionTable = (props: Props) => {
   })
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const rowSnapshotCacheRef = useRef(new Map<string, TableRowSnapshot>())
-  const directLabel = t('shared.labels.direct')
+  const cellLabels = useMemo<CellLabels>(
+    () => ({
+      direct: t('shared.labels.direct'),
+      fallback: t('connections.components.rule.fallback'),
+    }),
+    [t],
+  )
+  const directLabel = cellLabels.direct
   const snapshotLabelRef = useRef(directLabel)
   const getRowSnapshot = useCallback(
     (row: IConnectionsItem) => {
@@ -749,10 +735,6 @@ export const ConnectionTable = (props: Props) => {
         cache.get(row.id),
       )
       cache.set(row.id, snapshot)
-      if (cache.size > MAX_ROW_SNAPSHOT_CACHE_SIZE) {
-        const oldestKey = cache.keys().next().value
-        if (oldestKey && oldestKey !== row.id) cache.delete(oldestKey)
-      }
       return snapshot
     },
     [directLabel],
@@ -784,12 +766,6 @@ export const ConnectionTable = (props: Props) => {
     const element = scrollContainerRef.current
     if (!element) return
 
-    if (typeof ResizeObserver === 'undefined') {
-      const handleResize = () => updateViewport(element)
-      window.addEventListener('resize', handleResize)
-      return () => window.removeEventListener('resize', handleResize)
-    }
-
     const observer = new ResizeObserver(() => updateViewport(element))
     observer.observe(element)
     return () => observer.disconnect()
@@ -820,13 +796,6 @@ export const ConnectionTable = (props: Props) => {
   }, [connections, sorting, getRowSnapshot])
 
   const otherGroupLabel = t(groupFallbackKey(groupBy))
-  const cellLabels = useMemo<CellLabels>(
-    () => ({
-      direct: t('shared.labels.direct'),
-      fallback: t('connections.components.rule.fallback'),
-    }),
-    [t],
-  )
 
   const resolveGroupKey = useCallback(
     (row: IConnectionsItem) =>
@@ -987,7 +956,6 @@ export const ConnectionTable = (props: Props) => {
       startClientX: number,
       startWidth: number,
       minWidth: number,
-      maxWidth: number | undefined,
     ) => {
       const handleMove = (clientX: number) => {
         const nextWidth = Math.max(
@@ -996,7 +964,7 @@ export const ConnectionTable = (props: Props) => {
         )
         setColumnWidths((prev) => ({
           ...(prev ?? {}),
-          [field]: maxWidth ? Math.min(maxWidth, nextWidth) : nextWidth,
+          [field]: nextWidth,
         }))
       }
 
@@ -1026,13 +994,7 @@ export const ConnectionTable = (props: Props) => {
     (column: DisplayColumn, event: ReactMouseEvent<HTMLDivElement>) => {
       event.preventDefault()
       event.stopPropagation()
-      startResize(
-        column.field,
-        event.clientX,
-        column.size,
-        column.minWidth,
-        column.maxWidth,
-      )
+      startResize(column.field, event.clientX, column.size, column.minWidth)
     },
     [startResize],
   )
@@ -1042,13 +1004,7 @@ export const ConnectionTable = (props: Props) => {
       event.stopPropagation()
       const touch = event.touches[0]
       if (!touch) return
-      startResize(
-        column.field,
-        touch.clientX,
-        column.size,
-        column.minWidth,
-        column.maxWidth,
-      )
+      startResize(column.field, touch.clientX, column.size, column.minWidth)
     },
     [startResize],
   )
@@ -1113,7 +1069,6 @@ export const ConnectionTable = (props: Props) => {
                       boxSizing: 'border-box',
                       flex: `0 0 ${column.size}px`,
                       minWidth: column.minWidth,
-                      maxWidth: column.maxWidth,
                       fontSize: 11.5,
                       fontWeight: 700,
                       letterSpacing: '0.4px',
