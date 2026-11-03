@@ -10,19 +10,27 @@ import {
   alpha,
   styled,
 } from '@mui/material'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { seqActionLabelKey } from '@/components/profile/seq-action-label'
-import { GroupIcon } from '@/components/proxy/group-icon'
+
 interface Props {
   type: 'prepend' | 'original' | 'delete' | 'append'
-  group: IProxyGroupConfig
-  profileUid: string
+  /** Имя узла или группы — и ключ перетаскивания. */
+  name: string
+  /** Тип узла или группы — плашкой под именем. */
+  kind: string
+  /** Значок перед именем. */
+  leading?: ReactNode
+  /** Подсказка с полным именем. */
+  title?: string
   onDelete: () => void
 }
 
-export const GroupItem = (props: Props) => {
-  const { type, group, profileUid, onDelete } = props
+/** Строка редакторов «Узлы» и «Группы»: своя, из подписки или удалённая. */
+export const SeqListItem = (props: Props) => {
+  const { type, name, kind, leading, title, onDelete } = props
   const { t } = useTranslation()
   const sortable = type === 'prepend' || type === 'append'
   const actionLabel = t(seqActionLabelKey(type === 'delete', sortable))
@@ -35,7 +43,7 @@ export const GroupItem = (props: Props) => {
     transition,
     isDragging,
   } = useSortable({
-    id: group.name,
+    id: name,
     disabled: !sortable,
   })
   const dragAttributes = sortable ? sortableAttributes : undefined
@@ -63,7 +71,7 @@ export const GroupItem = (props: Props) => {
         zIndex: isDragging ? 'calc(infinity)' : undefined,
       })}
     >
-      <GroupIcon icon={group.icon} uid={profileUid} />
+      {leading}
       <ListItemText
         {...(dragAttributes ?? {})}
         {...(dragListeners ?? {})}
@@ -71,9 +79,10 @@ export const GroupItem = (props: Props) => {
         sx={{ cursor: sortable ? 'move' : '' }}
         primary={
           <StyledPrimary
+            title={title}
             sx={{ textDecoration: type === 'delete' ? 'line-through' : '' }}
           >
-            {group.name}
+            {name}
           </StyledPrimary>
         }
         secondary={
@@ -86,7 +95,7 @@ export const GroupItem = (props: Props) => {
             }}
           >
             <Box sx={{ marginTop: '2px' }}>
-              <StyledTypeBox>{group.type}</StyledTypeBox>
+              <StyledTypeBox>{kind}</StyledTypeBox>
             </Box>
           </ListItemTextChild>
         }

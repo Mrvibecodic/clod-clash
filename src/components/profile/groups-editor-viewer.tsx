@@ -44,8 +44,9 @@ import {
   VirtualList,
 } from '@/components/base'
 import { EditorModeSwitch } from '@/components/profile/editor-mode-switch'
-import { GroupItem } from '@/components/profile/group-item'
 import { ReadFailureNote } from '@/components/profile/read-failure-note'
+import { SeqListItem } from '@/components/profile/seq-list-item'
+import { GroupIcon } from '@/components/proxy/group-icon'
 import { useSeqDocument } from '@/hooks/use-seq-document'
 import { getNetworkInterfaces, readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -204,11 +205,12 @@ export const GroupsEditorViewer = (props: Props) => {
           >
             {filteredPrependSeq.map((item) => {
               return (
-                <GroupItem
+                <SeqListItem
                   key={item.name}
                   type="prepend"
-                  group={item}
-                  profileUid={profileUid}
+                  name={item.name}
+                  kind={item.type}
+                  leading={<GroupIcon icon={item.icon} uid={profileUid} />}
                   onDelete={() => {
                     setPrependSeq(
                       prependSeq.filter((v) => v.name !== item.name),
@@ -223,15 +225,21 @@ export const GroupsEditorViewer = (props: Props) => {
     } else if (index < filteredGroupList.length + shift) {
       const newIndex = index - shift
       return (
-        <GroupItem
+        <SeqListItem
           key={filteredGroupList[newIndex].name}
           type={
             deleteSeq.includes(filteredGroupList[newIndex].name)
               ? 'delete'
               : 'original'
           }
-          group={filteredGroupList[newIndex]}
-          profileUid={profileUid}
+          name={filteredGroupList[newIndex].name}
+          kind={filteredGroupList[newIndex].type}
+          leading={
+            <GroupIcon
+              icon={filteredGroupList[newIndex].icon}
+              uid={profileUid}
+            />
+          }
           onDelete={() => {
             if (deleteSeq.includes(filteredGroupList[newIndex].name)) {
               setDeleteSeq(
@@ -260,11 +268,12 @@ export const GroupsEditorViewer = (props: Props) => {
           >
             {filteredAppendSeq.map((item) => {
               return (
-                <GroupItem
+                <SeqListItem
                   key={item.name}
                   type="append"
-                  group={item}
-                  profileUid={profileUid}
+                  name={item.name}
+                  kind={item.type}
+                  leading={<GroupIcon icon={item.icon} uid={profileUid} />}
                   onDelete={() => {
                     setAppendSeq(appendSeq.filter((v) => v.name !== item.name))
                   }}

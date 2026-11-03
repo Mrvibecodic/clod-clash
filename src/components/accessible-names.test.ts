@@ -20,7 +20,7 @@ test('переключатели поиска — кнопки с признак
 })
 
 test('кнопка строки в редакторах узлов и групп названа, как в редакторе правил', () => {
-  for (const path of ['./profile/proxy-item.tsx', './profile/group-item.tsx']) {
+  for (const path of ['./profile/seq-list-item.tsx']) {
     assert.match(
       source(path),
       /<IconButton aria-label=\{actionLabel\} onClick=\{onDelete\}>/,

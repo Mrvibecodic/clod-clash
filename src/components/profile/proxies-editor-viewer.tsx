@@ -39,8 +39,8 @@ import {
   VirtualList,
 } from '@/components/base'
 import { EditorModeSwitch } from '@/components/profile/editor-mode-switch'
-import { ProxyItem } from '@/components/profile/proxy-item'
 import { ReadFailureNote } from '@/components/profile/read-failure-note'
+import { SeqListItem } from '@/components/profile/seq-list-item'
 import { useSeqDocument } from '@/hooks/use-seq-document'
 import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -119,10 +119,12 @@ export const ProxiesEditorViewer = (props: Props) => {
           >
             {filteredPrependSeq.map((item) => {
               return (
-                <ProxyItem
+                <SeqListItem
                   key={item.name}
                   type="prepend"
-                  proxy={item}
+                  name={item.name}
+                  kind={item.type}
+                  title={item.name}
                   onDelete={() => {
                     setPrependSeq(
                       prependSeq.filter((v) => v.name !== item.name),
@@ -137,14 +139,16 @@ export const ProxiesEditorViewer = (props: Props) => {
     } else if (index < filteredProxyList.length + shift) {
       const newIndex = index - shift
       return (
-        <ProxyItem
+        <SeqListItem
           key={filteredProxyList[newIndex].name}
           type={
             deleteSeq.includes(filteredProxyList[newIndex].name)
               ? 'delete'
               : 'original'
           }
-          proxy={filteredProxyList[newIndex]}
+          name={filteredProxyList[newIndex].name}
+          kind={filteredProxyList[newIndex].type}
+          title={filteredProxyList[newIndex].name}
           onDelete={() => {
             if (deleteSeq.includes(filteredProxyList[newIndex].name)) {
               setDeleteSeq(
@@ -173,10 +177,12 @@ export const ProxiesEditorViewer = (props: Props) => {
           >
             {filteredAppendSeq.map((item) => {
               return (
-                <ProxyItem
+                <SeqListItem
                   key={item.name}
                   type="append"
-                  proxy={item}
+                  name={item.name}
+                  kind={item.type}
+                  title={item.name}
                   onDelete={() => {
                     setAppendSeq(appendSeq.filter((v) => v.name !== item.name))
                   }}
