@@ -129,7 +129,7 @@ pub async fn patch_clash_mode(payload: String) -> CmdResult {
     feat::change_clash_mode(payload).await
 }
 #[tauri::command]
-pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> {
+pub async fn change_clash_core(clash_core: String) -> CmdResult {
     feat::refuse_while_exiting().stringify_err()?;
     logging!(info, Type::Config, "changing core to {clash_core}");
 
@@ -139,21 +139,24 @@ pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> 
             logging!(info, Type::Core, "core changed and restarted to {clash_core}");
             handle::Handle::notice_message("config_core::change_success", "");
             handle::Handle::refresh_clash();
-            Ok(None)
+            Ok(())
         }
         Err(err) => {
             // Текст отказа ядра или сборки несёт пути и адреса: наружу — только
             // очищенный.
             let error_msg: String = super::public_error_text(&err);
             logging!(error, Type::Core, "failed to change core: {error_msg}");
-            handle::Handle::notice_message("config_core::change_error", error_msg.clone());
-            Ok(Some(error_msg))
+            handle::Handle::notice_message("config_core::change_error", error_msg);
+            Ok(())
         }
     }
 }
 #[tauri::command]
-pub async fn refresh_geo_assets() -> CmdResult<usize> {
-    crate::module::geo_assets::refresh_home_copies().await.stringify_err()
+pub async fn refresh_geo_assets() -> CmdResult {
+    crate::module::geo_assets::refresh_home_copies()
+        .await
+        .map(|_| ())
+        .stringify_err()
 }
 
 #[tauri::command]

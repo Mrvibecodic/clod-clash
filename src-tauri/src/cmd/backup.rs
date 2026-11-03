@@ -24,8 +24,8 @@ pub async fn restore_local_backup(filename: String) -> CmdResult<()> {
 }
 
 #[tauri::command]
-pub async fn import_local_backup(source: String) -> CmdResult<String> {
-    feat::import_local_backup(source).await.stringify_err()
+pub async fn import_local_backup(source: String) -> CmdResult {
+    feat::import_local_backup(source).await.map(|_| ()).stringify_err()
 }
 
 #[tauri::command]

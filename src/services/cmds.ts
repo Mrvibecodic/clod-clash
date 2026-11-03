@@ -50,7 +50,7 @@ export async function enhanceProfiles() {
   )
 }
 
-export async function patchProfilesConfig(profiles: IProfilesConfig) {
+export async function patchProfilesConfig(profiles: { current: string }) {
   return invoke<ValidationOutcome>('patch_profiles_config', { profiles })
 }
 
@@ -123,7 +123,7 @@ export async function patchProfile(
 }
 
 export async function getClashInfo() {
-  return invoke<IClashInfo | null>('get_clash_info')
+  return invoke<IClashInfo>('get_clash_info')
 }
 
 export async function getRuntimeConfig() {
@@ -159,7 +159,7 @@ export async function getProxiesSnapshot(
 }
 
 export async function getRuntimeYaml() {
-  return invoke<string | null>('get_runtime_yaml')
+  return invoke<string>('get_runtime_yaml')
 }
 
 export async function getProxyChain() {
@@ -461,7 +461,7 @@ export async function getFreezeMarks() {
 }
 
 export async function copySupportBundle() {
-  return invoke<number>('copy_support_bundle')
+  return invoke<void>('copy_support_bundle')
 }
 
 export async function saveLogText(filename: string, body: string) {
@@ -496,11 +496,11 @@ export async function getAutotemProxy() {
 }
 
 export async function changeClashCore(clashCore: string) {
-  return invoke<string | null>('change_clash_core', { clashCore })
+  return invoke<void>('change_clash_core', { clashCore })
 }
 
 export async function refreshGeoAssets() {
-  return invoke<number>('refresh_geo_assets')
+  return invoke<void>('refresh_geo_assets')
 }
 
 export async function restartCore() {
@@ -592,7 +592,7 @@ export async function restoreLocalBackup(filename: string) {
 }
 
 export async function importLocalBackup(source: string) {
-  return invoke<string>('import_local_backup', { source })
+  return invoke<void>('import_local_backup', { source })
 }
 
 export async function exportLocalBackup(filename: string) {

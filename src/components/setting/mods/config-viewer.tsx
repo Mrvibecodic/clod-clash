@@ -114,7 +114,7 @@ export const ConfigViewer = forwardRef<DialogRef>((_, ref) => {
         `# ${t('settings.modals.config.runtimeFailed')}${reason ? `: ${reason}` : ''}\n`
       getRuntimeYaml()
         .then((data) => {
-          setRuntimeConfig(data ?? failed())
+          setRuntimeConfig(data)
         })
         .catch((err: unknown) => {
           setRuntimeConfig(failed(errorReason(err, t)))

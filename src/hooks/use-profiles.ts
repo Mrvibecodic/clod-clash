@@ -33,7 +33,7 @@ export const useProfiles = () => {
   }, [])
 
   const patchProfiles = useCallback(
-    async (value: Partial<IProfilesConfig>) => {
+    async (value: { current: string }) => {
       try {
         const outcome = await patchProfilesConfig(value)
 

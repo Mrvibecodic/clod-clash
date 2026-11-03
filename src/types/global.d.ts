@@ -200,16 +200,22 @@ interface IConnectionSetting {
 }
 
 interface IClashInfo {
-  mixed_port?: number
-  socks_port?: number
-  port?: number
-  server?: string
-  secret?: string
+  mixed_port: number
+  server: string
+  secret: string | null
 }
 
 interface IProfileItem {
   uid: string
-  type?: 'local' | 'remote' | 'merge' | 'script'
+  /** Подписка (`local`, `remote`) или её служебная запись. */
+  type?:
+    | 'local'
+    | 'remote'
+    | 'merge'
+    | 'script'
+    | 'rules'
+    | 'proxies'
+    | 'groups'
   name?: string
   desc?: string
   file?: string
@@ -303,12 +309,6 @@ interface INetworkInterface {
   addr: IAddress[]
   mac_addr?: string
   index: number
-}
-
-interface ISeqProfileConfig {
-  prepend: []
-  append: []
-  delete: []
 }
 
 interface IProxyGroupConfig {

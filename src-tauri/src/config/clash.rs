@@ -251,8 +251,6 @@ impl IClashTemp {
 
         ClashInfo {
             mixed_port: Self::guard_mixed_port(config),
-            socks_port: Self::guard_socks_port(config),
-            port: Self::guard_port(config),
             server: Self::guard_client_ctrl(config),
             secret: config.get("secret").and_then(|value| match value {
                 Value::String(val_str) => Some(val_str.clone()),
@@ -335,8 +333,6 @@ impl IClashTemp {
 #[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct ClashInfo {
     pub mixed_port: u16,
-    pub socks_port: u16,
-    pub port: u16,
     pub server: String,
     pub secret: Option<String>,
 }
@@ -354,8 +350,6 @@ fn test_clash_info() {
     fn get_result<S: Into<String>>(port: u16, server: S) -> ClashInfo {
         ClashInfo {
             mixed_port: port,
-            socks_port: 7898,
-            port: 7899,
             server: server.into(),
             secret: None,
         }
