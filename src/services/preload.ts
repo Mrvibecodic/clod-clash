@@ -60,26 +60,22 @@ const preloadConfig = async () => {
 }
 
 const preloadLanguage = async (
-  vergeConfig?: IVergeConfig | null,
-  loadConfig: () => Promise<IVergeConfig | null> = preloadConfig,
+  loadConfig: () => Promise<IVergeConfig | null>,
 ) => {
   const cachedLanguage = getCachedLanguage()
   if (cachedLanguage) {
     return cachedLanguage
   }
 
-  let resolvedConfig = vergeConfig
-
-  if (resolvedConfig === undefined) {
-    try {
-      resolvedConfig = await loadConfig()
-    } catch (error) {
-      console.warn(
-        '[preload.ts] Failed to read language from Verge config:',
-        error,
-      )
-      resolvedConfig = null
-    }
+  let resolvedConfig: IVergeConfig | null
+  try {
+    resolvedConfig = await loadConfig()
+  } catch (error) {
+    console.warn(
+      '[preload.ts] Failed to read language from Verge config:',
+      error,
+    )
+    resolvedConfig = null
   }
 
   const languageFromConfig = resolvedConfig?.language
@@ -146,7 +142,7 @@ const reconcileLanguage = async (
 
 export const preloadAppData = async () => {
   const configPromise = preloadConfig()
-  const initialLanguage = await preloadLanguage(undefined, () => configPromise)
+  const initialLanguage = await preloadLanguage(() => configPromise)
   const [config] = await Promise.all([
     configPromise,
     initializeLanguage(initialLanguage),

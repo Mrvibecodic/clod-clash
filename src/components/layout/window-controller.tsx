@@ -148,43 +148,9 @@ export function WindowControls() {
         </>
       )}
 
-      {OS === 'windows' && (
+      {(OS === 'windows' || OS === 'linux') && (
         <>
-          {/* Стиль Windows: свернуть → развернуть → закрыть */}
-          <IconButton
-            size="small"
-            sx={{ fontSize: 16 }}
-            onClick={minimize}
-            {...label('minimize')}
-          >
-            <Minimize fontSize="inherit" color="inherit" />
-          </IconButton>
-          <IconButton
-            size="small"
-            sx={{ fontSize: 16 }}
-            onClick={toggleMaximize}
-            {...label('maximize')}
-          >
-            {maximized ? (
-              <FilterNone fontSize="inherit" color="inherit" />
-            ) : (
-              <CropSquare fontSize="inherit" color="inherit" />
-            )}
-          </IconButton>
-          <IconButton
-            size="small"
-            sx={{ fontSize: 16, ':hover': { bgcolor: 'red', color: 'white' } }}
-            onClick={close}
-            {...label('close')}
-          >
-            <Close fontSize="inherit" color="inherit" />
-          </IconButton>
-        </>
-      )}
-
-      {OS === 'linux' && (
-        <>
-          {/* Типичная раскладка Linux-десктопа (в GNOME/KDE обычно: свернуть → развернуть → закрыть) */}
+          {/* Windows и Linux: свернуть → развернуть → закрыть */}
           <IconButton
             size="small"
             sx={{ fontSize: 16 }}

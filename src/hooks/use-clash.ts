@@ -10,7 +10,7 @@ import {
   getRuntimeOverview,
   patchClashConfig,
 } from '@/services/cmds'
-import { getCacheData, setCacheData, useQuery } from '@/services/query-client'
+import { setCacheData, useQuery } from '@/services/query-client'
 import { MAX_PORT, MIN_PORT, portRangeVerdict } from '@/utils/ports'
 
 type MutateClashUpdater =
@@ -109,11 +109,7 @@ export const useClash = () => {
     if (updater === undefined) {
       return refetch()
     }
-    const next =
-      typeof updater === 'function'
-        ? updater(getCacheData<IConfigData>(['getRuntimeConfig']))
-        : updater
-    setCacheData(['getRuntimeConfig'], next)
+    setCacheData(['getRuntimeConfig'], updater)
     if (revalidate !== false) {
       return refetch()
     }
@@ -121,10 +117,10 @@ export const useClash = () => {
   }
 
   const mutateLadder = (patch: Partial<ICoreLadder>) => {
-    setCacheData(['getCoreLadder'], {
-      ...(getCacheData<ICoreLadder>(['getCoreLadder']) ?? {}),
+    setCacheData<ICoreLadder>(['getCoreLadder'], (prev) => ({
+      ...prev,
       ...patch,
-    })
+    }))
   }
 
   // Рабочий конфиг, настройки ядра и порт перечитывает событие обновления

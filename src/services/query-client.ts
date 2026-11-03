@@ -18,7 +18,7 @@ type QueryOptions<T> = {
   initialData?: T | (() => T | undefined)
   placeholderData?: T | (() => T | undefined)
   staleTime?: number
-  retry?: number | false
+  retry?: number
   retryDelay?: number | ((attempt: number) => number)
   /**
    * Запрос с опросом (поле задано — хоть `false`, пока окно скрыто) ошибку в
@@ -37,7 +37,6 @@ type QueryOptions<T> = {
 
 type QueryResult<T> = SWRResponse<T> & {
   isFetching: boolean
-  isPending: boolean
   refetch: () => Promise<{ data: T | undefined }>
 }
 
@@ -173,9 +172,7 @@ export function useQuery<T>(options: QueryOptions<T>): QueryResult<T> {
 
   const swr = useSWR<T>(enabled ? queryKey : null, fetcher, {
     ...(staleTime !== undefined && { dedupingInterval: staleTime }),
-    ...(retry !== undefined && {
-      errorRetryCount: retry === false ? 0 : retry,
-    }),
+    ...(retry !== undefined && { errorRetryCount: retry }),
     ...(typeof retryDelay === 'number' && { errorRetryInterval: retryDelay }),
     fallbackData,
     keepPreviousData: placeholderData !== undefined,
@@ -218,9 +215,6 @@ export function useQuery<T>(options: QueryOptions<T>): QueryResult<T> {
     },
     get isFetching() {
       return swr.isValidating
-    },
-    get isPending() {
-      return swr.isLoading
     },
     mutate: swr.mutate,
     refetch: async () => ({ data: await swr.mutate() }),

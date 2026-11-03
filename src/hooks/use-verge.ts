@@ -3,7 +3,7 @@ import { useCallback } from 'react'
 import { getVergeConfig, patchVergeConfig } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { getPreloadConfig, setPreloadConfig } from '@/services/preload'
-import { getCacheData, setCacheData, useQuery } from '@/services/query-client'
+import { setCacheData, useQuery } from '@/services/query-client'
 
 export const useVerge = () => {
   const initialVergeConfig = getPreloadConfig()
@@ -30,13 +30,7 @@ export const useVerge = () => {
       void refetch()
       return
     }
-    if (typeof updaterOrData === 'function') {
-      const prev = getCacheData<IVergeConfig>(['getVergeConfig'])
-      const next = updaterOrData(prev)
-      setCacheData(['getVergeConfig'], next)
-    } else {
-      setCacheData(['getVergeConfig'], updaterOrData)
-    }
+    setCacheData(['getVergeConfig'], updaterOrData)
   }
 
   const patchVerge = useCallback(

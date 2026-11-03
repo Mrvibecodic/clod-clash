@@ -186,33 +186,33 @@ export const useCustomTheme = () => {
     const divider =
       mode === 'light' ? 'rgba(17, 24, 39, 0.11)' : 'rgba(255, 255, 255, 0.11)'
 
-    try {
-      muiTheme = createTheme({
+    const themeFrom = (custom: typeof setting, accent?: string) =>
+      createTheme({
         ...shared,
         palette: {
           mode,
           primary: {
             main: accentForMode(
-              setting.primary_color || providerAccent || dt.primary_color,
+              custom.primary_color || accent || dt.primary_color,
               mode,
             ),
           },
           secondary: {
             main: accentForMode(
-              setting.secondary_color || dt.secondary_color,
+              custom.secondary_color || dt.secondary_color,
               mode,
             ),
           },
           info: {
-            main: accentForMode(setting.info_color || dt.info_color, mode),
+            main: accentForMode(custom.info_color || dt.info_color, mode),
           },
-          error: { main: setting.error_color || dt.error_color },
-          warning: { main: setting.warning_color || dt.warning_color },
-          success: { main: setting.success_color || dt.success_color },
+          error: { main: custom.error_color || dt.error_color },
+          warning: { main: custom.warning_color || dt.warning_color },
+          success: { main: custom.success_color || dt.success_color },
           divider,
           text: {
-            primary: setting.primary_text || dt.primary_text,
-            secondary: setting.secondary_text || dt.secondary_text,
+            primary: custom.primary_text || dt.primary_text,
+            secondary: custom.secondary_text || dt.secondary_text,
           },
           background: {
             paper:
@@ -223,35 +223,17 @@ export const useCustomTheme = () => {
           },
         },
         typography: {
-          fontFamily: setting.font_family
-            ? `${setting.font_family}, ${dt.font_family}`
+          fontFamily: custom.font_family
+            ? `${custom.font_family}, ${dt.font_family}`
             : dt.font_family,
         },
       })
+
+    try {
+      muiTheme = themeFrom(setting, providerAccent)
     } catch (e) {
       console.error('Error creating MUI theme, falling back to defaults:', e)
-      muiTheme = createTheme({
-        ...shared,
-        palette: {
-          mode,
-          primary: { main: accentForMode(dt.primary_color, mode) },
-          secondary: { main: accentForMode(dt.secondary_color, mode) },
-          info: { main: accentForMode(dt.info_color, mode) },
-          error: { main: dt.error_color },
-          warning: { main: dt.warning_color },
-          success: { main: dt.success_color },
-          divider,
-          text: { primary: dt.primary_text, secondary: dt.secondary_text },
-          background: {
-            paper:
-              mode === 'light'
-                ? '#FFFFFF'
-                : lighten(dt.background_color, 0.045),
-            default: dt.background_color,
-          },
-        },
-        typography: { fontFamily: dt.font_family },
-      })
+      muiTheme = themeFrom({})
     }
 
     const rootEle = document.documentElement
