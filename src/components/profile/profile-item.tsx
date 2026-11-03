@@ -174,17 +174,13 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     showNextUpdateRef.current = showNextUpdate
   }, [showNextUpdate])
 
+  // Срок после обновления подписки и смены интервала приносит весть
+  // `verge://timer-updated` — бэкенд шлёт её, когда расписание уже перевзведено.
   useEffect(() => {
     if (showNextUpdate) {
       fetchNextUpdateTime()
     }
-  }, [
-    fetchNextUpdateTime,
-    showNextUpdate,
-    option?.update_interval,
-    option?.allow_auto_update,
-    updated,
-  ])
+  }, [fetchNextUpdateTime, showNextUpdate])
 
   useEffect(() => {
     if (timerUpdateRevision === 0 || !showNextUpdateRef.current) return

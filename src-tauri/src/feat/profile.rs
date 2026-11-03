@@ -783,6 +783,8 @@ async fn failed(uid: &String, status: &str, what: &str, raw: &str, trigger: Upda
 /// ядром или нет, текущая она или нет.
 async fn note_the_download(uid: &String) {
     logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
+    // Срок следующего обновления сменился и после ручного: окно перечитает его по этой вести.
+    handle::Handle::notify_timer_updated(uid);
     announce_device_refusal(uid).await;
     let logo_uid = uid.clone();
     crate::process::AsyncHandler::spawn(move || async move {
@@ -1614,6 +1616,15 @@ mod one_write_tests {
             2,
             "только провал приёма и «до проверки не дошло»: {settle}"
         );
+    }
+
+    #[test]
+    fn the_window_rereads_the_next_update_after_every_download() {
+        let source = include_str!("profile.rs");
+        let noted = squeezed(source, "async fn note_the_download(");
+        let refresh = noted.find("Timer::global().refresh().await");
+        let told = noted.find("notify_timer_updated(uid)");
+        assert!(matches!((refresh, told), (Some(r), Some(t)) if r < t), "{noted}");
     }
 
     #[test]
