@@ -13,8 +13,8 @@ import SettingTools from '@/components/setting/setting-tools'
 import SettingVergeAdvanced from '@/components/setting/setting-verge-advanced'
 import SettingVergeBasic from '@/components/setting/setting-verge-basic'
 import { useProfiles } from '@/hooks/use-profiles'
+import { openProviderLink } from '@/hooks/use-provider-links'
 import { CARD_SURFACE } from '@/pages/_theme'
-import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { tunSetupNotice } from '@/utils/tun-notice'
 
@@ -28,14 +28,7 @@ const SettingPage = () => {
   const { current } = useProfiles()
   const supportUrl = current?.support_url
 
-  const toSupport = useLockFn(async () => {
-    if (!supportUrl) return
-    try {
-      await openWebUrl(supportUrl)
-    } catch (error) {
-      showNotice.error(error)
-    }
-  })
+  const toSupport = useLockFn(() => openProviderLink(supportUrl))
 
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [showBasic, setShowBasic] = useState(false)

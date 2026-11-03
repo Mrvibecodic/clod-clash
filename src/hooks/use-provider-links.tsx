@@ -75,7 +75,8 @@ export const useProviderLinks = (profile?: IProfileItem | null) => {
 
 const ALLOWED_LINK_SCHEMES = ['https:', 'tg:', 'mailto:']
 
-export const openProviderLink = async (url: string) => {
+export const openProviderLink = async (url?: string | null) => {
+  if (!url) return
   let scheme = ''
   try {
     scheme = new URL(url).protocol

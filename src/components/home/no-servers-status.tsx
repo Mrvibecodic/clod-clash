@@ -3,15 +3,13 @@ import DataUsageRoundedIcon from '@mui/icons-material/DataUsageRounded'
 import DevicesRoundedIcon from '@mui/icons-material/DevicesRounded'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { Alert, AlertTitle, Button, Stack, Typography } from '@mui/material'
-import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useEnableHwid } from '@/hooks/use-enable-hwid'
 import { useNoServersStatus } from '@/hooks/use-no-servers-status'
+import { openProviderLink } from '@/hooks/use-provider-links'
 import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
 import { useVerge } from '@/hooks/use-verge'
-import { openWebUrl } from '@/services/cmds'
-import { showNotice } from '@/services/notice-service'
 import { profileDate, refillDateText } from '@/utils/date-text'
 import parseTraffic from '@/utils/parse-traffic'
 import { clockSkew, noServersSeverity } from '@/utils/subscription-status'
@@ -43,15 +41,6 @@ export const NoServersStatus = ({ profile, quiet }: Props) => {
   const { t } = useTranslation()
   const { reason, show, partiallyDropped, droppedTotal, remarks } =
     useNoServersStatus(profile)
-
-  const openLink = useCallback(async (url?: string) => {
-    if (!url) return
-    try {
-      await openWebUrl(url)
-    } catch (error) {
-      showNotice.error(error)
-    }
-  }, [])
 
   const { updating, paused, refresh } = useSubscriptionUpdate(profile?.uid)
   const { verge } = useVerge()
@@ -167,7 +156,7 @@ export const NoServersStatus = ({ profile, quiet }: Props) => {
             size="small"
             variant="contained"
             color={severity}
-            onClick={() => void openLink(profile.support_url)}
+            onClick={() => void openProviderLink(profile.support_url)}
           >
             {t('profiles.components.hwidDialog.support')}
           </Button>

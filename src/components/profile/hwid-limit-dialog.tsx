@@ -12,8 +12,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useEnableHwid } from '@/hooks/use-enable-hwid'
 import { useTauriEvent } from '@/hooks/use-listen'
-import { openWebUrl } from '@/services/cmds'
-import { showNotice } from '@/services/notice-service'
+import { openProviderLink } from '@/hooks/use-provider-links'
 
 /**
  * Device identity feedback from the panel.
@@ -79,15 +78,6 @@ export const HwidLimitDialog = ({ drains }: Props) => {
     )
   }, [enable])
 
-  const openLink = useCallback(async (url?: string | null) => {
-    if (!url) return
-    try {
-      await openWebUrl(url)
-    } catch (error) {
-      showNotice.error(error instanceof Error ? error.message : String(error))
-    }
-  }, [])
-
   if (!notice) return null
 
   const isLimit = notice.state === 'limit'
@@ -117,7 +107,7 @@ export const HwidLimitDialog = ({ drains }: Props) => {
           notice.supportUrl ? (
             <Button
               variant="contained"
-              onClick={() => void openLink(notice.supportUrl)}
+              onClick={() => void openProviderLink(notice.supportUrl)}
             >
               {t('profiles.components.hwidDialog.support')}
             </Button>

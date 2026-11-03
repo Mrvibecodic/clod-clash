@@ -4,8 +4,7 @@ import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useProfiles } from '@/hooks/use-profiles'
-import { openWebUrl } from '@/services/cmds'
-import { showNotice } from '@/services/notice-service'
+import { openProviderLink } from '@/hooks/use-provider-links'
 
 interface Props {
   frozen?: boolean
@@ -119,7 +118,7 @@ const Snowflake = () => {
               sx={{ fontWeight: 600 }}
               onClick={(event) => {
                 event.preventDefault()
-                openWebUrl(supportUrl).catch((error) => showNotice.error(error))
+                void openProviderLink(supportUrl)
               }}
             >
               {t('freeze.support')}

@@ -4,11 +4,12 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import PercentRoundedIcon from '@mui/icons-material/PercentRounded'
 import { Alert, Box, Button, IconButton } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BannerText, BaseDialog } from '@/components/base'
-import { patchProfile, openWebUrl } from '@/services/cmds'
+import { openProviderLink } from '@/hooks/use-provider-links'
+import { patchProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { pressable } from '@/utils/pressable'
 
@@ -51,15 +52,6 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
   )
   const [dialogOpen, setDialogOpen] = useState(false)
 
-  const openLink = useCallback(async (url?: string) => {
-    if (!url) return
-    try {
-      await openWebUrl(url)
-    } catch (error) {
-      showNotice.error(error)
-    }
-  }, [])
-
   const dismissPromo = useLockFn(async () => {
     if (!profile.uid) return
     try {
@@ -78,9 +70,9 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
         <Alert
           severity="info"
           icon={<PercentRoundedIcon fontSize="inherit" />}
-          onClick={() => void openLink(profile.promo_url)}
+          onClick={() => void openProviderLink(profile.promo_url)}
           {...(profile.promo_url &&
-            pressable(() => void openLink(profile.promo_url)))}
+            pressable(() => void openProviderLink(profile.promo_url)))}
           sx={{
             whiteSpace: 'pre-line',
             cursor: profile.promo_url ? 'pointer' : 'default',
@@ -126,9 +118,9 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
         <Alert
           severity="info"
           icon={<InfoOutlinedIcon fontSize="inherit" />}
-          onClick={() => void openLink(profile.announce_url)}
+          onClick={() => void openProviderLink(profile.announce_url)}
           {...(profile.announce_url &&
-            pressable(() => void openLink(profile.announce_url)))}
+            pressable(() => void openProviderLink(profile.announce_url)))}
           sx={{
             whiteSpace: 'pre-line',
             cursor: profile.announce_url ? 'pointer' : 'default',
