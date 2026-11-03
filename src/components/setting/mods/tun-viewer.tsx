@@ -222,7 +222,6 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       <FormSection title={t('settings.modals.tun.fields.stack')} />
       <StackModeSwitch
         value={values.stack}
-        allowAuto
         onChange={(value) => {
           setValues((v) => ({
             ...v,

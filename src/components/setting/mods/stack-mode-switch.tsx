@@ -5,26 +5,21 @@ import { STACKS } from '@/utils/tun-window'
 
 interface Props {
   value?: string
-  allowAuto?: boolean
   onChange?: (value: string) => void
 }
 
 export const StackModeSwitch = (props: Props) => {
-  const { value, allowAuto, onChange } = props
+  const { value, onChange } = props
   const { t } = useTranslation()
 
   return (
     <BaseSegmented
       fullWidth
       value={value?.toLowerCase() ?? ''}
-      options={
-        allowAuto
-          ? [
-              { value: 'auto', label: t('shared.options.fromSubscription') },
-              ...STACKS,
-            ]
-          : STACKS
-      }
+      options={[
+        { value: 'auto', label: t('shared.options.fromSubscription') },
+        ...STACKS,
+      ]}
       onChange={(next) => onChange?.(next)}
     />
   )

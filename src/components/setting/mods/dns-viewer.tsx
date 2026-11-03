@@ -630,7 +630,8 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     return parseHosts(values.hosts)
   }, [values.hosts, base])
 
-  const updateYamlFromValues = useCallback(() => {
+  // Что страница сохранит из формы: непустые dns и hosts.
+  const configFromValues = useCallback(() => {
     const config: Record<string, any> = {}
 
     const dnsConfig = generateDnsConfig()
@@ -642,9 +643,12 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     if (Object.keys(asDnsMapping(hosts) ?? {}).length > 0) {
       config.hosts = hosts
     }
+    return config
+  }, [generateDnsConfig, generateHostsConfig])
 
-    setYamlContent(yaml.dump(config, { forceQuotes: true }))
-  }, [generateDnsConfig, generateHostsConfig, setYamlContent])
+  const updateYamlFromValues = useCallback(() => {
+    setYamlContent(yaml.dump(configFromValues(), { forceQuotes: true }))
+  }, [configFromValues, setYamlContent])
 
   // clod:dns-page-diff — страница хранит только отличия от подписки, поэтому
   // «сброс» здесь один: показать подписку как есть. Сохранение после него
@@ -750,17 +754,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       let config: Record<string, any>
 
       if (visualization) {
-        config = {}
-
-        const dnsConfig = generateDnsConfig()
-        if (Object.keys(dnsConfig).length > 0) {
-          config.dns = dnsConfig
-        }
-
-        const hosts = generateHostsConfig()
-        if (Object.keys(asDnsMapping(hosts) ?? {}).length > 0) {
-          config.hosts = hosts
-        }
+        config = configFromValues()
       } else {
         const parsedConfig = yaml.load(yamlContent)
         if (

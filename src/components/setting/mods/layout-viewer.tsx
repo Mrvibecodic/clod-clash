@@ -1,7 +1,7 @@
 import { alpha, Box, Button, MenuItem, Select } from '@mui/material'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
+import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -56,20 +56,20 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
     tun: '',
   })
 
-  useEffect(() => {
-    initIconPath()
-  }, [])
-
   async function initIconPath() {
-    setIconPaths({
-      common: await trayIconPath('common'),
-      sysproxy: await trayIconPath('sysproxy'),
-      tun: await trayIconPath('tun'),
-    })
+    const [common, sysproxy, tun] = await Promise.all([
+      trayIconPath('common'),
+      trayIconPath('sysproxy'),
+      trayIconPath('tun'),
+    ])
+    setIconPaths({ common, sysproxy, tun })
   }
 
   useImperativeHandle(ref, () => ({
-    open: () => setOpen(true),
+    open: () => {
+      void initIconPath()
+      setOpen(true)
+    },
     close: () => setOpen(false),
   }))
 

@@ -57,6 +57,8 @@ const withUnit = (unit: string) => ({
   },
 })
 
+type LogClean = NonNullable<IVergeConfig['auto_log_clean']>
+
 export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
   const { t } = useTranslation()
   const { verge, patchVerge } = useVerge()
@@ -73,7 +75,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     enableBuiltinEnhanced: true,
     proxyLayoutColumn: 6,
     defaultLatencyTest: '',
-    autoLogClean: 2,
+    autoLogClean: 2 as LogClean,
     defaultLatencyTimeout: 10000,
   }))
   const [initialValues, setInitialValues] = useState(values)
@@ -93,7 +95,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         enableBuiltinEnhanced: verge?.enable_builtin_enhanced ?? true,
         proxyLayoutColumn: verge?.proxy_layout_column || 6,
         defaultLatencyTest: verge?.default_latency_test || '',
-        autoLogClean: verge?.auto_log_clean || 0,
+        autoLogClean: verge?.auto_log_clean ?? 0,
         defaultLatencyTimeout: effectiveLatencyTimeout(
           verge?.default_latency_timeout,
         ),
@@ -140,7 +142,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         proxy_layout_column: values.proxyLayoutColumn,
         default_latency_test: values.defaultLatencyTest,
         default_latency_timeout: values.defaultLatencyTimeout,
-        auto_log_clean: values.autoLogClean as any,
+        auto_log_clean: values.autoLogClean,
       })
       setOpen(false)
     } catch (err) {
@@ -224,7 +226,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
           onChange={(e) =>
             setValues((v) => ({
               ...v,
-              autoLogClean: e.target.value as number,
+              autoLogClean: e.target.value as LogClean,
             }))
           }
         >
