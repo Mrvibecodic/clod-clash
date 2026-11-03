@@ -23,7 +23,9 @@
     "clear": "مسح",
     "previous": "Previous",
     "next": "Next",
-    "copySupportBundle": "Copy logs for support"
+    "copySupportBundle": "Copy logs for support",
+    "update": "تحديث",
+    "updateAll": "تحديث الكل"
   },
   "labels": {
     "updateAt": "التحديث عند",
@@ -137,6 +139,11 @@
         "lanSharingOffAction": "Turn LAN sharing off",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "تم حفظ أرشيف السجلات — عناوين الاشتراك والرموز مخفية"
+      },
+      "provider": {
+        "updateSuccess": "{{name}} updated successfully",
+        "updateFailed": "Failed to update {{name}}: {{message}}",
+        "genericError": "Update failed: {{message}}"
       }
     },
     "validation": {

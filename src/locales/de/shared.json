@@ -23,7 +23,9 @@
     "clear": "Löschen",
     "previous": "Previous",
     "next": "Next",
-    "copySupportBundle": "Copy logs for support"
+    "copySupportBundle": "Copy logs for support",
+    "update": "Aktualisieren",
+    "updateAll": "Alle aktualisieren"
   },
   "labels": {
     "updateAt": "Aktualisiert am",
@@ -137,6 +139,11 @@
         "lanSharingOffAction": "Turn LAN sharing off",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Protokollarchiv gespeichert — Abonnementadressen und Token sind maskiert"
+      },
+      "provider": {
+        "updateSuccess": "{{name}} updated successfully",
+        "updateFailed": "Failed to update {{name}}: {{message}}",
+        "genericError": "Update failed: {{message}}"
       }
     },
     "validation": {

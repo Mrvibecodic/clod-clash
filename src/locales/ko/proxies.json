@@ -15,11 +15,7 @@
       "removeNode": "Remove the node from the chain"
     },
     "provider": {
-      "title": "Server sets",
-      "actions": {
-        "updateAll": "모두 업데이트",
-        "update": "업데이트"
-      }
+      "title": "Server sets"
     },
     "rules": {
       "title": "프록시 규칙",
@@ -78,9 +74,6 @@
   "feedback": {
     "notifications": {
       "provider": {
-        "updateSuccess": "{{name}} 업데이트 성공",
-        "updateFailed": "{{name}} 업데이트 실패: {{message}}",
-        "genericError": "업데이트 실패: {{message}}",
         "none": "No server sets to update",
         "allUpdated": "All server sets updated"
       }

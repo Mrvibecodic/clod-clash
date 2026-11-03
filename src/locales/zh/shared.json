@@ -23,7 +23,9 @@
     "clear": "清除",
     "previous": "上一页",
     "next": "下一页",
-    "copySupportBundle": "复制支持日志"
+    "copySupportBundle": "复制支持日志",
+    "update": "更新",
+    "updateAll": "更新全部"
   },
   "labels": {
     "updateAt": "更新于",
@@ -137,6 +139,11 @@
         "lanSharingOffAction": "Turn LAN sharing off",
         "supportBundleCopied": "支持报告已复制 — 订阅地址和令牌已遮蔽",
         "logsExported": "日志压缩包已保存——订阅地址和令牌已打码"
+      },
+      "provider": {
+        "updateSuccess": "{{name}} 更新成功",
+        "updateFailed": "{{name}} 更新失败: {{message}}",
+        "genericError": "更新失败: {{message}}"
       }
     },
     "validation": {

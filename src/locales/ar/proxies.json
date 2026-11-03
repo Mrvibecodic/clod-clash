@@ -15,11 +15,7 @@
       "removeNode": "Remove the node from the chain"
     },
     "provider": {
-      "title": "Server sets",
-      "actions": {
-        "updateAll": "تحديث الكل",
-        "update": "تحديث"
-      }
+      "title": "Server sets"
     },
     "rules": {
       "title": "Proxy Rules",
@@ -78,9 +74,6 @@
   "feedback": {
     "notifications": {
       "provider": {
-        "updateSuccess": "{{name}} updated successfully",
-        "updateFailed": "Failed to update {{name}}: {{message}}",
-        "genericError": "Update failed: {{message}}",
         "none": "No node sets to update",
         "allUpdated": "All node sets updated"
       }

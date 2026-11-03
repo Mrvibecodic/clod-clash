@@ -15,11 +15,7 @@
       "removeNode": "Remove the node from the chain"
     },
     "provider": {
-      "title": "Server sets",
-      "actions": {
-        "updateAll": "更新全部",
-        "update": "更新"
-      }
+      "title": "Server sets"
     },
     "rules": {
       "title": "代理规则",
@@ -78,9 +74,6 @@
   "feedback": {
     "notifications": {
       "provider": {
-        "updateSuccess": "{{name}} 更新成功",
-        "updateFailed": "{{name}} 更新失败: {{message}}",
-        "genericError": "更新失败: {{message}}",
         "none": "No server sets to update",
         "allUpdated": "All server sets updated"
       }

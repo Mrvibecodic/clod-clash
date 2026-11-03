@@ -23,7 +23,9 @@
     "clear": "Temizle",
     "previous": "Previous",
     "next": "Next",
-    "copySupportBundle": "Copy logs for support"
+    "copySupportBundle": "Copy logs for support",
+    "update": "Güncelle",
+    "updateAll": "Tümünü Güncelle"
   },
   "labels": {
     "updateAt": "Güncelleme Zamanı",
@@ -137,6 +139,11 @@
         "lanSharingOffAction": "Turn LAN sharing off",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Günlük arşivi kaydedildi — abonelik adresleri ve belirteçler gizlendi"
+      },
+      "provider": {
+        "updateSuccess": "{{name}} updated successfully",
+        "updateFailed": "Failed to update {{name}}: {{message}}",
+        "genericError": "Update failed: {{message}}"
       }
     },
     "validation": {

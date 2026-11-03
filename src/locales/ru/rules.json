@@ -1,12 +1,7 @@
 {
   "page": {
     "provider": {
-      "trigger": "Наборы правил",
-      "dialogTitle": "Наборы правил",
-      "actions": {
-        "updateAll": "Обновить все",
-        "update": "Обновить"
-      }
+      "title": "Наборы правил"
     },
     "title": "Правила",
     "loadFailed": "Не удалось прочитать правила ядра"
@@ -14,9 +9,6 @@
   "feedback": {
     "notifications": {
       "provider": {
-        "updateSuccess": "{{name}} успешно обновлён",
-        "updateFailed": "Не удалось обновить {{name}}: {{message}}",
-        "genericError": "Ошибка обновления: {{message}}",
         "none": "Нет наборов правил для обновления",
         "allUpdated": "Все наборы правил обновлены"
       }

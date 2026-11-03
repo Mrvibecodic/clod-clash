@@ -1,12 +1,7 @@
 {
   "page": {
     "provider": {
-      "trigger": "Rule sets",
-      "dialogTitle": "Rule sets",
-      "actions": {
-        "updateAll": "更新全部",
-        "update": "更新"
-      }
+      "title": "Rule sets"
     },
     "title": "规则",
     "loadFailed": "Could not read the core's rules"
@@ -14,9 +9,6 @@
   "feedback": {
     "notifications": {
       "provider": {
-        "updateSuccess": "{{name}} 更新成功",
-        "updateFailed": "{{name}} 更新失败: {{message}}",
-        "genericError": "更新失败: {{message}}",
         "none": "No rule sets to update",
         "allUpdated": "All rule sets updated"
       }

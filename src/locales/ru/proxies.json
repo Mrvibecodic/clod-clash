@@ -15,11 +15,7 @@
       "removeNode": "Убрать узел из цепочки"
     },
     "provider": {
-      "title": "Наборы узлов",
-      "actions": {
-        "updateAll": "Обновить все",
-        "update": "Обновить"
-      }
+      "title": "Наборы узлов"
     },
     "rules": {
       "title": "Правила прокси",
@@ -80,9 +76,6 @@
   "feedback": {
     "notifications": {
       "provider": {
-        "updateSuccess": "{{name}} успешно обновлён",
-        "updateFailed": "Не удалось обновить {{name}}: {{message}}",
-        "genericError": "Ошибка обновления: {{message}}",
         "none": "Нет наборов узлов для обновления",
         "allUpdated": "Все наборы узлов обновлены"
       }

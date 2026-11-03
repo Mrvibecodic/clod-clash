@@ -23,7 +23,9 @@
     "clear": "지우기",
     "previous": "Previous",
     "next": "Next",
-    "copySupportBundle": "Copy logs for support"
+    "copySupportBundle": "Copy logs for support",
+    "update": "업데이트",
+    "updateAll": "모두 업데이트"
   },
   "labels": {
     "updateAt": "업데이트 시간",
@@ -137,6 +139,11 @@
         "lanSharingOffAction": "Turn LAN sharing off",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "로그 압축 파일을 저장했습니다. 구독 주소와 토큰은 가려졌습니다"
+      },
+      "provider": {
+        "updateSuccess": "{{name}} 업데이트 성공",
+        "updateFailed": "{{name}} 업데이트 실패: {{message}}",
+        "genericError": "업데이트 실패: {{message}}"
       }
     },
     "validation": {

@@ -23,7 +23,9 @@
     "clear": "Очистить",
     "previous": "Назад",
     "next": "Далее",
-    "copySupportBundle": "Скопировать логи для поддержки"
+    "copySupportBundle": "Скопировать логи для поддержки",
+    "update": "Обновить",
+    "updateAll": "Обновить все"
   },
   "labels": {
     "updateAt": "Обновлено",
@@ -137,6 +139,11 @@
         "lanSharingOffAction": "Выключить раздачу",
         "supportBundleCopied": "Отчёт скопирован — адреса подписки и токены замаскированы",
         "logsExported": "Архив с логами сохранён — адреса подписки и токены замаскированы"
+      },
+      "provider": {
+        "updateSuccess": "{{name}} успешно обновлён",
+        "updateFailed": "Не удалось обновить {{name}}: {{message}}",
+        "genericError": "Ошибка обновления: {{message}}"
       }
     },
     "validation": {

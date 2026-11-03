@@ -23,7 +23,9 @@
     "clear": "清除",
     "previous": "上一頁",
     "next": "下一頁",
-    "copySupportBundle": "Copy logs for support"
+    "copySupportBundle": "Copy logs for support",
+    "update": "更新",
+    "updateAll": "全部更新"
   },
   "labels": {
     "updateAt": "更新於",
@@ -137,6 +139,11 @@
         "lanSharingOffAction": "Turn LAN sharing off",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "日誌壓縮檔已儲存——訂閱網址與權杖已遮罩"
+      },
+      "provider": {
+        "updateSuccess": "已成功更新 {{name}}",
+        "updateFailed": "更新 {{name}} 失敗：{{message}}",
+        "genericError": "更新失敗：{{message}}"
       }
     },
     "validation": {

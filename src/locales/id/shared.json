@@ -23,7 +23,9 @@
     "clear": "Bersihkan",
     "previous": "Previous",
     "next": "Next",
-    "copySupportBundle": "Copy logs for support"
+    "copySupportBundle": "Copy logs for support",
+    "update": "Perbarui",
+    "updateAll": "Perbarui Semua"
   },
   "labels": {
     "updateAt": "Diperbarui Pada",
@@ -137,6 +139,11 @@
         "lanSharingOffAction": "Turn LAN sharing off",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Arsip log disimpan — alamat langganan dan token disamarkan"
+      },
+      "provider": {
+        "updateSuccess": "{{name}} updated successfully",
+        "updateFailed": "Failed to update {{name}}: {{message}}",
+        "genericError": "Update failed: {{message}}"
       }
     },
     "validation": {

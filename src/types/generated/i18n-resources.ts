@@ -547,10 +547,7 @@ export interface TranslationResources {
         notifications: {
           provider: {
             allUpdated: string
-            genericError: string
             none: string
-            updateFailed: string
-            updateSuccess: string
           }
         }
       }
@@ -607,10 +604,6 @@ export interface TranslationResources {
           delayCheckUrl: string
         }
         provider: {
-          actions: {
-            update: string
-            updateAll: string
-          }
           title: string
         }
         rules: {
@@ -636,10 +629,7 @@ export interface TranslationResources {
         notifications: {
           provider: {
             allUpdated: string
-            genericError: string
             none: string
-            updateFailed: string
-            updateSuccess: string
           }
         }
       }
@@ -799,12 +789,7 @@ export interface TranslationResources {
       page: {
         loadFailed: string
         provider: {
-          actions: {
-            update: string
-            updateAll: string
-          }
-          dialogTitle: string
-          trigger: string
+          title: string
         }
         title: string
       }
@@ -1580,6 +1565,8 @@ export interface TranslationResources {
         retry: string
         save: string
         tableView: string
+        update: string
+        updateAll: string
         upgrade: string
       }
       dialog: {
@@ -1662,6 +1649,11 @@ export interface TranslationResources {
           }
           importSubscriptionExists: string
           importSubscriptionSuccess: string
+          provider: {
+            genericError: string
+            updateFailed: string
+            updateSuccess: string
+          }
           saved: string
         }
         validation: {

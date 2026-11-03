@@ -1,12 +1,7 @@
 {
   "page": {
     "provider": {
-      "trigger": "Rule sets",
-      "dialogTitle": "Rule sets",
-      "actions": {
-        "updateAll": "به‌روزرسانی همه",
-        "update": "به‌روزرسانی"
-      }
+      "title": "Rule sets"
     },
     "title": "قوانین",
     "loadFailed": "Could not read the core's rules"
@@ -14,9 +9,6 @@
   "feedback": {
     "notifications": {
       "provider": {
-        "updateSuccess": "{{name}} updated successfully",
-        "updateFailed": "Failed to update {{name}}: {{message}}",
-        "genericError": "Update failed: {{message}}",
         "none": "No rule sets to update",
         "allUpdated": "All rule sets updated"
       }
