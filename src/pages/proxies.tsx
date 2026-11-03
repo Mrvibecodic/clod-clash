@@ -1,10 +1,10 @@
-import { LanOutlined, LanRounded, WarningRounded } from '@mui/icons-material'
+import { LanOutlined, LanRounded } from '@mui/icons-material'
 import { Box, Button } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BasePage, BaseSegmented, TooltipIcon } from '@/components/base'
+import { BasePage, BaseSegmented } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { useProfiles } from '@/hooks/use-profiles'
@@ -46,7 +46,6 @@ const ProxyPage = () => {
   // the settings page alone would leave the lock trivially bypassable.
   const { current } = useProfiles()
   const modeLocked = Boolean(current?.lock_mode)
-  const chainWarning = t('proxies.page.chain.warning')
 
   const onChangeMode = useLockFn(async (mode: Mode) => {
     // clod:Э11-10 — разрыв соединений здесь больше не дублируется. Его делает
@@ -98,36 +97,11 @@ const ProxyPage = () => {
     <BasePage
       full
       contentStyle={{ height: '100%' }}
-      title={
-        isChainMode ? (
-          <Box
-            component="span"
-            data-tauri-drag-region="true"
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.75,
-              maxWidth: '100%',
-              verticalAlign: 'middle',
-            }}
-          >
-            <Box
-              component="span"
-              sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
-            >
-              {t('proxies.page.title.chainMode')}
-            </Box>
-            <TooltipIcon
-              title={chainWarning}
-              icon={WarningRounded}
-              color="warning"
-              sx={{ p: 0.25 }}
-            />
-          </Box>
-        ) : (
-          t('proxies.page.title.default')
-        )
-      }
+      title={t(
+        isChainMode
+          ? 'proxies.page.title.chainMode'
+          : 'proxies.page.title.default',
+      )}
       header={
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <ProviderButton />
