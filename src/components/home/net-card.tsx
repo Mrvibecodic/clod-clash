@@ -64,11 +64,11 @@ export const NetCard = () => {
           color="secondary.main"
         />
         <Stat
-          label={t('home.components.net.downloaded')}
+          label={t('shared.labels.downloaded')}
           value={parseTraffic(traffic?.downTotal ?? 0)}
         />
         <Stat
-          label={t('home.components.net.uploaded')}
+          label={t('shared.labels.uploaded')}
           value={parseTraffic(traffic?.upTotal ?? 0)}
         />
       </Box>

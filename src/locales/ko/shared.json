@@ -47,7 +47,6 @@
     "notFound": "Nothing found"
   },
   "units": {
-    "milliseconds": "밀리초",
     "ms": "ms",
     "seconds": "초",
     "minutes": "분",

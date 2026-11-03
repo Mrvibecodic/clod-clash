@@ -134,9 +134,7 @@
       "title": "网络",
       "session": "This session",
       "downSpeed": "Download",
-      "upSpeed": "Upload",
-      "downloaded": "Downloaded",
-      "uploaded": "Uploaded"
+      "upSpeed": "Upload"
     },
     "modeStatus": {
       "lockedHint": "The mode is set by your subscription provider. The restriction lifts on its own once the provider stops answering for several days, or right away if you remove the subscription.",

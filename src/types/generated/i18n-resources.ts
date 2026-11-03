@@ -111,11 +111,9 @@ export interface TranslationResources {
           lockedHintPermanent: string
         }
         net: {
-          downloaded: string
           downSpeed: string
           session: string
           title: string
-          uploaded: string
           upSpeed: string
         }
         providerHeader: {
@@ -1764,7 +1762,6 @@ export interface TranslationResources {
         files: string
         hours: string
         kilobytes: string
-        milliseconds: string
         minutes: string
         ms: string
         seconds: string

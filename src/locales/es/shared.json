@@ -47,7 +47,6 @@
     "notFound": "Nothing found"
   },
   "units": {
-    "milliseconds": "Milisegundos",
     "ms": "ms",
     "seconds": "Segundos",
     "minutes": "Minutos",

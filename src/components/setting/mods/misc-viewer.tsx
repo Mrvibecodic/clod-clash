@@ -391,7 +391,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
               defaultLatencyTimeout: parseInt(e.target.value),
             }))
           }
-          slotProps={withUnit(t('shared.units.milliseconds'))}
+          slotProps={withUnit(t('shared.units.ms'))}
         />
       </FormRow>
     </BaseDialog>

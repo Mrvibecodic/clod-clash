@@ -47,7 +47,6 @@
     "notFound": "Nothing found"
   },
   "units": {
-    "milliseconds": "milidetik",
     "ms": "ms",
     "seconds": "detik",
     "minutes": "menit",

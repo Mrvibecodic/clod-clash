@@ -685,7 +685,7 @@ export const GroupsEditorViewer = (props: Props) => {
                           input: {
                             endAdornment: (
                               <InputAdornment position="end">
-                                {t('shared.units.milliseconds')}
+                                {t('shared.units.ms')}
                               </InputAdornment>
                             ),
                           },

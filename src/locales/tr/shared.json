@@ -47,7 +47,6 @@
     "notFound": "Nothing found"
   },
   "units": {
-    "milliseconds": "ms",
     "ms": "ms",
     "seconds": "saniye",
     "minutes": "dakika",
