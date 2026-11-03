@@ -12,11 +12,6 @@ export interface StoredProxyChain {
 }
 
 const KEY = 'proxy-chain'
-const SHARED_KEYS = [
-  'proxy-chain-group',
-  'proxy-chain-exit-node',
-  'proxy-chain-items',
-] as const
 
 const readAll = (): Record<string, StoredProxyChain> => {
   try {
@@ -58,46 +53,8 @@ const isEmpty = (chain: StoredProxyChain) =>
   chain.exitNode === undefined &&
   !chain.items?.length
 
-/**
- * Прежняя цепочка лежала тремя общими ключами. Забираем их при первом же
- * обращении, чтобы они не достались позже ЧУЖОЙ подписке; отдаём только той,
- * у которой своей записи ещё нет.
- */
-const takeTheSharedChain = (): StoredProxyChain | undefined => {
-  const [group, exitNode, items] = SHARED_KEYS.map((key) => {
-    try {
-      return localStorage.getItem(key)
-    } catch {
-      return null
-    }
-  })
-  if (group === null && exitNode === null && items === null) return undefined
-
-  let parsed: unknown
-  try {
-    parsed = items ? JSON.parse(items) : undefined
-  } catch {
-    parsed = undefined
-  }
-  for (const key of SHARED_KEYS) {
-    try {
-      localStorage.removeItem(key)
-    } catch {}
-  }
-  return sane({ group, exitNode, items: parsed } as StoredProxyChain)
-}
-
-export const readProxyChain = (uid?: string): StoredProxyChain => {
-  if (!uid) return {}
-  const all = readAll()
-  const shared = takeTheSharedChain()
-  if (!all[uid] && shared && !isEmpty(shared)) {
-    all[uid] = shared
-    writeAll(all)
-    return shared
-  }
-  return sane(all[uid])
-}
+export const readProxyChain = (uid?: string): StoredProxyChain =>
+  uid ? sane(readAll()[uid]) : {}
 
 export const saveProxyChain = (uid: string, patch: StoredProxyChain) => {
   const all = readAll()
@@ -131,12 +88,13 @@ export const legacyConnectedChains = (): LegacyConnectedChain[] =>
 
 export const forgetLegacyConnections = () => {
   const all = readAll()
+  const kept: Record<string, StoredProxyChain> = {}
   for (const uid of Object.keys(all)) {
     const { items } = sane(all[uid])
-    if (items?.length) all[uid] = { items }
-    else delete all[uid]
+    if (items?.length) kept[uid] = { items }
   }
-  writeAll(all)
+  // Зовётся на каждом чтении цепочки: без старых записей писать нечего.
+  if (JSON.stringify(kept) !== JSON.stringify(all)) writeAll(kept)
 }
 
 export interface ConnectedChain {

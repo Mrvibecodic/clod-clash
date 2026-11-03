@@ -40,29 +40,6 @@ describe('proxy chain store', () => {
     assert.equal(readProxyChain('B').group, 'GB')
   })
 
-  it('hands the old shared chain to the subscription that asks first', () => {
-    store.set('proxy-chain-group', 'GLOBAL')
-    store.set('proxy-chain-exit-node', 'exit')
-    store.set('proxy-chain-items', JSON.stringify([node('n1'), node('n2')]))
-
-    const mine = readProxyChain('A')
-
-    assert.equal(mine.group, 'GLOBAL')
-    assert.equal(mine.exitNode, 'exit')
-    assert.deepEqual(mine.items, [node('n1'), node('n2')])
-    assert.equal(
-      store.get('proxy-chain-items'),
-      undefined,
-      'общие ключи уходят',
-    )
-    assert.equal(
-      readProxyChain('B').items,
-      undefined,
-      'второй подписке прежняя цепочка уже не достаётся',
-    )
-    assert.deepEqual(readProxyChain('A').items, [node('n1'), node('n2')])
-  })
-
   it('survives a mangled record', () => {
     store.set('proxy-chain', '{"A": {"items": "не список"}}')
     assert.equal(readProxyChain('A').items, undefined)
@@ -97,33 +74,6 @@ describe('proxy chain store', () => {
     assert.equal(store.get('proxy-chain'), '{}')
   })
 
-  it('never lets the old shared chain reach a later subscription', () => {
-    saveProxyChain('A', { items: [node('a1')] })
-    store.set('proxy-chain-group', 'GLOBAL')
-    store.set('proxy-chain-exit-node', 'exit')
-
-    readProxyChain('A')
-
-    assert.equal(
-      store.get('proxy-chain-group'),
-      undefined,
-      'общие ключи забраны сразу',
-    )
-    assert.equal(readProxyChain('B').exitNode, undefined)
-  })
-
-  it('does not lose the group when the old node list is broken', () => {
-    store.set('proxy-chain-group', 'GLOBAL')
-    store.set('proxy-chain-exit-node', 'N3')
-    store.set('proxy-chain-items', '[{сломано')
-
-    const mine = readProxyChain('A')
-
-    assert.equal(mine.group, 'GLOBAL')
-    assert.equal(mine.exitNode, 'N3')
-    assert.equal(mine.items, undefined)
-  })
-
   it('drops entries that are not nodes', () => {
     store.set(
       'proxy-chain',
@@ -134,19 +84,6 @@ describe('proxy chain store', () => {
       readProxyChain('A').items,
       [{ id: '1', name: 'n1' }],
       'на id держатся и ключи списка, и перетаскивание, и удаление одного узла',
-    )
-  })
-
-  it('treats an empty string in the old keys as nothing', () => {
-    store.set('proxy-chain-group', '')
-    store.set('proxy-chain-exit-node', '')
-
-    readProxyChain('A')
-
-    assert.equal(
-      store.get('proxy-chain'),
-      undefined,
-      'записи-призрака быть не должно',
     )
   })
 
@@ -186,6 +123,24 @@ describe('chains connected by earlier versions', () => {
     })
     assert.deepEqual(readProxyChain('B').items, [node('x'), node('y')])
     assert.deepEqual(readProxyChain('C').items, [node('a')])
+  })
+
+  it('are not rewritten on every read when there is nothing to forget', () => {
+    saveProxyChain('A', { items: [node('a'), node('b')] })
+    const before = store.get('proxy-chain')
+    let writes = 0
+    const setItem = localStorage.setItem
+    localStorage.setItem = (key: string, value: string) => {
+      writes += 1
+      setItem(key, value)
+    }
+    try {
+      forgetLegacyConnections()
+    } finally {
+      localStorage.setItem = setItem
+    }
+    assert.equal(writes, 0)
+    assert.equal(store.get('proxy-chain'), before)
   })
 })
 
