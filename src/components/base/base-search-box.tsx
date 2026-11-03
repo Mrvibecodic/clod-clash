@@ -25,17 +25,12 @@ export type SearchState = {
   useRegularExpression: boolean
 }
 
-type SearchOptionState = Omit<SearchState, 'text'>
-
 type SearchProps = {
-  value?: string
   defaultValue?: string
-  autoFocus?: boolean
   inputRef?: RefObject<HTMLInputElement | null>
   matchCase?: boolean
   matchWholeWord?: boolean
   useRegularExpression?: boolean
-  searchState?: Partial<SearchOptionState>
   placeholder?: string
   onSearch: (match: (content: string) => boolean, state: SearchState) => void
   onClick?: (e: MouseEvent<HTMLDivElement>) => void
@@ -54,32 +49,9 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
   },
 }))
 
-const useControllableState = <T,>(options: {
-  controlled: T | undefined
-  defaultValue: T
-}) => {
-  const { controlled, defaultValue } = options
-  const [uncontrolled, setUncontrolled] = useState(defaultValue)
-  const isControlled = controlled !== undefined
-
-  const value = isControlled ? controlled : uncontrolled
-
-  const setValue = useCallback(
-    (next: T) => {
-      if (!isControlled) setUncontrolled(next)
-    },
-    [isControlled],
-  )
-
-  return [value, setValue] as const
-}
-
 export const BaseSearchBox = ({
-  value,
   defaultValue,
-  autoFocus,
   inputRef,
-  searchState,
   placeholder,
   matchCase: defaultMatchCase = false,
   matchWholeWord: defaultMatchWholeWord = false,
@@ -90,34 +62,19 @@ export const BaseSearchBox = ({
   const { t } = useTranslation()
   const onSearchRef = useRef(onSearch)
 
-  const lastSearchStateRef = useRef<SearchState | null>({
-    text: value ?? defaultValue ?? '',
-    matchCase: searchState?.matchCase ?? defaultMatchCase,
-    matchWholeWord: searchState?.matchWholeWord ?? defaultMatchWholeWord,
-    useRegularExpression:
-      searchState?.useRegularExpression ?? defaultUseRegularExpression,
+  const lastSearchStateRef = useRef<SearchState>({
+    text: defaultValue ?? '',
+    matchCase: defaultMatchCase,
+    matchWholeWord: defaultMatchWholeWord,
+    useRegularExpression: defaultUseRegularExpression,
   })
 
-  const [text, setText] = useControllableState<string>({
-    controlled: value,
-    defaultValue: defaultValue ?? '',
-  })
-
-  const [matchCase, setMatchCase] = useControllableState<boolean>({
-    controlled: searchState?.matchCase,
-    defaultValue: defaultMatchCase,
-  })
-
-  const [matchWholeWord, setMatchWholeWord] = useControllableState<boolean>({
-    controlled: searchState?.matchWholeWord,
-    defaultValue: defaultMatchWholeWord,
-  })
-
-  const [useRegularExpression, setUseRegularExpression] =
-    useControllableState<boolean>({
-      controlled: searchState?.useRegularExpression,
-      defaultValue: defaultUseRegularExpression,
-    })
+  const [text, setText] = useState(defaultValue ?? '')
+  const [matchCase, setMatchCase] = useState(defaultMatchCase)
+  const [matchWholeWord, setMatchWholeWord] = useState(defaultMatchWholeWord)
+  const [useRegularExpression, setUseRegularExpression] = useState(
+    defaultUseRegularExpression,
+  )
 
   const iconStyle = {
     style: {
@@ -135,7 +92,6 @@ export const BaseSearchBox = ({
   const emitSearch = useCallback((nextState: SearchState) => {
     const prevState = lastSearchStateRef.current
     const isSameState =
-      !!prevState &&
       prevState.text === nextState.text &&
       prevState.matchCase === nextState.matchCase &&
       prevState.matchWholeWord === nextState.matchWholeWord &&
@@ -147,10 +103,6 @@ export const BaseSearchBox = ({
 
     lastSearchStateRef.current = nextState
   }, [])
-
-  useEffect(() => {
-    emitSearch({ text, matchCase, matchWholeWord, useRegularExpression })
-  }, [emitSearch, matchCase, matchWholeWord, text, useRegularExpression])
 
   const effectiveErrorMessage = useMemo(() => {
     if (!useRegularExpression || !text) return ''
@@ -207,7 +159,6 @@ export const BaseSearchBox = ({
         fullWidth
         size="small"
         variant="outlined"
-        autoFocus={autoFocus}
         inputRef={inputRef}
         spellCheck="false"
         placeholder={placeholder ?? t('shared.placeholders.filter')}

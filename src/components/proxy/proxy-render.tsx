@@ -10,7 +10,6 @@ import { nodeName } from '@/utils/proxy-label'
 import { GroupIcon } from './group-icon'
 import { GroupNow } from './proxy-group-now'
 import { ProxyGroupTools } from './proxy-group-tools'
-import { ProxyHead } from './proxy-head'
 import { ProxyItem } from './proxy-item'
 import { ProxyItemMini } from './proxy-item-mini'
 import type { HeadState } from './use-head-state'
@@ -172,6 +171,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
               }}
             >
               <ProxyGroupTools
+                inHeader
                 groupName={group.name}
                 headState={headState!}
                 onLocation={() => onLocation(group)}
@@ -235,7 +235,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
 
   if (type === 1) {
     return frame(
-      <ProxyHead
+      <ProxyGroupTools
         sx={{ pl: 2, pr: 3, pt: 1, mb: 1 }}
         groupName={group.name}
         headState={headState!}
