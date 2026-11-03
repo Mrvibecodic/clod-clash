@@ -26,17 +26,19 @@ const PORT_KEYS = [
   'tproxy-port',
 ] as const
 
-type ClashInfoPatch = Partial<
+export type ClashInfoPatch = Partial<
   Pick<
     IConfigData,
     | 'port'
     | 'socks-port'
-    | 'mixed-port'
     | 'redir-port'
     | 'tproxy-port'
     | 'external-controller'
     | 'secret'
-  >
+  > & {
+    /** `auto` — как в подписке. */
+    'mixed-port': number | 'auto'
+  }
 >
 
 const hasClashInfoPayload = (patch: ClashInfoPatch) =>
@@ -63,7 +65,7 @@ const validatePortRange = (port: number, t: Translate) => {
 const validatePorts = (patch: ClashInfoPatch, t: Translate) => {
   PORT_KEYS.forEach((key) => {
     const port = patch[key]
-    if (port == null) return
+    if (typeof port !== 'number') return
     validatePortRange(port, t)
   })
 }

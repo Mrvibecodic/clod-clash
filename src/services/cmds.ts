@@ -188,8 +188,13 @@ export async function dismantleProxyChain(profileUid?: string) {
 }
 
 // tun правится по полям: null снимает поле, прочие поля tun остаются.
-export type ClashConfigPatch = Omit<Partial<IConfigData>, 'tun'> & {
+export type ClashConfigPatch = Omit<
+  Partial<IConfigData>,
+  'tun' | 'mixed-port'
+> & {
   tun?: Readonly<Record<string, unknown>>
+  /** `auto` — как в подписке. */
+  'mixed-port'?: number | 'auto'
 }
 
 export async function patchClashConfig(payload: ClashConfigPatch) {
