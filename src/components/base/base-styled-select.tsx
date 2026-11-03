@@ -1,5 +1,7 @@
 import { Select, SelectProps, styled } from '@mui/material'
 
+import { toSxArray } from '@/utils/sx'
+
 export const BaseStyledSelect = styled(
   ({ sx, ...props }: SelectProps<string>) => {
     return (
@@ -15,7 +17,7 @@ export const BaseStyledSelect = styled(
             mr: 1,
             '[role="button"]': { py: 0.65 },
           },
-          ...(Array.isArray(sx) ? sx : [sx]),
+          ...toSxArray(sx),
         ]}
         {...props}
       />

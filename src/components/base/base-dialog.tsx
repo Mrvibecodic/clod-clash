@@ -14,6 +14,7 @@ import { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
+import { toSxArray } from '@/utils/sx'
 
 interface Props {
   title: ReactNode
@@ -110,10 +111,6 @@ const PAPER_FIT = {
   minWidth: 0,
   overflowX: 'hidden',
 } as const
-
-// `false` вместо пустого значения: MUI пропускает такой элемент массива sx.
-const toSxArray = (sx: SxProps<Theme> | undefined) =>
-  Array.isArray(sx) ? sx : [sx ?? false]
 
 export const BaseDialog: React.FC<Props> = ({
   open,

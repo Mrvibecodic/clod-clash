@@ -2,6 +2,8 @@
 // то, что закрепил человек; пустое поле не закреплено: действует подписка, а
 // если она молчит — умолчание ядра.
 
+import { splitList } from './list-draft.ts'
+
 export interface TunFields {
   device: string
   mtu: string
@@ -12,12 +14,6 @@ export interface TunFields {
 }
 
 type TunBlock = Readonly<Record<string, unknown>> | null | undefined
-
-export const splitRouteExcludeAddress = (value: string) =>
-  value
-    .split(/[,\n;\r]+/)
-    .map((item) => item.trim())
-    .filter(Boolean)
 
 const text = (value: unknown) =>
   typeof value === 'string' || typeof value === 'number' ? String(value) : ''
@@ -75,7 +71,7 @@ export function tunPatch(
           : current.mtu
   }
   if (current.routeExcludeAddress !== initial.routeExcludeAddress) {
-    const items = splitRouteExcludeAddress(current.routeExcludeAddress)
+    const items = splitList(current.routeExcludeAddress)
     patch['route-exclude-address'] = items.length > 0 ? items : null
   }
   if (current.autoRoute !== initial.autoRoute) {

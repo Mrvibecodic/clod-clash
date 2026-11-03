@@ -1,7 +1,7 @@
+import { isIpv4, isIpv6 } from '@/utils/network'
+
 import {
   decodeAndTrim,
-  isIPv4,
-  isIPv6,
   parseBoolOrPresence,
   parseInteger,
   parsePortOrDefault,
@@ -54,9 +54,9 @@ export function URI_Wireguard(line: string): IProxyWireguardConfig {
             .replace(/\/\d+$/, '')
             .replace(/^\[/, '')
             .replace(/\]$/, '')
-          if (isIPv4(ip)) {
+          if (isIpv4(ip)) {
             proxy.ip = ip
-          } else if (isIPv6(ip)) {
+          } else if (isIpv6(ip)) {
             proxy.ipv6 = ip
           }
         })

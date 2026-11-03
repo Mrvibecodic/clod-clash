@@ -25,13 +25,12 @@ import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
-import { withListDraft } from '@/utils/list-draft'
+import { splitList, withListDraft } from '@/utils/list-draft'
 import { areValidIpCidrs } from '@/utils/network'
 import {
   TUN_RESET,
   dnsHijackSetting,
   mtuIsValid,
-  splitRouteExcludeAddress,
   stackLabel,
   tunFieldsFrom,
   tunOverrides,
@@ -123,11 +122,9 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const savedOverrides = tunOverrides(initial)
   const changes = tunUnsavedCount(pinned, tunToSave, savedOverrides, overrides)
 
-  const routeExcludeAddressItems = splitRouteExcludeAddress(
-    values.routeExcludeAddress,
-  )
+  const routeExcludeAddressItems = splitList(values.routeExcludeAddress)
   const routeExcludeInvalid = (address: string) => {
-    const items = splitRouteExcludeAddress(address)
+    const items = splitList(address)
     return values.autoRoute && items.length > 0 && !areValidIpCidrs(items)
   }
   const routeExcludeAddressError = routeExcludeInvalid(

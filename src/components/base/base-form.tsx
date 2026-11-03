@@ -8,8 +8,7 @@ import {
 } from '@mui/material'
 import type { ReactNode } from 'react'
 
-const toSxArray = (sx: SxProps<Theme> | undefined) =>
-  Array.isArray(sx) ? sx : [sx ?? false]
+import { toSxArray } from '@/utils/sx'
 
 export const FormSection = ({
   title,

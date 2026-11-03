@@ -1,5 +1,11 @@
 import NetworkCheckRounded from '@mui/icons-material/NetworkCheckRounded'
-import { Box, IconButton, TextField, type SxProps } from '@mui/material'
+import {
+  Box,
+  IconButton,
+  TextField,
+  type SxProps,
+  type Theme,
+} from '@mui/material'
 import { useDebounceFn } from 'ahooks'
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
@@ -10,6 +16,7 @@ import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
 import { isValidUrl } from '@/utils/network'
+import { toSxArray } from '@/utils/sx'
 
 import { BaseSearchBox, type SearchState } from '../base'
 
@@ -21,7 +28,7 @@ interface Props {
   headState: HeadState
   /** В шапке группы («Правила»): поле перед кнопками, клик не сворачивает группу. */
   inHeader?: boolean
-  sx?: SxProps
+  sx?: SxProps<Theme>
   onLocation: () => void
   onCheckDelay: () => void
   onHeadState: (val: Partial<HeadState>) => void
@@ -182,7 +189,7 @@ export const ProxyGroupTools = memo(function ProxyGroupTools(props: Props) {
       sx={[
         { display: 'flex', alignItems: 'center', gap: 0.5 },
         inHeader && { justifyContent: 'end', height: 36, flex: 1, ml: 2 },
-        ...(Array.isArray(sx) ? sx : [sx]),
+        ...toSxArray(sx),
       ]}
     >
       {inHeader && field}

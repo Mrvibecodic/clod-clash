@@ -7,8 +7,8 @@ import isURL from 'validator/es/lib/isURL'
 const stripBrackets = (value: string) =>
   value.startsWith('[') && value.endsWith(']') ? value.slice(1, -1) : value
 
-const isIpv4 = (value: string) => isIP(value, 4)
-const isIpv6 = (value: string) => isIP(value, 6)
+export const isIpv4 = (value: string) => isIP(value, 4)
+export const isIpv6 = (value: string) => isIP(value, 6)
 const isHostname = (value: string) => isFQDN(value, { require_tld: false })
 
 export const isValidUrl = (value: string) =>
