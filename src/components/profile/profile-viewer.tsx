@@ -37,6 +37,7 @@ import {
   setSecureChannel,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { setCacheData } from '@/services/query-client'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { chanFingerprint } from '@/utils/chan-fingerprint'
 import { profileDate } from '@/utils/date-text'
@@ -371,6 +372,11 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
           alreadyAdded = !(await createProfile(item, fileDataRef.current))
         }
 
+        // Список перечитываем здесь, одним запросом: по нему же ищется
+        // только что добавленная подписка. Не прочитался — прежний не берём.
+        const fresh = await getProfiles().catch(() => undefined)
+        if (fresh) setCacheData(['getProfiles'], fresh)
+        else void mutateProfiles()
         onChange(isActivating && changed)
         if (session !== sessionRef.current) return
         fileDataRef.current = null
@@ -384,8 +390,6 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             'shared.feedback.notifications.importSubscriptionExists',
           )
         } else if (openType === 'new') {
-          const fresh = await getProfiles().catch(() => undefined)
-          if (session !== sessionRef.current) return
           const items = fresh?.items ?? []
           const match =
             [...items]

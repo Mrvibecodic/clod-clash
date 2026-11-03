@@ -25,7 +25,7 @@ import {
  */
 export const useNoServersStatus = (profile?: IProfileItem) => {
   const { data: report, error } = useSWR(
-    profile?.uid ? ['sentinelReport', profile.uid, profile.updated ?? 0] : null,
+    profile?.uid ? ['sentinelReport', profile.uid] : null,
     getSentinelReport,
     { revalidateOnFocus: false },
   )

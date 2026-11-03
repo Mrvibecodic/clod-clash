@@ -39,13 +39,13 @@ import { EditorViewer } from '@/components/profile/editor-viewer'
 import { GroupsEditorViewer } from '@/components/profile/groups-editor-viewer'
 import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
 import { useEditorDocument } from '@/hooks/use-editor-document'
+import { useNow } from '@/hooks/use-now'
 import { openProviderLink } from '@/hooks/use-provider-links'
 import {
   updateSubscriptionNow,
   useSubscriptionPaused,
   useSubscriptionUpdating,
 } from '@/hooks/use-subscription-update'
-import { useVisibility } from '@/hooks/use-visibility'
 import {
   getNextUpdateTime,
   readProfileFile,
@@ -126,18 +126,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
 
   // «Сейчас» экрана: дни до конца, «обновлено … назад» и следующее обновление
   // не застывают, пока экран открыт.
-  const [now, setNow] = useState(() => Date.now())
-  const pageVisible = useVisibility()
-  useEffect(() => {
-    if (!pageVisible) return
-    const tick = () => setNow(Date.now())
-    const returned = setTimeout(tick, 0)
-    const timer = setInterval(tick, 60_000)
-    return () => {
-      clearTimeout(returned)
-      clearInterval(timer)
-    }
-  }, [pageVisible])
+  const now = useNow(60_000)
 
   const fetchNextUpdateTimeCallback = useCallback(async () => {
     try {
