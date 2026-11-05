@@ -1,13 +1,6 @@
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 
-use crate::enhance::field::use_keys;
-
-// clod: «mode» в списке обязателен — иначе смена режима маршрутизации не
-// попадает в runtime-конфиг, UI читает старое значение, а ближайший reload
-// возвращает старый режим в ядро.
-const PATCH_CONFIG_INNER: [&str; 6] = ["mode", "allow-lan", "ipv6", "log-level", "unified-delay", "tunnels"];
-
 /// Чего собранный конфиг просит от системного DNS (macOS): подменять ли его и
 /// «сформирован» ли fake-ip под туннель. Часть сборки, а не глобальное состояние:
 /// заявка относится ровно к тому конфигу, с которым едет, и применяется только
@@ -52,40 +45,33 @@ impl IRuntime {
         Self::default()
     }
 
-    // Здесь меняются только allow-lan | ipv6 | log-level | tun | tunnels
-    #[inline]
-    pub fn patch_config(&mut self, patch: &Mapping) {
-        let config = if let Some(config) = self.config.as_mut() {
-            config
-        } else {
-            return;
+    /// Режим маршрутизации, который ядро уже приняло.
+    pub fn set_mode(&mut self, mode: &str) {
+        if let Some(config) = self.config.as_mut() {
+            config.insert("mode".into(), Value::from(mode));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IRuntime;
+    use serde_yaml_ng::{Mapping, Value};
+
+    #[test]
+    fn the_accepted_mode_lands_only_in_an_existing_runtime_config() {
+        let mut empty = IRuntime::new();
+        empty.set_mode("global");
+        assert!(empty.config.is_none());
+
+        let mut built = IRuntime {
+            config: Some(Mapping::new()),
+            ..IRuntime::new()
         };
-
-        for key in PATCH_CONFIG_INNER.iter() {
-            if let Some(value) = patch.get(key) {
-                if crate::config::IClashTemp::follows_the_subscription(&Value::from(*key), value) {
-                    continue;
-                }
-                config.insert((*key).into(), value.clone());
-            }
-        }
-
-        let Some(patch_tun) = patch.get("tun") else {
-            return;
-        };
-
-        let tun_key = Value::from("tun");
-        if !matches!(config.get(&tun_key), Some(Value::Mapping(_))) {
-            config.insert(tun_key.clone(), Value::Mapping(Mapping::new()));
-        }
-
-        if let (Some(patch_tun_mapping), Some(Value::Mapping(tun))) = (patch_tun.as_mapping(), config.get_mut(&tun_key))
-        {
-            for key in use_keys(patch_tun_mapping) {
-                if let Some(value) = patch_tun_mapping.get(key.as_str()) {
-                    tun.insert(Value::from(key.as_str()), value.clone());
-                }
-            }
-        }
+        built.set_mode("global");
+        assert_eq!(
+            built.config.as_ref().and_then(|config| config.get("mode")),
+            Some(&Value::from("global"))
+        );
     }
 }

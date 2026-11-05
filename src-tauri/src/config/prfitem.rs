@@ -1111,13 +1111,14 @@ impl PrfItem {
         Ok(Fetched { item, detoured })
     }
 
-    /// Служебные профили цепочки — в порядке [`PrfOption::chains_mut`].
-    const CHAIN_MAKERS: [fn() -> Result<Self>; 5] = [
-        Self::from_merge,
-        Self::from_script,
-        Self::from_rules,
-        Self::from_proxies,
-        Self::from_groups,
+    /// Служебные профили цепочки — в порядке [`PrfOption::chains_mut`]:
+    /// приставка идентификатора, вид, расширение файла, заготовка.
+    const CHAIN_KINDS: [(&str, &str, &str, &str); 5] = [
+        ("m", "merge", "yaml", tmpl::ITEM_MERGE_EMPTY),
+        ("s", "script", "js", tmpl::ITEM_SCRIPT),
+        ("r", "rules", "yaml", tmpl::ITEM_RULES),
+        ("p", "proxies", "yaml", tmpl::ITEM_PROXIES),
+        ("g", "groups", "yaml", tmpl::ITEM_GROUPS),
     ];
 
     /// Цепочки подписки из `option`; недостающие — новые служебные профили в
@@ -1127,9 +1128,9 @@ impl PrfItem {
         if let Some(option) = option {
             chains.fill_missing_chains(option);
         }
-        for (chain, make) in chains.chains_mut().into_iter().zip(Self::CHAIN_MAKERS) {
+        for (chain, kind) in chains.chains_mut().into_iter().zip(Self::CHAIN_KINDS) {
             if chain.is_none() {
-                let item = &mut make()?;
+                let item = &mut Self::chain_item(kind);
                 profiles::profiles_append_item_safe(item).await?;
                 chain.clone_from(&item.uid);
             }
@@ -1137,73 +1138,17 @@ impl PrfItem {
         Ok(chains)
     }
 
-    pub fn from_merge() -> Result<Self> {
-        let id: String = help::get_uid("m").into();
-        let file = format!("{id}.yaml").into();
-
-        Ok(Self {
-            uid: Some(id),
-            itype: Some("merge".into()),
-            file: Some(file),
-            updated: Some(chrono::Local::now().timestamp() as usize),
-            file_data: Some(tmpl::ITEM_MERGE_EMPTY.into()),
-            ..Default::default()
-        })
-    }
-
-    pub fn from_script() -> Result<Self> {
-        let id: String = help::get_uid("s").into();
-        let file = format!("{id}.js").into();
-        Ok(Self {
-            uid: Some(id),
-            itype: Some("script".into()),
-            file: Some(file),
-            updated: Some(chrono::Local::now().timestamp() as usize),
-            file_data: Some(tmpl::ITEM_SCRIPT.into()),
-            ..Default::default()
-        })
-    }
-
-    pub fn from_rules() -> Result<Self> {
-        let uid = help::get_uid("r").into();
-        let file = format!("{uid}.yaml").into();
-
-        Ok(Self {
+    fn chain_item((prefix, kind, extension, template): (&str, &str, &str, &str)) -> Self {
+        let uid: String = help::get_uid(prefix).into();
+        let file = format!("{uid}.{extension}").into();
+        Self {
             uid: Some(uid),
-            itype: Some("rules".into()),
+            itype: Some(kind.into()),
             file: Some(file),
             updated: Some(chrono::Local::now().timestamp() as usize),
-            file_data: Some(tmpl::ITEM_RULES.into()),
+            file_data: Some(template.into()),
             ..Default::default()
-        })
-    }
-
-    pub fn from_proxies() -> Result<Self> {
-        let uid = help::get_uid("p").into();
-        let file = format!("{uid}.yaml").into();
-
-        Ok(Self {
-            uid: Some(uid),
-            itype: Some("proxies".into()),
-            file: Some(file),
-            updated: Some(chrono::Local::now().timestamp() as usize),
-            file_data: Some(tmpl::ITEM_PROXIES.into()),
-            ..Default::default()
-        })
-    }
-
-    pub fn from_groups() -> Result<Self> {
-        let uid = help::get_uid("g").into();
-        let file = format!("{uid}.yaml").into();
-
-        Ok(Self {
-            uid: Some(uid),
-            itype: Some("groups".into()),
-            file: Some(file),
-            updated: Some(chrono::Local::now().timestamp() as usize),
-            file_data: Some(tmpl::ITEM_GROUPS.into()),
-            ..Default::default()
-        })
+        }
     }
 
     pub async fn read_file(&self) -> Result<String> {
@@ -3530,8 +3475,8 @@ mod tests {
 
     #[test]
     fn each_chain_slot_gets_a_profile_of_its_own_kind() {
-        for (slot, make) in PrfItem::CHAIN_MAKERS.into_iter().enumerate() {
-            let made = make().unwrap_or_default();
+        for (slot, kind) in PrfItem::CHAIN_KINDS.into_iter().enumerate() {
+            let made = PrfItem::chain_item(kind);
             let mut chains = PrfOption::default();
             if let Some(chain) = chains.chains_mut().into_iter().nth(slot) {
                 chain.clone_from(&made.uid);

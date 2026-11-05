@@ -1,4 +1,4 @@
-use crate::constants::{network, tun as tun_const};
+use crate::constants::network;
 use crate::utils::dirs::{path_to_str, sidecar_ipc_path};
 use crate::utils::{dirs, help};
 use anyhow::Result;
@@ -83,11 +83,8 @@ impl IClashTemp {
         let mut cors_map = Mapping::new();
 
         tun_config.insert("enable".into(), false.into());
-        tun_config.insert("stack".into(), tun_const::DEFAULT_STACK.into());
         tun_config.insert("auto-route".into(), true.into());
-        tun_config.insert("strict-route".into(), false.into());
         tun_config.insert("auto-detect-interface".into(), true.into());
-        tun_config.insert("dns-hijack".into(), tun_const::DNS_HIJACK.into());
 
         #[cfg(not(target_os = "windows"))]
         map.insert("redir-port".into(), network::ports::DEFAULT_REDIR.into());
@@ -137,7 +134,7 @@ impl IClashTemp {
         let tproxy_port = Self::guard_tproxy_port(&config);
         let socks_port = Self::guard_socks_port(&config);
         let port = Self::guard_port(&config);
-        let ctrl = Self::guard_external_controller(&config);
+        let ctrl = Self::guard_server_ctrl(&config);
         #[cfg(unix)]
         let external_controller_unix = Self::guard_external_controller_ipc();
         #[cfg(windows)]
@@ -300,10 +297,6 @@ impl IClashTemp {
                 None => None,
             })
             .unwrap_or_else(|| "127.0.0.1:9097".into())
-    }
-
-    pub fn guard_external_controller(config: &Mapping) -> String {
-        Self::guard_server_ctrl(config)
     }
 
     pub fn guard_client_ctrl(config: &Mapping) -> String {

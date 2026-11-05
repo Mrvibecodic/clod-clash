@@ -75,12 +75,3 @@ pub fn use_sort(mut config: Mapping) -> Mapping {
 
     sorted
 }
-
-#[inline]
-pub fn use_keys<'a>(config: &'a Mapping) -> impl Iterator<Item = String> + 'a {
-    config.iter().filter_map(|(key, _)| key.as_str()).map(|s: &str| {
-        let mut s: String = s.into();
-        s.make_ascii_lowercase();
-        s
-    })
-}

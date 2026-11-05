@@ -8,17 +8,15 @@
 //! заново — по умолчанию выключенное, — и только «Подключаться при запуске»
 //! повторяет нажатие кнопки.
 
-use crate::config::{Config, IVerge, PrfItem};
+use crate::config::{Config, IVerge, PrfItem, sub_headers::ConnectMode};
 
-/// Что просит поднимать провайдер (`clod-connect-mode`). Закрытый список: до
-/// профиля доносятся только эти три значения, всё прочее отброшено разбором.
+/// Что просит поднимать провайдер (`clod-connect-mode`). В профиле лежит
+/// только то, что записал разбор заголовка, — его же словами.
 fn provider_targets(mode: &str) -> Option<(bool, bool)> {
-    match mode {
-        "tun" => Some((false, true)),
-        "proxy" => Some((true, false)),
-        "both" => Some((true, true)),
-        _ => None,
-    }
+    ConnectMode::ALL
+        .into_iter()
+        .find(|known| known.as_str() == mode)
+        .map(ConnectMode::targets)
 }
 
 /// Способ подключения, который провайдер запер (`clod-lock-mode` вместе с

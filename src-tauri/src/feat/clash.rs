@@ -6,7 +6,7 @@ use crate::{
     utils,
 };
 use clash_verge_logging::{Type, logging, logging_error};
-use serde_yaml_ng::{Mapping, Value};
+use serde_yaml_ng::Value;
 use smartstring::alias::String;
 
 /// Перезапуск ядра по просьбе человека — из трея и из окна. Выбор узлов
@@ -213,8 +213,6 @@ async fn remember_mode_choice<'a>(
 /// Вызывающий держит очередь применения конфига.
 async fn switch_clash_mode(mode: String, owner: Option<(String, bool)>) -> Result<(), String> {
     let previous = remember_mode_choice(owner.as_ref(), &mode).await;
-    let mut mapping = Mapping::new();
-    mapping.insert(Value::from("mode"), Value::from(mode.as_str()));
     let json_value = serde_json::json!({
         "mode": mode
     });
@@ -232,7 +230,7 @@ async fn switch_clash_mode(mode: String, owner: Option<(String, bool)>) -> Resul
     // Ядро режим приняло — правим принятый слот и рабочий файл под ним.
     let runtime = Config::runtime().await;
     let mut accepted = (**runtime.data_arc()).clone();
-    accepted.patch_config(&mapping);
+    accepted.set_mode(&mode);
     runtime.replace(accepted);
     if let Err(err) = Config::write_accepted_runtime_file().await {
         logging!(

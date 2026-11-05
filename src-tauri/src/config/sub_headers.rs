@@ -64,11 +64,22 @@ pub enum ConnectMode {
 }
 
 impl ConnectMode {
+    pub const ALL: [Self; 3] = [Self::Tun, Self::Proxy, Self::Both];
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Tun => "tun",
             Self::Proxy => "proxy",
             Self::Both => "both",
+        }
+    }
+
+    /// `(системный прокси, TUN)`, которые просит поднимать этот способ.
+    pub const fn targets(self) -> (bool, bool) {
+        match self {
+            Self::Tun => (false, true),
+            Self::Proxy => (true, false),
+            Self::Both => (true, true),
         }
     }
 

@@ -103,6 +103,7 @@ fn ladder_tun_on(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides, 
         }
     }
     for (key, value) in app_tun.into_iter() {
+        // Эти три ключа в clash.yaml оставили прежние шаблоны; перед подпиской они отступают.
         let deferred = matches!(key.as_str(), Some("stack" | "strict-route" | "dns-hijack"));
         if deferred && tun.contains_key(&key) {
             continue;
@@ -1293,9 +1294,6 @@ fn merge_default_config(
     #[cfg(target_os = "linux")] tproxy_enabled: bool,
 ) -> Mapping {
     for (key, value) in clash_config.into_iter() {
-        if key.as_str() == Some("mode") {
-            continue;
-        }
         if key.as_str() == Some("tun") {
             let mut tun = config.get_mut("tun").map_or_else(Mapping::new, |val| {
                 val.as_mapping().cloned().unwrap_or_else(Mapping::new)
@@ -2853,11 +2851,30 @@ mod tests {
 
     #[test]
     fn a_silent_subscription_gets_the_app_defaults() {
-        let mut tun = mapping("{}");
-        let app = mapping("{stack: gvisor, strict-route: false, dns-hijack: [\"any:53\"]}");
-        super::ladder_tun(&mut tun, app, &super::TunOverrides::default());
-        assert_eq!(tun.get("strict-route"), Some(&serde_yaml_ng::Value::from(false)));
-        assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("gvisor")));
+        for app in [
+            mapping("{stack: gvisor, strict-route: false, dns-hijack: [\"any:53\"]}"),
+            crate::config::IClashTemp::template()
+                .0
+                .get("tun")
+                .and_then(serde_yaml_ng::Value::as_mapping)
+                .cloned()
+                .unwrap_or_default(),
+        ] {
+            let mut tun = mapping("{}");
+            super::ladder_tun(&mut tun, app, &super::TunOverrides::default());
+            assert_eq!(tun.get("strict-route"), Some(&serde_yaml_ng::Value::from(false)));
+            assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("gvisor")));
+            assert_eq!(tun.get("dns-hijack"), Some(&mapping_value("[\"any:53\"]")));
+        }
+    }
+
+    #[test]
+    fn the_template_leaves_the_tun_defaults_to_the_ladder() {
+        let template = crate::config::IClashTemp::template().0;
+        let tun = template.get("tun").and_then(serde_yaml_ng::Value::as_mapping);
+        for key in ["stack", "strict-route", "dns-hijack"] {
+            assert!(tun.is_some_and(|tun| !tun.contains_key(key)), "{key}");
+        }
     }
 
     #[test]
