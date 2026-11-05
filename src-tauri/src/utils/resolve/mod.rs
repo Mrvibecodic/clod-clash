@@ -182,7 +182,7 @@ pub(super) async fn init_auto_lightweight_boot() {
 }
 
 pub(super) async fn init_auto_backup() {
-    logging_error!(Type::Setup, AutoBackupManager::global().init().await);
+    logging_error!(Type::Setup, AutoBackupManager::global().refresh_settings().await);
 }
 
 pub(super) async fn init_auto_launch_resync() {

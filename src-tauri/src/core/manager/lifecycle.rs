@@ -12,7 +12,6 @@ use smartstring::alias::String;
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
-use tauri_plugin_clash_verge_sysinfo;
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 
 static MIXED_PORT_CHECK_GENERATION: AtomicU64 = AtomicU64::new(0);

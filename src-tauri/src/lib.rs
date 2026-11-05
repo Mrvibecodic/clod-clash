@@ -343,7 +343,7 @@ pub fn run() {
         use crate::utils::window_manager::WindowManager;
         use crate::{
             config::Config,
-            core::{self, handle, hotkey},
+            core::{self, hotkey},
             process::AsyncHandler,
         };
         use clash_verge_logging::{Type, logging};
@@ -352,11 +352,6 @@ pub fn run() {
         use tauri::Manager as _;
 
         pub fn handle_ready_resumed(_app_handle: &AppHandle) {
-            if handle::Handle::global().is_exiting() {
-                logging!(debug, Type::System, "приложение завершает работу, обработка пропущена");
-                return;
-            }
-
             logging!(info, Type::System, "приложение готово");
 
             #[cfg(target_os = "macos")]
@@ -373,7 +368,7 @@ pub fn run() {
             }
 
             if !has_visible_windows {
-                handle::Handle::global().set_activation_policy_regular();
+                core::handle::Handle::global().set_activation_policy_regular();
                 let _ = WindowManager::show_main_window().await;
             }
         }
@@ -384,7 +379,7 @@ pub fn run() {
             }
 
             #[cfg(target_os = "macos")]
-            handle::Handle::global().set_activation_policy_accessory();
+            core::handle::Handle::global().set_activation_policy_accessory();
 
             if let tauri::WindowEvent::CloseRequested { api, .. } = api {
                 api.prevent_close();
@@ -403,12 +398,8 @@ pub fn run() {
                     #[cfg(target_os = "macos")]
                     {
                         use crate::core::hotkey::SystemHotkey;
-                        let _ = hotkey::Hotkey::global()
-                            .register_system_hotkey(SystemHotkey::CmdQ)
-                            .await;
-                        let _ = hotkey::Hotkey::global()
-                            .register_system_hotkey(SystemHotkey::CmdW)
-                            .await;
+                        let _ = hotkey::Hotkey::global().register_system_hotkey(SystemHotkey::CmdQ);
+                        let _ = hotkey::Hotkey::global().register_system_hotkey(SystemHotkey::CmdW);
                     }
                     if !is_enable_global_hotkey {
                         let _ = hotkey::Hotkey::global().init(false).await;

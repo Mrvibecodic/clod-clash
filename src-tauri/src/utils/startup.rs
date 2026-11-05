@@ -32,7 +32,7 @@ pub fn report_failure(error: &anyhow::Error) {
 }
 
 fn startup_log_path() -> Result<PathBuf> {
-    Ok(dirs::preinit_app_home_dir()?.join("logs").join(STARTUP_LOG_FILE))
+    Ok(dirs::app_home_dir()?.join("logs").join(STARTUP_LOG_FILE))
 }
 
 fn append_failure(path: &Path, detail: &str) -> Result<()> {

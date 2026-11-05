@@ -97,7 +97,7 @@ impl SilentUpdater {
         }
     }
 
-    pub fn is_update_ready(&self) -> bool {
+    fn is_update_ready(&self) -> bool {
         self.update_ready.load(Ordering::Acquire)
     }
 }
@@ -1139,21 +1139,6 @@ impl SilentUpdater {
 
         let version = update.version.clone();
         logging!(info, Type::System, "Silent updater: update available: v{version}");
-
-        if is_prerelease_version(&version)
-            && !Config::verge()
-                .await
-                .latest_arc()
-                .receive_prereleases
-                .unwrap_or(crate::config::IVerge::DEFAULT_RECEIVE_PRERELEASES)
-        {
-            logging!(
-                info,
-                Type::System,
-                "Silent updater: v{version} is a pre-release and pre-releases are off"
-            );
-            return Ok(());
-        }
 
         if let Some(body) = &update.body
             && body.to_lowercase().contains("break change")

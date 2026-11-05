@@ -385,7 +385,7 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
     if update_flags.contains(UpdateFlags::HOTKEY)
         && let Some(hotkeys) = &patch.hotkeys
     {
-        hotkey::Hotkey::global().update(hotkeys.to_owned()).await?;
+        hotkey::Hotkey::global().update(hotkeys.to_owned())?;
     }
     if update_flags.contains(UpdateFlags::SYSTRAY_MENU) {
         tray::Tray::global().update_menu().await?;

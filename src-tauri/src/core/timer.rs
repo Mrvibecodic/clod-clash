@@ -203,7 +203,7 @@ pub struct Timer {
     command_rx: Mutex<Option<mpsc::UnboundedReceiver<TimerCommand>>>,
     refresh_lock: tokio::sync::Mutex<()>,
     timer_map: Arc<RwLock<HashMap<String, TaskSlot>>>,
-    pub initialized: AtomicBool,
+    initialized: AtomicBool,
 }
 
 singleton!(Timer, TIMER_INSTANCE);

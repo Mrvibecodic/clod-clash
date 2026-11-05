@@ -101,7 +101,7 @@ fn lock_in(dir: Result<std::path::PathBuf>, name: &str) -> Option<(std::fs::File
 }
 
 fn take_the_instance_lock() -> InstanceLock {
-    let home = lock_in(crate::utils::dirs::preinit_app_home_dir(), INSTANCE_LOCK_FILE);
+    let home = lock_in(crate::utils::dirs::app_home_dir(), INSTANCE_LOCK_FILE);
     let user = lock_in(handover_dir(), USER_LOCK_FILE);
     let state =
         |held: &Option<(std::fs::File, InstanceLock)>| held.as_ref().map_or(InstanceLock::Unavailable, |held| held.1);
@@ -168,7 +168,7 @@ async fn claim_the_link_at(path: &std::path::Path) -> Option<String> {
 /// Забрать ссылки, оставленные вторыми копиями, и стереть их след. В
 /// каталоге данных этой копии их оставляли прежние версии.
 pub async fn take_the_pending_links() -> Vec<String> {
-    let mut dirs: Vec<std::path::PathBuf> = [handover_dir(), crate::utils::dirs::preinit_app_home_dir()]
+    let mut dirs: Vec<std::path::PathBuf> = [handover_dir(), crate::utils::dirs::app_home_dir()]
         .into_iter()
         .flatten()
         .collect();
@@ -204,7 +204,7 @@ fn handover_dir_for(app_home: &std::path::Path, local_data: Option<&std::path::P
 
 pub fn handover_dir() -> Result<std::path::PathBuf> {
     Ok(handover_dir_for(
-        &crate::utils::dirs::preinit_app_home_dir()?,
+        &crate::utils::dirs::app_home_dir()?,
         ::dirs::data_local_dir().as_deref(),
     ))
 }

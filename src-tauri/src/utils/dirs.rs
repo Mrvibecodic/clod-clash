@@ -38,7 +38,8 @@ pub fn init_portable_flag() -> Result<()> {
     Ok(())
 }
 
-pub fn preinit_app_home_dir() -> Result<PathBuf> {
+/// get the verge app home dir
+pub fn app_home_dir() -> Result<PathBuf> {
     use tauri::utils::platform::current_exe;
 
     if *PORTABLE_FLAG.get().unwrap_or(&false) {
@@ -50,33 +51,7 @@ pub fn preinit_app_home_dir() -> Result<PathBuf> {
     }
     ::dirs::data_dir()
         .map(|root| root.join(APP_ID))
-        .ok_or_else(|| anyhow::anyhow!("failed to get the app home directory before the app handle exists"))
-}
-
-/// get the verge app home dir
-pub fn app_home_dir() -> Result<PathBuf> {
-    use tauri::utils::platform::current_exe;
-
-    let flag = PORTABLE_FLAG.get().unwrap_or(&false);
-    if *flag {
-        let app_exe = current_exe()?;
-        let app_exe = dunce::canonicalize(app_exe)?;
-        let app_dir = app_exe
-            .parent()
-            .ok_or_else(|| anyhow::anyhow!("failed to get the portable app dir"))?;
-        return Ok(PathBuf::from(app_dir).join(".config").join(APP_ID));
-    }
-
-    // Избегаем падения, если Handle ещё не инициализирован
-    let app_handle = handle::Handle::app_handle();
-
-    match app_handle.path().data_dir() {
-        Ok(dir) => Ok(dir.join(APP_ID)),
-        Err(e) => {
-            logging!(error, Type::File, "Failed to get the app home directory: {e}");
-            Err(anyhow::anyhow!("Failed to get the app homedirectory"))
-        }
-    }
+        .ok_or_else(|| anyhow::anyhow!("failed to get the app home directory"))
 }
 
 /// get the resources dir
@@ -222,7 +197,7 @@ fn ipc_base_dirs() -> Vec<PathBuf> {
     if let Some(home) = std::env::var_os("HOME") {
         bases.push(PathBuf::from(home).join(".config"));
     }
-    if let Ok(app_home) = preinit_app_home_dir() {
+    if let Ok(app_home) = app_home_dir() {
         bases.push(app_home);
     }
     bases

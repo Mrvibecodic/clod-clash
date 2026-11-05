@@ -69,17 +69,6 @@ impl AutoBackupManager {
         })
     }
 
-    pub async fn init(&self) -> Result<()> {
-        let settings = Self::load_settings().await;
-        self.settings_tx.send_if_modified(|current| {
-            let changed = *current != settings;
-            *current = settings;
-            changed
-        });
-        self.maybe_start_runner(settings);
-        Ok(())
-    }
-
     pub async fn refresh_settings(&self) -> Result<()> {
         let settings = Self::load_settings().await;
         self.settings_tx.send_if_modified(|current| {

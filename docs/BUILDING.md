@@ -24,6 +24,9 @@ pnpm portable          # портативный zip для Windows (после p
 * `verge-mihomo-alpha` — Clod Core из последнего релиза
   [Mrvibecodic/clod-core](https://github.com/Mrvibecodic/clod-core).
 
+Подробный журнал Tauri и плагинов в режиме разработки: `pnpm tauri dev -f verge-dev tracing`;
+уровень журнала приложения перебивается переменной `RUST_LOG`.
+
 ## Проверки перед коммитом
 
 То же, что гоняет CI.

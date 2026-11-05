@@ -130,7 +130,6 @@ fn redacted_file_writer(
 pub struct Logger {
     handle: Arc<Mutex<Option<LoggerHandle>>>,
     sidecar_file_writer: Arc<RwLock<Option<FileLogWriter>>>,
-    log_level: Arc<RwLock<LevelFilter>>,
     log_max_size: AtomicU64,
     log_max_count: AtomicUsize,
 }
@@ -140,7 +139,6 @@ impl Default for Logger {
         Self {
             handle: Arc::new(Mutex::new(None)),
             sidecar_file_writer: Arc::new(RwLock::new(None)),
-            log_level: Arc::new(RwLock::new(LevelFilter::Info)),
             log_max_size: AtomicU64::new(crate::config::IVerge::DEFAULT_APP_LOG_MAX_SIZE),
             log_max_count: AtomicUsize::new(crate::config::IVerge::DEFAULT_APP_LOG_MAX_COUNT),
         }
@@ -168,13 +166,12 @@ impl Logger {
                     .unwrap_or(crate::config::IVerge::DEFAULT_APP_LOG_MAX_COUNT),
             )
         };
-        let log_level = with_env_override(log_level);
-        *self.log_level.write() = log_level;
         self.log_max_size.store(log_max_size, Ordering::SeqCst);
         self.log_max_count.store(log_max_count, Ordering::SeqCst);
 
         #[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
         {
+            let log_level = with_env_override(log_level);
             let log_spec = Self::generate_log_spec(log_level);
             let log_dir = dirs::app_logs_dir()?;
             let logger = flexi_logger::Logger::with(log_spec)
@@ -202,6 +199,8 @@ impl Logger {
             clash_verge_logging::startup::hand_over(boxed_logger)?;
             *self.handle.lock() = Some(handle);
         }
+        #[cfg(any(feature = "tauri-dev", feature = "tokio-trace"))]
+        let _ = log_level;
 
         let sidecar_file_writer = self.generate_sidecar_writer()?;
         *self.sidecar_file_writer.write() = Some(sidecar_file_writer);
@@ -266,7 +265,6 @@ impl Logger {
 
     pub fn update_log_level(&self, level: LevelFilter) -> Result<()> {
         let log_level = with_env_override(level);
-        *self.log_level.write() = log_level;
         if let Some(handle) = self.handle.lock().as_mut() {
             let log_spec = Self::generate_log_spec(log_level);
             handle.set_new_spec(log_spec);

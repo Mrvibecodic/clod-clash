@@ -60,12 +60,12 @@ pub async fn allow_inbound() -> Result<()> {
     use runas::Command as RunasCommand;
     use std::os::windows::process::CommandExt as _;
 
-    let mut paths: Vec<(&str, PathBuf)> = Vec::new();
+    let mut paths: Vec<PathBuf> = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
         for name in CORE_FILE_NAMES {
             let path = exe.with_file_name(name);
             if path.is_file() {
-                paths.push(("core", path));
+                paths.push(path);
             }
         }
     }
@@ -74,12 +74,12 @@ pub async fn allow_inbound() -> Result<()> {
     }
 
     let mut script = String::from("$fail=0; ");
-    for (kind, path) in &paths {
+    for path in &paths {
         let file_name = path
             .file_name()
             .map_or_else(|| String::from("core"), |name| name.to_string_lossy().into_owned());
         let program = ps_single_quote(&format!("program={}", path.to_string_lossy()));
-        let rule_name = ps_single_quote(&format!("name=Clod Clash {kind} ({file_name})"));
+        let rule_name = ps_single_quote(&format!("name=Clod Clash core ({file_name})"));
         // Окно Windows «Разрешить доступ» оставляет для неотмеченных сетей
         // правила «Блокировать», и блок сильнее нашего разрешения: их снимаем.
         let path = ps_single_quote(&path.to_string_lossy());

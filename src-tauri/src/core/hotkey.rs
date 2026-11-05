@@ -85,22 +85,11 @@ enum PressVerdict {
     RefuseExitInProgress,
 }
 
-const fn press_verdict(function: HotkeyFunction, exiting: bool) -> PressVerdict {
-    if !exiting {
-        return PressVerdict::Run;
-    }
-    match function {
-        HotkeyFunction::OpenOrCloseDashboard
-        | HotkeyFunction::ClashModeRule
-        | HotkeyFunction::ClashModeGlobal
-        | HotkeyFunction::ClashModeDirect
-        | HotkeyFunction::ToggleSystemProxy
-        | HotkeyFunction::ToggleTunMode
-        | HotkeyFunction::EntryLightweightMode
-        | HotkeyFunction::ReactivateProfiles
-        | HotkeyFunction::Quit => PressVerdict::RefuseExitInProgress,
-        #[cfg(target_os = "macos")]
-        HotkeyFunction::Hide => PressVerdict::RefuseExitInProgress,
+const fn press_verdict(exiting: bool) -> PressVerdict {
+    if exiting {
+        PressVerdict::RefuseExitInProgress
+    } else {
+        PressVerdict::Run
     }
 }
 
@@ -155,7 +144,7 @@ impl Hotkey {
 
     /// Execute the function associated with a hotkey function enum
     fn execute_function(function: HotkeyFunction) {
-        match press_verdict(function, handle::Handle::global().is_exiting()) {
+        match press_verdict(handle::Handle::global().is_exiting()) {
             PressVerdict::RefuseExitInProgress => refuse_the_press(),
             PressVerdict::Run => Self::run_function(function),
         }
@@ -274,10 +263,10 @@ impl Hotkey {
 
     #[cfg(target_os = "macos")]
     /// Register a system hotkey using enum
-    pub async fn register_system_hotkey(&self, hotkey: SystemHotkey) -> Result<()> {
+    pub fn register_system_hotkey(&self, hotkey: SystemHotkey) -> Result<()> {
         let hotkey_str = hotkey.to_string();
         let function = hotkey.function();
-        self.register_hotkey_with_function(&hotkey_str, function).await
+        self.register_hotkey_with_function(&hotkey_str, function)
     }
 
     #[cfg(target_os = "macos")]
@@ -288,8 +277,7 @@ impl Hotkey {
     }
 
     /// Register a hotkey with function enum
-    #[allow(clippy::unused_async)]
-    pub async fn register_hotkey_with_function(&self, hotkey: &str, function: HotkeyFunction) -> Result<()> {
+    pub fn register_hotkey_with_function(&self, hotkey: &str, function: HotkeyFunction) -> Result<()> {
         let app_handle = handle::Handle::app_handle();
         let manager = app_handle.global_shortcut();
 
@@ -381,18 +369,7 @@ impl Hotkey {
             logging!(debug, Type::Hotkey, "skip register all hotkeys");
             return Ok(());
         }
-        let verge = Config::verge().await;
-        let enable_global_hotkey = verge.latest_arc().enable_global_hotkey.unwrap_or(true);
-
-        logging!(
-            debug,
-            Type::Hotkey,
-            "Initializing global hotkeys: {}",
-            enable_global_hotkey
-        );
-
-        // Extract hotkeys data before async operations
-        let hotkeys = verge.latest_arc().hotkeys.clone();
+        let hotkeys = Config::verge().await.latest_arc().hotkeys.clone();
 
         if let Some(hotkeys) = hotkeys {
             logging!(debug, Type::Hotkey, "Has {} hotkeys need to register", hotkeys.len());
@@ -405,7 +382,7 @@ impl Hotkey {
                 match (key, func) {
                     (Some(key), Some(func)) => {
                         logging!(debug, Type::Hotkey, "Registering hotkey: {} -> {}", key, func);
-                        if let Err(e) = self.register(key, func).await {
+                        if let Err(e) = self.register(key, func) {
                             logging!(
                                 error,
                                 Type::Hotkey,
@@ -453,9 +430,9 @@ impl Hotkey {
     }
 
     /// Register a hotkey with string-based function (backward compatibility)
-    pub async fn register(&self, hotkey: &str, func: &str) -> Result<()> {
+    pub fn register(&self, hotkey: &str, func: &str) -> Result<()> {
         let function = HotkeyFunction::from_str(func)?;
-        self.register_hotkey_with_function(hotkey, function).await
+        self.register_hotkey_with_function(hotkey, function)
     }
 
     pub fn unregister(&self, hotkey: &str) -> Result<()> {
@@ -466,8 +443,7 @@ impl Hotkey {
         Ok(())
     }
 
-    pub async fn update(&self, new_hotkeys: Vec<String>) -> Result<()> {
-        // Extract current hotkeys before async operations
+    pub fn update(&self, new_hotkeys: Vec<String>) -> Result<()> {
         let current_hotkeys = &*self.current.load();
         let old_map = Self::get_map_from_vec(current_hotkeys);
         let new_map = Self::get_map_from_vec(&new_hotkeys);
@@ -478,17 +454,12 @@ impl Hotkey {
             &old_map,
             &del,
             &add,
-            |key, func| {
-                let (key, func) = (key.to_owned(), func.to_owned());
-                async move { self.register(&key, &func).await }
-            },
+            |key, func| self.register(key, func),
             |key| {
                 let _ = self.unregister(key);
             },
-        )
-        .await?;
+        )?;
 
-        // Update the current hotkeys after all async operations
         self.current.store(Arc::new(new_hotkeys));
         Ok(())
     }
@@ -542,21 +513,21 @@ impl Hotkey {
 /// Сменить набор клавиш целиком или никак: новые регистрируются раньше, чем
 /// снимаются старые, а отказ любой из них возвращает прежний набор — настройки
 /// при отказе тоже остаются прежними.
-async fn swap_hotkeys<Registered: Future<Output = Result<()>>>(
+fn swap_hotkeys(
     old: &HashMap<&str, &str>,
     del: &[&str],
     add: &[(&str, &str)],
-    mut register: impl FnMut(&str, &str) -> Registered,
+    mut register: impl FnMut(&str, &str) -> Result<()>,
     mut unregister: impl FnMut(&str),
 ) -> Result<()> {
     for (done, &(key, func)) in add.iter().enumerate() {
-        let Err(err) = register(key, func).await else {
+        let Err(err) = register(key, func) else {
             continue;
         };
         for &(key, _) in add.iter().take(done + 1) {
             match old.get(key) {
                 Some(&old_func) => {
-                    if let Err(err) = register(key, old_func).await {
+                    if let Err(err) = register(key, old_func) {
                         logging!(warn, Type::Hotkey, "Failed to restore hotkey {}: {}", key, err);
                     }
                 }
@@ -584,14 +555,14 @@ impl Drop for Hotkey {
 
 #[cfg(test)]
 mod tests {
-    use super::{EXIT_REFUSAL_STATUS, Hotkey, HotkeyFunction, PressVerdict, press_verdict, swap_hotkeys};
+    use super::{EXIT_REFUSAL_STATUS, Hotkey, PressVerdict, press_verdict, swap_hotkeys};
     use crate::utils::source_scan::{fn_body, production_code};
     use parking_lot::Mutex;
     use std::collections::{BTreeMap, HashMap};
 
     /// Сменить набор на «регистраторе», который, как системный, снимает
     /// прежнюю регистрацию клавиши перед новой и отказывает на занятых.
-    async fn swapped(old: &[(&str, &str)], new: &[(&str, &str)], taken: &[&str]) -> (bool, BTreeMap<String, String>) {
+    fn swapped(old: &[(&str, &str)], new: &[(&str, &str)], taken: &[&str]) -> (bool, BTreeMap<String, String>) {
         let registered: Mutex<BTreeMap<String, String>> = Mutex::new(
             old.iter()
                 .map(|&(key, func)| (key.to_owned(), func.to_owned()))
@@ -605,19 +576,17 @@ mod tests {
             &add,
             |key, func| {
                 registered.lock().remove(key);
-                let outcome = if taken.contains(&key) {
+                if taken.contains(&key) {
                     Err(anyhow::anyhow!("{key} is taken"))
                 } else {
                     registered.lock().insert(key.to_owned(), func.to_owned());
                     Ok(())
-                };
-                std::future::ready(outcome)
+                }
             },
             |key| {
                 registered.lock().remove(key);
             },
-        )
-        .await;
+        );
         (swapped.is_ok(), registered.into_inner())
     }
 
@@ -628,8 +597,8 @@ mod tests {
             .collect()
     }
 
-    #[tokio::test]
-    async fn a_taken_combination_leaves_the_previous_hotkeys_working() {
+    #[test]
+    fn a_taken_combination_leaves_the_previous_hotkeys_working() {
         let old = [("Ctrl+Alt+1", "toggle_system_proxy"), ("Ctrl+Alt+2", "toggle_tun_mode")];
         for new in [
             vec![("Ctrl+Alt+9", "toggle_system_proxy"), ("Ctrl+Alt+2", "toggle_tun_mode")],
@@ -642,58 +611,24 @@ mod tests {
             ],
         ] {
             assert_eq!(
-                swapped(&old, &new, &["Ctrl+Alt+9"]).await,
+                swapped(&old, &new, &["Ctrl+Alt+9"]),
                 (false, set(&old)),
                 "{new:?}: после отказа работает ровно прежний набор"
             );
         }
     }
 
-    #[tokio::test]
-    async fn a_free_set_replaces_the_previous_one_whole() {
+    #[test]
+    fn a_free_set_replaces_the_previous_one_whole() {
         let old = [("Ctrl+Alt+1", "toggle_system_proxy"), ("Ctrl+Alt+2", "toggle_tun_mode")];
         let new = [("Ctrl+Alt+2", "toggle_system_proxy"), ("Ctrl+Alt+3", "toggle_tun_mode")];
-        assert_eq!(swapped(&old, &new, &["Ctrl+Alt+9"]).await, (true, set(&new)));
-    }
-
-    fn every_function() -> Vec<HotkeyFunction> {
-        #[allow(unused_mut)]
-        let mut all = vec![
-            HotkeyFunction::OpenOrCloseDashboard,
-            HotkeyFunction::ClashModeRule,
-            HotkeyFunction::ClashModeGlobal,
-            HotkeyFunction::ClashModeDirect,
-            HotkeyFunction::ToggleSystemProxy,
-            HotkeyFunction::ToggleTunMode,
-            HotkeyFunction::EntryLightweightMode,
-            HotkeyFunction::ReactivateProfiles,
-            HotkeyFunction::Quit,
-        ];
-        #[cfg(target_os = "macos")]
-        all.push(HotkeyFunction::Hide);
-        all
+        assert_eq!(swapped(&old, &new, &["Ctrl+Alt+9"]), (true, set(&new)));
     }
 
     #[test]
-    fn while_the_app_is_leaving_every_hotkey_answers_with_the_refusal_the_tray_gives() {
-        for function in every_function() {
-            assert_eq!(
-                press_verdict(function, true),
-                PressVerdict::RefuseExitInProgress,
-                "горячая клавиша {function} во время выхода отвечает одним отказом, как трей"
-            );
-        }
-    }
-
-    #[test]
-    fn with_no_exit_under_way_every_hotkey_runs() {
-        for function in every_function() {
-            assert_eq!(
-                press_verdict(function, false),
-                PressVerdict::Run,
-                "горячая клавиша {function} работает, пока выход не начат"
-            );
-        }
+    fn while_the_app_is_leaving_a_hotkey_answers_with_the_refusal_the_tray_gives() {
+        assert_eq!(press_verdict(true), PressVerdict::RefuseExitInProgress);
+        assert_eq!(press_verdict(false), PressVerdict::Run);
     }
 
     #[test]
@@ -713,7 +648,7 @@ mod tests {
             1,
             "действие вызывается в обход вердикта — гейт выхода снят"
         );
-        let handler = fn_body(source, "pub async fn register_hotkey_with_function").unwrap_or_default();
+        let handler = fn_body(source, "pub fn register_hotkey_with_function").unwrap_or_default();
         assert!(
             handler.contains("Self::execute_function("),
             "обработчик нажатия перестал ходить через вердикт"

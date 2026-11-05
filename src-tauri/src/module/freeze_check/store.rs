@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use super::plan::{Node, Verdict};
+use super::plan::Node;
 use crate::utils::{dirs, help};
 
 /// Сеть, где клиент не был столько, забывается.
@@ -51,22 +51,6 @@ impl Store {
         }
     }
 
-    /// Снять пометки, поставленные прежними правилами.
-    fn upgrade(&mut self) {
-        if self.version < VERSION {
-            for node in self
-                .networks
-                .values_mut()
-                .flat_map(|network| network.nodes.values_mut())
-            {
-                if node.verdict == Some(Verdict::Frozen) {
-                    node.verdict = None;
-                }
-            }
-            self.version = VERSION;
-        }
-    }
-
     pub(super) fn network_mut(&mut self, key: &str) -> &mut Network {
         self.networks.entry(key.to_owned()).or_default()
     }
@@ -82,7 +66,7 @@ pub(super) async fn load(uid: &str) -> Store {
         return Store::default();
     };
     let mut store: Store = help::load_json_or_default(&path, "[Freeze] the saved results").await;
-    store.upgrade();
+    store.version = VERSION;
     store
 }
 
@@ -141,42 +125,6 @@ mod tests {
         assert!(store.networks.contains_key("recent"));
         let here = store.networks.get("here").cloned().unwrap_or_default();
         assert_eq!(here.nodes.keys().collect::<Vec<_>>(), vec!["live"]);
-    }
-
-    #[test]
-    fn marks_of_older_files_are_lifted_on_every_read() {
-        let source = crate::utils::source_scan::without_test_modules(include_str!("store.rs"));
-        let load = crate::utils::source_scan::fn_body(source, "pub(super) async fn load(").unwrap_or_default();
-        assert!(load.contains(".upgrade()"), "{load}");
-    }
-
-    #[test]
-    fn marks_from_older_files_are_lifted_once() {
-        let mut old = Store::default();
-        old.network_mut("k").nodes.insert("cut".into(), node(Verdict::Frozen));
-        old.network_mut("k").nodes.insert("fine".into(), node(Verdict::Ok));
-        old.upgrade();
-        let nodes = old
-            .networks
-            .get("k")
-            .map(|network| network.nodes.clone())
-            .unwrap_or_default();
-        assert_eq!(
-            nodes.get("cut").map(|node| (node.verdict, node.tried)),
-            Some((None, NOW))
-        );
-        assert_eq!(nodes.get("fine").and_then(|node| node.verdict), Some(Verdict::Ok));
-
-        // Пометка нового файла остаётся.
-        old.network_mut("k").nodes.insert("cut".into(), node(Verdict::Frozen));
-        old.upgrade();
-        assert_eq!(
-            old.networks
-                .get("k")
-                .and_then(|network| network.nodes.get("cut"))
-                .and_then(|node| node.verdict),
-            Some(Verdict::Frozen)
-        );
     }
 
     #[test]
