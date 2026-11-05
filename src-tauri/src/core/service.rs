@@ -2092,6 +2092,11 @@ mod tests {
         fs::remove_dir_all(root)?;
         Ok(())
     }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::text_of_snapshot;
 
     #[test]
     fn the_core_log_snapshot_comes_as_hex_and_plain_text_stays() {

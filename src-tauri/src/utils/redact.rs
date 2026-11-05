@@ -379,7 +379,7 @@ fn redact_line(line: &str, bare_domains: bool) -> std::string::String {
 
 #[cfg(test)]
 mod tests {
-    use super::{redact, redact_for_support};
+    use super::{redact, redact_for_support, scrub_home};
 
     /// Отчёт для поддержки редактирует строки повторно — уже после логгера.
     /// Второй проход обязан быть тождественным, иначе `***` разъедало бы
@@ -603,5 +603,119 @@ mod tests {
                 "{key}: add it to SECRET_KEYS or to PUBLIC_KEYS in this test"
             );
         }
+    }
+
+    #[test]
+    fn subscription_url_loses_its_token() {
+        let line =
+            "[обновление подписки] URL = https://panel.example.com/sub/9f8e7d6c5b4a3f2e1d0c9b8a7?token=abcdef123456";
+        let masked = redact(line);
+        assert!(!masked.contains("9f8e7d6c5b4a3f2e1d0c9b8a7"));
+        assert!(!masked.contains("abcdef123456"));
+        assert!(masked.contains("panel.example.com"));
+    }
+
+    #[test]
+    fn bearer_tokens_and_odd_spacing_survive_nothing() {
+        let jwt = redact("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghij");
+        assert!(!jwt.contains("eyJhbGciOiJIUzI1NiJ9"), "{jwt}");
+        assert!(jwt.contains("Bearer"), "{jwt}");
+
+        let spaced = redact("secret:  hunter2hunter2hunter2");
+        assert!(!spaced.contains("hunter2"), "{spaced}");
+
+        let tabbed = redact("token:\tZm9vYmFyYmF6cXV4MTIzNDU2");
+        assert!(!tabbed.contains("Zm9vYmFy"), "{tabbed}");
+    }
+
+    #[test]
+    fn named_secrets_are_dropped() {
+        for line in [
+            "secret: set-your-secret",
+            "external-controller token=Zm9vYmFyYmF6",
+            "password: hunter2hunter2hunter2",
+            "x-hwid: 4f9c1ab0e37d5c82b6a1d40f9e77c3b1",
+        ] {
+            let masked = redact(line);
+            assert!(masked.contains("***"), "{line} -> {masked}");
+            assert!(!masked.contains("hunter2"), "{line} -> {masked}");
+        }
+    }
+
+    #[test]
+    fn long_random_words_are_dropped_even_without_a_key() {
+        let masked = redact("resolved node id 8f14e45fceea167a5a36dedd4bea2543aa");
+        assert!(masked.ends_with("***"), "{masked}");
+    }
+
+    #[test]
+    fn ordinary_lines_stay_readable() {
+        let line = "[core] mihomo started, mode rule, mixed-port 7897";
+        assert_eq!(redact(line), line);
+
+        let counter = "uploaded 1785591768238123 bytes";
+        assert_eq!(redact(counter), counter);
+    }
+
+    #[test]
+    fn credentials_inside_the_address_do_not_survive() {
+        let masked = redact("url https://alice:hunter2secretpass@panel.example.com/sub/abc");
+        assert!(!masked.contains("hunter2secretpass"), "{masked}");
+        assert!(!masked.contains("alice"), "{masked}");
+        assert!(masked.contains("panel.example.com"), "{masked}");
+    }
+
+    #[test]
+    fn short_paths_and_bare_queries_are_masked_too() {
+        let short = redact("sub url https://p.example/s/AbCd1234EfGh5678");
+        assert!(!short.contains("AbCd1234"), "{short}");
+
+        let bare = redact("https://panel.example/sub?TOKENabcdef1234567890");
+        assert!(!bare.contains("TOKENabcdef"), "{bare}");
+    }
+
+    #[test]
+    fn non_http_schemes_are_not_a_loophole() {
+        for line in [
+            "import vless://6f1c4e5f-0000-1111-2222-33334e5f9a1b@de01.example.net:443?type=tcp",
+            "deep link clash://install-config?url=https%3A%2F%2Fpanel.example%2Fsub%2FTOKEN123456789abcdef",
+            "ss://YWVzLTI1Ni1nY206cGFzc3dvcmQxMjM@1.2.3.4:8388",
+        ] {
+            let masked = redact(line);
+            assert!(masked.contains("***"), "{line} -> {masked}");
+            assert!(!masked.contains("TOKEN123456789abcdef"), "{masked}");
+            assert!(!masked.contains("cGFzc3dvcmQxMjM"), "{masked}");
+            assert!(!masked.contains("33334e5f9a1b"), "{masked}");
+        }
+    }
+
+    #[test]
+    fn secrets_glued_to_their_key_are_found() {
+        let json = redact(r#"resp {"data":{"token":"SECRETVALUE1234567890"}}"#);
+        assert!(!json.contains("SECRETVALUE"), "{json}");
+
+        let hex = redact("node key deadbeefcafebabedeadbeefcafebabe");
+        assert!(!hex.contains("deadbeef"), "{hex}");
+    }
+
+    #[test]
+    fn the_home_directory_is_not_a_name_tag() {
+        let line = r"loaded C:\Users\Ivan Petrov\AppData\Roaming\clod\profiles.yaml";
+        let scrubbed = scrub_home(line, Some(r"C:\Users\Ivan Petrov"));
+        assert!(!scrubbed.contains("Ivan Petrov"), "{scrubbed}");
+        assert!(scrubbed.contains("profiles.yaml"), "{scrubbed}");
+    }
+
+    #[test]
+    fn bare_destination_addresses_are_masked() {
+        let masked = redact("dns resolve failed: mail.example.com:443 no such host");
+        assert!(!masked.contains("mail.example.com"), "{masked}");
+        assert!(masked.contains("***:443"), "{masked}");
+
+        let ip = redact("dial tcp 93.184.216.34:8443: i/o timeout");
+        assert!(!ip.contains("93.184.216.34"), "{ip}");
+
+        let v6 = redact("connect [2001:db8::1]:443 refused");
+        assert!(!v6.contains("2001:db8::1"), "{v6}");
     }
 }
