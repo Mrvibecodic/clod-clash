@@ -349,10 +349,6 @@ const fn the_take_down_went_as_asked(outcome: ProxyAtExit) -> bool {
     matches!(outcome, ProxyAtExit::Cleared | ProxyAtExit::LeftToItsOwner)
 }
 
-pub async fn clean_async() -> bool {
-    clean_async_at(ExitPace::Interactive).await.all_success
-}
-
 async fn turn_the_tun_off(pace: ExitPace) {
     logging!(info, Type::System, "disable tun");
     // Черновик, а не committed: сохранение настроек идёт теперь наравне с
@@ -596,8 +592,7 @@ async fn clean_the_rest(pace: ExitPace, dns_budget: Duration) -> CleanupOutcome 
 }
 
 pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
-    logging!(info, Type::System, "начало асинхронной очистки...");
-
+    let rest = tokio::task::spawn(clean_the_rest(pace, pace.dns_budget(pace.core_branch_without_cancel())));
     let core_task = tokio::task::spawn(async move {
         turn_the_tun_off(pace).await;
 
@@ -624,35 +619,23 @@ pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
         }
     });
 
-    let (save_result, proxy_result, core_result, dns_result) = tokio::join!(
-        spawn_save_task(pace),
-        spawn_proxy_task(pace),
-        core_task,
-        spawn_dns_task(pace.dns_budget(pace.core_branch_without_cancel()))
-    );
-
-    let save_success = save_result.unwrap_or_default();
-    let proxy_outcome = proxy_result.unwrap_or_default();
-    let core_success = core_result.unwrap_or_default();
-    let dns_success = dns_result.unwrap_or_default();
-
-    let all_success = save_success && the_take_down_went_as_asked(proxy_outcome) && core_success && dns_success;
-
+    let (rest, core_stopped) = tokio::join!(rest, core_task);
+    let mut cleanup = rest.unwrap_or_else(|error| {
+        logging!(error, Type::Window, "задача уборки не вернула результат: {error}");
+        CleanupOutcome {
+            all_success: false,
+            sysproxy: None,
+        }
+    });
+    let core_stopped = core_stopped.unwrap_or_default();
+    cleanup.all_success = cleanup.all_success && core_stopped;
     logging!(
         info,
         Type::System,
-        "асинхронное завершение выполнено — настройки: {}, прокси: {:?}, ядро: {}, DNS: {}, итог: {}",
-        save_success,
-        proxy_outcome,
-        core_success,
-        dns_success,
-        all_success
+        "асинхронное завершение выполнено — ядро: {core_stopped}, итог: {}",
+        cleanup.all_success
     );
-
-    CleanupOutcome {
-        all_success,
-        sysproxy: Some(proxy_outcome),
-    }
+    cleanup
 }
 
 #[cfg(target_os = "macos")]

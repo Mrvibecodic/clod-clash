@@ -1,7 +1,6 @@
 use crate::{
     config::Config,
     core::{CoreManager, handle, tray},
-    feat::clean_async,
     process::AsyncHandler,
     utils,
 };
@@ -35,7 +34,9 @@ pub async fn restart_app() {
 
     // Настройки сохраняет сама уборка, наравне с остальными шагами.
     logging!(info, Type::System, "Начало асинхронной очистки ресурсов");
-    let cleanup_result = clean_async().await;
+    let cleanup_result = crate::feat::clean_async_at(crate::feat::ExitPace::Interactive)
+        .await
+        .all_success;
 
     logging!(
         info,

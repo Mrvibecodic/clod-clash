@@ -17,9 +17,6 @@ const LIGHT_BACKGROUND_COLOR: Color = Color(245, 245, 245, 255);
 const DARK_BACKGROUND_HEX: &str = "#2E303D";
 const LIGHT_BACKGROUND_HEX: &str = "#F5F5F5";
 
-const DEFAULT_WIDTH: f64 = 940.0;
-const DEFAULT_HEIGHT: f64 = 700.0;
-
 const MINIMAL_WIDTH: f64 = 520.0;
 const MINIMAL_HEIGHT: f64 = 520.0;
 
@@ -60,24 +57,6 @@ const fn restored_window_size_is_too_small(width: u32, height: u32) -> bool {
     width < MINIMAL_WIDTH as u32 || height < MINIMAL_HEIGHT as u32
 }
 
-fn restore_default_size_if_needed(window: &WebviewWindow) {
-    let Ok(size) = window.inner_size() else {
-        return;
-    };
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let logical: tauri::LogicalSize<f64> = size.to_logical(scale);
-
-    if !restored_window_size_is_too_small(logical.width as u32, logical.height as u32) {
-        return;
-    }
-
-    logging_error!(
-        Type::Window,
-        window.set_size(tauri::LogicalSize::new(DEFAULT_WIDTH, DEFAULT_HEIGHT))
-    );
-    logging_error!(Type::Window, window.center());
-}
-
 const MIN_VISIBLE_WIDTH: i32 = 100;
 const MIN_VISIBLE_HEIGHT: i32 = 50;
 
@@ -110,8 +89,6 @@ fn restore_position_if_offscreen(window: &WebviewWindow) {
 const SIMPLE_MODE_SIZE: (f64, f64) = (560.0, 720.0);
 const ADVANCED_MODE_SIZE: (f64, f64) = (1100.0, 760.0);
 
-const LEGACY_ADVANCED_SIZE: (u32, u32) = (DEFAULT_WIDTH as u32, DEFAULT_HEIGHT as u32);
-
 async fn effective_simple_mode() -> bool {
     let verge = Config::verge().await.latest_arc();
     if let Some(choice) = verge.simple_mode {
@@ -130,14 +107,7 @@ const fn stored_mode_size(verge: &crate::config::IVerge, simple: bool) -> Option
     if simple {
         verge.window_size_simple
     } else {
-        drop_legacy_advanced_size(verge.window_size_advanced)
-    }
-}
-
-const fn drop_legacy_advanced_size(stored: Option<(u32, u32)>) -> Option<(u32, u32)> {
-    match stored {
-        Some((w, h)) if w == LEGACY_ADVANCED_SIZE.0 && h == LEGACY_ADVANCED_SIZE.1 => None,
-        other => other,
+        verge.window_size_advanced
     }
 }
 
@@ -423,13 +393,15 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
 
     let shown = Arc::new(AtomicBool::new(false));
     let shown_on_load = Arc::clone(&shown);
+    let simple = effective_simple_mode().await;
+    let (width, height) = default_mode_size(simple);
 
     let mut builder = tauri::WebviewWindowBuilder::new(app_handle, "main", tauri::WebviewUrl::App("/".into()))
         .title(crate::constants::branding::APP_NAME)
         .center()
         .decorations(DEFAULT_DECORATIONS)
         .fullscreen(false)
-        .inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT)
+        .inner_size(width, height)
         .min_inner_size(MINIMAL_WIDTH, MINIMAL_HEIGHT)
         .visible(false)
         .initialization_script(&initial_script)
@@ -462,9 +434,7 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
     match builder.build() {
         Ok(window) => {
             logging_error!(Type::Window, window.set_background_color(Some(background_color)));
-            restore_default_size_if_needed(&window);
-            apply_window_size_for_mode(&window, effective_simple_mode().await).await;
-            restore_position_if_offscreen(&window);
+            apply_window_size_for_mode(&window, simple).await;
             // Сторож главного потока — с первого построенного окна (или с
             // конца запуска, если окно не открывали): раньше поток занят
             // запуском, и долгий старт сошёл бы за зависание.
@@ -559,8 +529,8 @@ pub fn reload_main_window_if_needed() {
 #[cfg(test)]
 mod tests {
     use super::{
-        ADVANCED_MODE_SIZE, LEGACY_ADVANCED_SIZE, SIMPLE_MODE_SIZE, drop_legacy_advanced_size,
-        height_kept_while_fitting, restored_window_size_is_too_small, size_to_remember,
+        ADVANCED_MODE_SIZE, SIMPLE_MODE_SIZE, height_kept_while_fitting, restored_window_size_is_too_small,
+        size_to_remember,
     };
 
     /// Ширину, выбранную человеком, помним и при подгоне; высоту подгона — нет.
@@ -584,26 +554,6 @@ mod tests {
         assert_eq!(
             height_kept_while_fitting(&crate::config::IVerge::default(), false),
             ADVANCED_MODE_SIZE.1 as u32
-        );
-    }
-
-    #[test]
-    fn legacy_advanced_size_is_replaced_by_the_current_default() {
-        assert_eq!(drop_legacy_advanced_size(Some(LEGACY_ADVANCED_SIZE)), None);
-    }
-
-    #[test]
-    fn advanced_size_chosen_by_the_user_survives() {
-        assert_eq!(drop_legacy_advanced_size(Some((1280, 800))), Some((1280, 800)));
-        assert_eq!(drop_legacy_advanced_size(Some((940, 701))), Some((940, 701)));
-        assert_eq!(drop_legacy_advanced_size(None), None);
-    }
-
-    #[test]
-    fn advanced_default_is_not_the_legacy_one() {
-        assert_ne!(
-            (ADVANCED_MODE_SIZE.0 as u32, ADVANCED_MODE_SIZE.1 as u32),
-            LEGACY_ADVANCED_SIZE
         );
     }
 

@@ -343,7 +343,9 @@ pub(super) async fn refresh_tray_menu() {
 
 pub(super) async fn init_window() {
     let is_silent_start = Config::verge().await.data_arc().enable_silent_start.unwrap_or(false);
-    WindowManager::create_window(!is_silent_start).await;
+    if !is_silent_start {
+        WindowManager::create_window().await;
+    }
 }
 
 #[cfg(target_os = "macos")]

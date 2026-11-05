@@ -585,8 +585,11 @@ mod tests {
         use crate::utils::source_scan::{fn_body, production_code};
 
         let window = production_code(include_str!("window_manager.rs"));
-        let state = fn_body(window, "pub fn get_main_window_state(").unwrap_or_default();
-        assert!(state.contains("get_main_window_with_state().1"), "{state}");
+        assert_eq!(
+            window.matches("fn get_main_window").count(),
+            2,
+            "окно и его состояние читаются в одном месте"
+        );
         assert!(!window.contains("handle_not_exist_toggle"));
 
         for (name, source) in [

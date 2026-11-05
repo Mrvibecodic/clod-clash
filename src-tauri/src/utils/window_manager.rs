@@ -78,10 +78,6 @@ impl WindowManager {
         (Some(window), state)
     }
 
-    pub fn get_main_window_state() -> WindowState {
-        Self::get_main_window_with_state().1
-    }
-
     pub fn get_main_window() -> Option<WebviewWindow<Wry>> {
         let app_handle = handle::Handle::app_handle();
         app_handle.get_webview_window("main")
@@ -104,32 +100,22 @@ impl WindowManager {
             );
         }
 
-        let current_state = Self::get_main_window_state();
+        let (window, state) = Self::get_main_window_with_state();
 
-        match current_state {
-            WindowState::NotExist => {
+        match (state, window) {
+            (WindowState::NotExist, _) => {
                 let created = Self::create_missing_window().await;
                 if matches!(created, WindowOperationResult::Created) {
                     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                 }
                 created
             }
-            WindowState::VisibleFocused => {
+            (WindowState::VisibleFocused, _) => {
                 logging!(info, Type::Window, "Окно уже видимо и в фокусе, действие не требуется");
                 WindowOperationResult::NoAction
             }
-            WindowState::VisibleUnfocused | WindowState::Minimized | WindowState::Hidden => {
-                let (window, state_after_check) = Self::get_main_window_with_state();
-                if state_after_check == WindowState::VisibleFocused {
-                    logging!(info, Type::Window, "Окно за время проверки стало видимым и в фокусе");
-                    return WindowOperationResult::NoAction;
-                }
-                if let Some(window) = window {
-                    Self::activate_window_guarded(window).await
-                } else {
-                    WindowOperationResult::Failed
-                }
-            }
+            (_, Some(window)) => Self::activate_window_guarded(window).await,
+            (_, None) => WindowOperationResult::Failed,
         }
     }
 
@@ -171,7 +157,7 @@ impl WindowManager {
 
     async fn create_missing_window() -> WindowOperationResult {
         logging!(info, Type::Window, "Окно не существует, создаю новое окно");
-        if Self::create_window(true).await {
+        if Self::create_window().await {
             logging!(info, Type::Window, "Окно создано успешно");
             WindowOperationResult::Created
         } else {
@@ -285,22 +271,13 @@ impl WindowManager {
         window.map(|w| w.is_focused().unwrap_or(false)).unwrap_or(false)
     }
 
-    pub fn is_main_window_minimized(window: Option<&WebviewWindow<Wry>>) -> bool {
+    fn is_main_window_minimized(window: Option<&WebviewWindow<Wry>>) -> bool {
         window.map(|w| w.is_minimized().unwrap_or(false)).unwrap_or(false)
     }
 
-    pub fn create_window(should_create: bool) -> Pin<Box<dyn Future<Output = bool> + Send>> {
+    pub fn create_window() -> Pin<Box<dyn Future<Output = bool> + Send>> {
         Box::pin(async move {
-            logging!(
-                info,
-                Type::Window,
-                "Начинаю создание главного окна, should_create={}",
-                should_create
-            );
-
-            if !should_create {
-                return false;
-            }
+            logging!(info, Type::Window, "Начинаю создание главного окна");
 
             // Окно строит один строитель за раз: проверка метки и вставка окна
             // у Tauri разнесены, и два одновременных строителя дают два окна,
