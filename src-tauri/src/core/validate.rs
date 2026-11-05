@@ -150,92 +150,17 @@ impl CoreConfigValidator {
         }
     }
 
-    pub fn try_start(&self) -> bool {
+    fn try_start(&self) -> bool {
         !self.is_processing.swap(true, Ordering::AcqRel)
     }
 
-    pub fn finish(&self) {
+    fn finish(&self) {
         self.is_processing.store(false, Ordering::Release)
     }
 }
 
 impl CoreConfigValidator {
     /// Проверяет, является ли файл скриптом
-    async fn is_script_file(path: &str) -> Result<bool> {
-        // 1. Сначала быстрая проверка по расширению
-        if has_ext(path, "yaml") || has_ext(path, "yml") {
-            return Ok(false); // YAML-файл — не скрипт
-        } else if has_ext(path, "js") {
-            return Ok(true); // JS-файл — скрипт
-        }
-
-        // 2. Читаем содержимое файла
-        let content = match fs::read_to_string(path).await {
-            Ok(content) => content,
-            Err(err) => {
-                logging!(
-                    warn,
-                    Type::Validate,
-                    "Не удалось прочитать файл для определения типа: {}, ошибка: {}",
-                    path,
-                    err
-                );
-                return Err(anyhow::anyhow!("Failed to read file to detect type: {}", err));
-            }
-        };
-
-        // 3. Проверяем явные признаки YAML
-        let has_yaml_features = content.contains(": ")
-            || content.contains("#")
-            || content.contains("---")
-            || content.lines().any(|line| line.trim().starts_with("- "));
-
-        // 4. Проверяем явные признаки JS
-        let has_js_features = content.contains("function ")
-            || content.contains("const ")
-            || content.contains("let ")
-            || content.contains("var ")
-            || content.contains("//")
-            || content.contains("/*")
-            || content.contains("*/")
-            || content.contains("export ")
-            || content.contains("import ");
-
-        // 5. Логика принятия решения
-        if has_yaml_features && !has_js_features {
-            // Только признаки YAML, признаков JS нет
-            return Ok(false);
-        } else if has_js_features && !has_yaml_features {
-            // Только признаки JS, признаков YAML нет
-            return Ok(true);
-        } else if has_yaml_features && has_js_features {
-            // Есть оба типа признаков, нужна более точная проверка
-            // Сначала проверяем явные структурные признаки JS
-            if content.contains("function main")
-                || content.contains("module.exports")
-                || content.contains("export default")
-            {
-                return Ok(true);
-            }
-
-            // Проверяем, есть ли пробел после двоеточия (типичный признак YAML)
-            let yaml_pattern_count = content.lines().filter(|line| line.contains(": ")).count();
-
-            if yaml_pattern_count > 2 {
-                return Ok(false); // Много пар ключ-значение — вероятнее YAML
-            }
-        }
-
-        // По умолчанию: если тип не определён, считаем не-скриптом (безопаснее)
-        logging!(
-            debug,
-            Type::Validate,
-            "Не удалось определить тип файла, обрабатывается как YAML по умолчанию: {}",
-            path
-        );
-        Ok(false)
-    }
-
     /// Только проверка синтаксиса файла, без полной валидации
     async fn validate_file_syntax_outcome(config_path: &str) -> Result<ValidationOutcome> {
         logging!(info, Type::Validate, "Начало проверки файла: {}", config_path);
@@ -322,8 +247,10 @@ impl CoreConfigValidator {
     /// Проверяет указанный конфиг-файл
     pub async fn validate_config_file_outcome(
         config_path: &str,
-        is_merge_file: Option<bool>,
+        target: crate::cmd::validate::ValidationNoticeTarget,
     ) -> Result<ValidationOutcome> {
+        use crate::cmd::validate::ValidationNoticeTarget;
+
         // Проверяем, завершается ли приложение, если да — пропускаем проверку
         if handle::Handle::global().is_exiting() {
             logging!(info, Type::Core, "Приложение завершает работу, проверка пропущена");
@@ -338,46 +265,30 @@ impl CoreConfigValidator {
             return Ok(ValidationOutcome::invalid(ValidationErrorKind::FileMissing, error_msg));
         }
 
-        // Если это merge-файл и это не принудительная проверка, выполняем
-        // только проверку синтаксиса без полной валидации
-        if is_merge_file.unwrap_or(false) {
-            logging!(
-                info,
-                Type::Validate,
-                "Обнаружен файл Merge, выполняется только проверка синтаксиса: {}",
-                config_path
-            );
-            return Self::validate_file_syntax_outcome(config_path).await;
-        }
-
-        let is_script = match Self::is_script_file(config_path).await {
-            Ok(result) => result,
-            Err(err) => {
-                // Если тип файла определить не удалось, пробуем проверку ядром Clash
+        match target {
+            ValidationNoticeTarget::Merge => {
                 logging!(
-                    warn,
+                    info,
                     Type::Validate,
-                    "Не удалось определить тип файла: {}, ошибка: {}",
-                    config_path,
-                    err
+                    "Обнаружен файл Merge, выполняется только проверка синтаксиса: {}",
+                    config_path
                 );
-                return Self::validate_config_internal_outcome(config_path).await;
+                Self::validate_file_syntax_outcome(config_path).await
             }
-        };
-
-        if is_script {
-            logging!(
-                info,
-                Type::Validate,
-                "Обнаружен файл скрипта, используется проверка JavaScript: {}",
-                config_path
-            );
-            return Self::validate_script_file_outcome(config_path).await;
+            ValidationNoticeTarget::Script => {
+                logging!(
+                    info,
+                    Type::Validate,
+                    "Обнаружен файл скрипта, используется проверка JavaScript: {}",
+                    config_path
+                );
+                Self::validate_script_file_outcome(config_path).await
+            }
+            ValidationNoticeTarget::Runtime => {
+                logging!(info, Type::Validate, "Проверка конфига ядром Clash: {}", config_path);
+                Self::validate_config_internal_outcome(config_path).await
+            }
         }
-
-        // Для YAML-конфигов используем проверку ядром Clash
-        logging!(info, Type::Validate, "Проверка конфига ядром Clash: {}", config_path);
-        Self::validate_config_internal_outcome(config_path).await
     }
 
     /// Внутренняя реализация проверки конфиг-файла
@@ -529,14 +440,6 @@ async fn run_the_check(command: tauri_plugin_shell::process::Command) -> Result<
         return Ok(None);
     }
     Ok(Some(run))
-}
-
-fn has_ext<P: AsRef<std::path::Path>>(path: P, ext: &str) -> bool {
-    path.as_ref()
-        .extension()
-        .and_then(|s| s.to_str())
-        .map(|s| s.eq_ignore_ascii_case(ext))
-        .unwrap_or(false)
 }
 
 fn contains_any_keyword<'a>(buf: &'a [u8], keywords: &'a [&str]) -> bool {

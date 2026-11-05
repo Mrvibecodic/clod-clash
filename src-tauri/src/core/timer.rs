@@ -705,7 +705,7 @@ impl Timer {
         // регулярное место, где просроченному замку и место истечь.
         crate::feat::release_stale_panel_locks().await;
 
-        let result = Box::pin(feat::update_profile(uid, None, false, feat::UpdateTrigger::Scheduled)).await;
+        let result = Box::pin(feat::update_profile(uid, None, feat::UpdateTrigger::Scheduled)).await;
 
         match &result {
             Ok(outcome) => logging!(

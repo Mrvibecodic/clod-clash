@@ -1,7 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use anyhow::Result;
-
 use crate::{
     config::Config,
     core::{
@@ -25,6 +23,7 @@ use clash_verge_signal;
 pub mod dns;
 pub mod manual_resize;
 pub mod scheme;
+pub use scheme::resolve_scheme;
 pub mod window;
 pub mod window_script;
 
@@ -155,11 +154,6 @@ pub fn resolve_setup_async() {
 #[cfg(not(target_os = "macos"))]
 pub(super) fn init_scheme() {
     logging_error!(Type::Setup, init::init_scheme());
-}
-
-pub async fn resolve_scheme(param: &str) -> Result<()> {
-    logging_error!(Type::Setup, scheme::resolve_scheme(param).await);
-    Ok(())
 }
 
 pub(super) fn init_embed_server() {

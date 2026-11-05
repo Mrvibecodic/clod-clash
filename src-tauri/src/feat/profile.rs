@@ -116,7 +116,7 @@ struct UpdateTarget {
     new_sub: Option<String>,
 }
 
-async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result<Option<UpdateTarget>> {
+async fn should_update_profile(uid: &String, trigger: UpdateTrigger) -> Result<Option<UpdateTarget>> {
     let profiles = Config::profiles().await;
     let profiles = profiles.latest_arc();
     let item = profiles.get_item(uid)?;
@@ -136,7 +136,7 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
             "Warning: [Обновление подписки] {uid} отсутствует URL, обновление невозможно"
         );
         bail!("failed to get the profile item url");
-    } else if !ignore_auto_update && !item.option.as_ref().and_then(|o| o.allow_auto_update).unwrap_or(true) {
+    } else if !trigger.is_manual() && !item.option.as_ref().and_then(|o| o.allow_auto_update).unwrap_or(true) {
         logging!(
             info,
             Type::Config,
@@ -1003,12 +1003,7 @@ fn claim_update(uid: &String) -> Option<UpdateClaim> {
     Some(UpdateClaim(uid.clone()))
 }
 
-pub async fn update_profile(
-    uid: &String,
-    option: Option<&PrfOption>,
-    ignore_auto_update: bool,
-    trigger: UpdateTrigger,
-) -> Result<UpdateOutcome> {
+pub async fn update_profile(uid: &String, option: Option<&PrfOption>, trigger: UpdateTrigger) -> Result<UpdateOutcome> {
     let Some(claim) = claim_update(uid) else {
         logging!(
             info,
@@ -1020,17 +1015,12 @@ pub async fn update_profile(
         }
         return Ok(UpdateOutcome::RetrySoon);
     };
-    let outcome = Box::pin(update_claimed(uid, option, ignore_auto_update, trigger)).await;
+    let outcome = Box::pin(update_claimed(uid, option, trigger)).await;
     drop(claim);
     outcome
 }
 
-async fn update_claimed(
-    uid: &String,
-    option: Option<&PrfOption>,
-    ignore_auto_update: bool,
-    trigger: UpdateTrigger,
-) -> Result<UpdateOutcome> {
+async fn update_claimed(uid: &String, option: Option<&PrfOption>, trigger: UpdateTrigger) -> Result<UpdateOutcome> {
     let trigger = trigger.once_marked(card_is_marked(uid).await);
     logging!(
         info,
@@ -1038,7 +1028,7 @@ async fn update_claimed(
         "[Обновление подписки] Начинаю обновление подписки {} ({trigger:?})",
         uid
     );
-    let url_opt = match should_update_profile(uid, ignore_auto_update).await {
+    let url_opt = match should_update_profile(uid, trigger).await {
         Ok(target) => target,
         Err(err) => {
             mark_the_update(uid, true).await;

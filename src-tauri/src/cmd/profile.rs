@@ -139,7 +139,7 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
 
 /// Подписка добавлена: окну — перечитать, окну лимита устройств — отказ панели,
 /// ядру — сборку, если она стала текущей.
-async fn announce_the_added(uid: &String) {
+pub(crate) async fn announce_the_added(uid: &String) {
     handle::Handle::notify_profile_changed(uid);
     crate::feat::announce_device_refusal(uid).await;
     if Config::profiles().await.latest_arc().is_current_profile_index(uid)
@@ -283,7 +283,6 @@ pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResu
     match Box::pin(feat::update_profile(
         &index,
         option.as_ref(),
-        true,
         feat::UpdateTrigger::Manual,
     ))
     .await
@@ -939,6 +938,7 @@ mod tests {
         .unwrap_or_default();
         assert!(deep_link.contains("feat::add_subscription_once("), "{deep_link}");
         assert!(deep_link.contains("feat::add_profile("), "{deep_link}");
+        assert!(deep_link.contains("announce_the_added("), "{deep_link}");
         assert!(!deep_link.contains("profiles_save_file_safe"), "{deep_link}");
     }
     use crate::config::{IProfiles, PrfItem};

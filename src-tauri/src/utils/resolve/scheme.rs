@@ -3,22 +3,10 @@ use percent_encoding::percent_decode_str;
 use smartstring::alias::String;
 use tauri::Url;
 
-use crate::{
-    config::{Config, PrfItem},
-    core::handle,
-    feat::Adding,
-    utils::help,
-};
+use crate::{config::PrfItem, core::handle, feat::Adding, utils::help};
 use clash_verge_logging::{Type, logging};
 
-pub(super) async fn resolve_scheme(param: &str) -> Result<()> {
-    let param_str = if param.starts_with("[") && param.len() > 4 {
-        param
-            .get(2..param.len() - 2)
-            .ok_or_else(|| anyhow::anyhow!("Invalid string slice boundaries"))?
-    } else {
-        param
-    };
+pub async fn resolve_scheme(param_str: &str) -> Result<()> {
     let masked_deep_link = help::mask_url(param_str);
 
     logging!(debug, Type::Config, "received deep link: {masked_deep_link}");
@@ -91,7 +79,6 @@ fn decode_subscription_url(raw_url: &str) -> std::string::String {
 
 async fn import_subscription(url: &str, name: Option<&String>) {
     let added = crate::feat::add_subscription_once(url, async || {
-        let had_current_profile = Config::profiles().await.latest_arc().current.is_some();
         let mut item = fetch_profile_item(url, name).await?;
         let uid = item.uid.clone().unwrap_or_default();
         if let Err(e) = crate::feat::add_profile(&mut item).await {
@@ -99,22 +86,20 @@ async fn import_subscription(url: &str, name: Option<&String>) {
             handle::Handle::notice_message("import_sub_url::error", e.to_string());
             return None;
         }
-        Some((uid, had_current_profile))
+        Some(uid)
     })
     .await;
 
-    let (uid, had_current_profile) = match added {
+    let uid = match added {
         Adding::AlreadyAdded => {
             handle::Handle::notice_message("import_sub_url::exists", "");
             return;
         }
         Adding::Added(None) => return,
-        Adding::Added(Some(added)) => added,
+        Adding::Added(Some(uid)) => uid,
     };
     handle::Handle::notice_message("import_sub_url::ok", "");
-    crate::feat::announce_device_refusal(&uid).await;
-
-    post_import_updates(&uid, had_current_profile).await;
+    crate::cmd::profile::announce_the_added(&uid).await;
 }
 
 async fn fetch_profile_item(url: &str, name: Option<&String>) -> Option<PrfItem> {
@@ -124,51 +109,6 @@ async fn fetch_profile_item(url: &str, name: Option<&String>) -> Option<PrfItem>
             logging!(error, Type::Config, "failed to parse profile from url: {:?}", e);
             handle::Handle::notice_message("import_sub_url::error", e.to_string());
             None
-        }
-    }
-}
-
-async fn post_import_updates(uid: &String, had_current_profile: bool) {
-    handle::Handle::refresh_verge();
-    handle::Handle::notify_profile_changed(uid);
-
-    let should_update_core = if uid.is_empty() || had_current_profile {
-        false
-    } else {
-        let profiles = Config::profiles().await;
-        profiles.latest_arc().is_current_profile_index(uid)
-    };
-
-    if should_update_core {
-        refresh_core_config().await;
-    }
-}
-
-async fn refresh_core_config() {
-    logging!(
-        info,
-        Type::Config,
-        "Deep link import set current profile; refreshing core config"
-    );
-    match crate::feat::enhance_profiles().await {
-        Ok(outcome) if outcome.is_valid() => {}
-        // Применение не состоялось (идёт выход) — о подписке это ничего не говорит.
-        Ok(outcome @ crate::core::validate::ValidationOutcome::Skipped { .. }) => {
-            logging!(
-                info,
-                Type::Config,
-                "Deep link import: config apply postponed: {}",
-                outcome
-            );
-        }
-        Ok(outcome) => {
-            let message = outcome.to_string();
-            logging!(warn, Type::Config, "Apply config failed: {}", message);
-            handle::Handle::notice_message("config_validate::error", message);
-        }
-        Err(err) => {
-            logging!(error, Type::Config, "Apply config error: {}", err);
-            handle::Handle::notice_message("update_failed", format!("{err}"));
         }
     }
 }

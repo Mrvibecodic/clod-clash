@@ -143,7 +143,7 @@ async fn handle_saved_profile_file(
         file_path_str
     );
 
-    match CoreConfigValidator::validate_config_file_outcome(file_path_str, Some(is_merge_file)).await {
+    match CoreConfigValidator::validate_config_file_outcome(file_path_str, target).await {
         Ok(outcome) if outcome.is_valid() => {
             logging!(
                 info,
