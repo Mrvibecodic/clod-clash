@@ -200,11 +200,11 @@ fn evaluate(snap: &Snapshot, now_secs: i64) -> Outcome {
 // data plumbing
 // ---------------------------------------------------------------------------
 
-async fn notify_alert(alert: Alert) {
+fn notify_alert(alert: Alert) {
     match alert {
-        Alert::Expired => notify_event(NotificationEvent::SubExpired).await,
-        Alert::ExpiresInDays(days) => notify_event(NotificationEvent::SubExpiresIn { days }).await,
-        Alert::TrafficPercent(percent) => notify_event(NotificationEvent::SubTraffic { percent }).await,
+        Alert::Expired => notify_event(NotificationEvent::SubExpired),
+        Alert::ExpiresInDays(days) => notify_event(NotificationEvent::SubExpiresIn { days }),
+        Alert::TrafficPercent(percent) => notify_event(NotificationEvent::SubTraffic { percent }),
     }
 }
 
@@ -264,7 +264,7 @@ pub async fn run_check() {
 
     for alert in &outcome.alerts {
         logging!(info, Type::System, "subscription alert: {alert:?}");
-        notify_alert(*alert).await;
+        notify_alert(*alert);
     }
 
     if outcome.changed {

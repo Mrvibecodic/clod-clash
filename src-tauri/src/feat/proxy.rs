@@ -182,8 +182,7 @@ pub async fn toggle_system_proxy() -> Toggled {
                     system_refused,
                     reason: &reason,
                 },
-            )
-            .await;
+            );
             Toggled::Untouched
         }
     }
@@ -261,8 +260,7 @@ pub async fn toggle_tun_mode() -> Toggled {
                 marker,
                 std::string::String::new(),
                 crate::utils::notification::NotificationEvent::TunSetupRefused { marker },
-            )
-            .await;
+            );
             return Toggled::Untouched;
         }
         Err(TunRefusal::Locked) => return Toggled::Locked,

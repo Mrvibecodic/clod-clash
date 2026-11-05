@@ -436,7 +436,7 @@ impl SilentUpdater {
                     "Startup install failed: {e}, will retry next launch"
                 );
                 Self::close_update_splash(app_handle);
-                tell_the_install_failed(&e).await;
+                tell_the_install_failed(&e);
                 false
             }
         }
@@ -549,13 +549,12 @@ fn install_failure_event(failure: &anyhow::Error) -> crate::utils::notification:
 }
 
 /// Кому сказать — окну или системе — решает то же место, что и для трея.
-async fn tell_the_install_failed(failure: &anyhow::Error) {
+fn tell_the_install_failed(failure: &anyhow::Error) {
     crate::core::notification::tell_the_outcome(
         INSTALL_FAILED_STATUS,
         crate::cmd::public_error_text(&format!("{failure:#}")).into(),
         install_failure_event(failure),
-    )
-    .await;
+    );
 }
 
 /// Отказ в правах на запуск: `ERROR_CANCELLED`.
@@ -1062,7 +1061,7 @@ impl SilentUpdater {
         logging!(info, Type::System, "Installing update v{version}...");
         if let Err(failure) = Self::install(update, bytes).await {
             logging!(warn, Type::System, "Update v{version} was not installed: {failure:#}");
-            tell_the_install_failed(&failure).await;
+            tell_the_install_failed(&failure);
             return Ok(false);
         }
         Self::delete_cache();

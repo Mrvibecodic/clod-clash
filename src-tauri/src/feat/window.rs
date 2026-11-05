@@ -180,7 +180,7 @@ pub async fn quit_at(pace: ExitPace, cancel_if_core_stays: bool) {
         // Окно умирает через миллисекунды, а очередь отложенных уведомлений —
         // память этого же процесса. Единственное, что переживает выход, —
         // уведомление операционной системы.
-        utils::notification::notify_event(utils::notification::NotificationEvent::SysproxyLeftBehind).await;
+        utils::notification::notify_event(utils::notification::NotificationEvent::SysproxyLeftBehind);
         // Плагин отдаёт показ отдельной задаче и возвращается сразу; выход
         // через миллисекунду убил бы её раньше, чем демон уведомлений получит
         // сообщение. Полсекунды — только на этом, редком, пути.
@@ -205,7 +205,7 @@ fn cancel_the_exit(reason: String) {
         "выход отменён: ядро не остановилось ({reason}); приложение остаётся работать"
     );
     AsyncHandler::spawn(move || async move {
-        utils::notification::notify_event(utils::notification::NotificationEvent::QuitCancelled).await;
+        utils::notification::notify_event(utils::notification::NotificationEvent::QuitCancelled);
         handle::Handle::notice_message("app_quit::core_still_running", reason);
         lightweight::wake_or_show().await;
         bring_back_what_the_exit_took().await;

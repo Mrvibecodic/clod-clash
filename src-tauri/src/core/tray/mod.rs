@@ -25,13 +25,12 @@ use tauri::{
     menu::{CheckMenuItem, IsMenuItem, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
 };
 
-async fn report_log_not_opened(dir: Option<std::path::PathBuf>, error: &anyhow::Error) {
+fn report_log_not_opened(dir: Option<std::path::PathBuf>, error: &anyhow::Error) {
     logging!(error, Type::Tray, "не удалось открыть журнал из трея: {error:#}");
     let path = dir.map(|dir| dir.display().to_string()).unwrap_or_default();
     crate::utils::notification::notify_event(crate::utils::notification::NotificationEvent::LogOpenFailed {
         path: &path,
-    })
-    .await;
+    });
 }
 
 #[cfg(target_os = "linux")]
@@ -1165,12 +1164,12 @@ fn handle_primary_click() {
         match verge_tray_action {
             TrayAction::SystemProxy => {
                 if feat::toggle_system_proxy().await == feat::Toggled::Locked {
-                    notify_event(NotificationEvent::ConnectMethodLocked { tun: false }).await;
+                    notify_event(NotificationEvent::ConnectMethodLocked { tun: false });
                 }
             }
             TrayAction::TunMode => {
                 if feat::toggle_tun_mode().await == feat::Toggled::Locked {
-                    notify_event(NotificationEvent::ConnectMethodLocked { tun: true }).await;
+                    notify_event(NotificationEvent::ConnectMethodLocked { tun: true });
                 }
             }
             TrayAction::MainWindow => lightweight::wake_or_show().await,
@@ -1290,7 +1289,7 @@ fn handle_menu_click(id: std::string::String) {
             }
             MenuIds::APP_LOG => {
                 if let Err(err) = help::open_app_latest_log() {
-                    report_log_not_opened(crate::utils::dirs::app_logs_dir().ok(), &err).await;
+                    report_log_not_opened(crate::utils::dirs::app_logs_dir().ok(), &err);
                 }
             }
             MenuIds::CORE_LOG => {
@@ -1300,8 +1299,7 @@ fn handle_menu_click(id: std::string::String) {
                             .ok()
                             .and_then(|path| path.parent().map(std::path::Path::to_path_buf)),
                         &err,
-                    )
-                    .await;
+                    );
                 }
             }
             MenuIds::RESTART_CLASH => match feat::restart_clash_core().await {
@@ -1310,8 +1308,7 @@ fn handle_menu_click(id: std::string::String) {
                         "set_config::ok",
                         "ok".to_owned(),
                         crate::utils::notification::NotificationEvent::CoreRestarted,
-                    )
-                    .await;
+                    );
                 }
                 Err(err) => {
                     logging!(error, Type::Core, "{err}");
@@ -1320,8 +1317,7 @@ fn handle_menu_click(id: std::string::String) {
                         "set_config::error",
                         format!("{err}"),
                         crate::utils::notification::NotificationEvent::CoreNotRestarted { reason: &reason },
-                    )
-                    .await;
+                    );
                 }
             },
             MenuIds::RESTART_APP => feat::restart_app().await,

@@ -1318,14 +1318,13 @@ async fn nudge_registered_service() -> bool {
 
 /// Неудача подготовки, которую человек вызвал сам (тумблер, трей, клавиша):
 /// окно спрятано — системным уведомлением сразу, а не тостом до открытия окна.
-async fn tell_the_setup_failure(user_initiated: bool, status: &'static str) {
+fn tell_the_setup_failure(user_initiated: bool, status: &'static str) {
     if user_initiated {
         crate::core::notification::tell_the_outcome(
             status,
             std::string::String::new(),
             crate::utils::notification::NotificationEvent::TunSetupRefused { marker: status },
-        )
-        .await;
+        );
     } else {
         Handle::notice_message(status, "");
     }
@@ -1373,7 +1372,7 @@ async fn set_up_service(user_initiated: bool) -> SetupOutcome {
             ("tun::setup_failed", FAILURE_SETUP)
         };
         set_failure(failure);
-        tell_the_setup_failure(user_initiated, event).await;
+        tell_the_setup_failure(user_initiated, event);
         return SetupOutcome::Failed;
     }
 
@@ -1386,7 +1385,7 @@ async fn set_up_service(user_initiated: bool) -> SetupOutcome {
             "the service setup reported success, but the service still does not answer"
         );
         set_failure(FAILURE_SERVICE_SILENT);
-        tell_the_setup_failure(user_initiated, "tun::service_silent").await;
+        tell_the_setup_failure(user_initiated, "tun::service_silent");
         return SetupOutcome::Failed;
     }
 

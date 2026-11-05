@@ -674,8 +674,7 @@ async fn give_the_old_core_back(
             handle::Handle::refresh_verge();
             crate::utils::notification::notify_event(
                 crate::utils::notification::NotificationEvent::CoreUpdateRolledBack,
-            )
-            .await;
+            );
         }
         Err(err) => logging!(error, Type::Core, "прежнее ядро вернуть не удалось: {err:#}"),
     }

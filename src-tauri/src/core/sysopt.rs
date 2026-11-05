@@ -856,8 +856,7 @@ impl Sysopt {
                 NotificationEvent::ProxyHostRefused { host: &host }
             } else {
                 NotificationEvent::ProxyHostGone { host: &host }
-            })
-            .await;
+            });
         });
     }
 

@@ -47,7 +47,7 @@ const fn can_reach_the_page(listening: bool, window_exists: bool) -> bool {
 /// установка обновления): страница слушает — тостом в окне, не слушает (окно
 /// спрятано или его нет) — системным уведомлением, а не тостом, который ждал
 /// бы открытия окна.
-pub async fn tell_the_outcome(
+pub fn tell_the_outcome(
     status: &str,
     message: std::string::String,
     system: crate::utils::notification::NotificationEvent<'_>,
@@ -55,7 +55,7 @@ pub async fn tell_the_outcome(
     if NotificationSystem::the_page_hears(crate::core::handle::Handle::app_handle()) {
         crate::core::handle::Handle::notice_message(status, message);
     } else {
-        crate::utils::notification::notify_event(system).await;
+        crate::utils::notification::notify_event(system);
     }
 }
 
@@ -603,13 +603,13 @@ mod tests {
         assert!(!can_reach_the_page(false, false), "окна нет — системное уведомление");
         let told = crate::utils::source_scan::fn_body(
             crate::utils::source_scan::without_test_modules(include_str!("notification.rs")),
-            "pub async fn tell_the_outcome(",
+            "pub fn tell_the_outcome(",
         )
         .unwrap_or_default();
         assert!(told.contains("the_page_hears("), "{told}");
         let updater = crate::utils::source_scan::fn_body(
             crate::utils::source_scan::without_test_modules(include_str!("updater.rs")),
-            "async fn tell_the_install_failed(",
+            "fn tell_the_install_failed(",
         )
         .unwrap_or_default();
         assert!(updater.contains("tell_the_outcome("), "{updater}");

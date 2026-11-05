@@ -166,14 +166,14 @@ impl Hotkey {
             HotkeyFunction::OpenOrCloseDashboard => {
                 AsyncHandler::spawn(async move || {
                     crate::feat::open_or_close_dashboard().await;
-                    notify_event(NotificationEvent::DashboardToggled).await;
+                    notify_event(NotificationEvent::DashboardToggled);
                 });
             }
             HotkeyFunction::ClashModeRule => {
                 AsyncHandler::spawn(async move || {
                     if feat::change_clash_mode("rule".into()).await.is_ok() {
                         let mode = clash_verge_i18n::t!("tray.rule");
-                        notify_event(NotificationEvent::ClashModeChanged { mode: &mode }).await;
+                        notify_event(NotificationEvent::ClashModeChanged { mode: &mode });
                     }
                 });
             }
@@ -181,7 +181,7 @@ impl Hotkey {
                 AsyncHandler::spawn(async move || {
                     if feat::change_clash_mode("global".into()).await.is_ok() {
                         let mode = clash_verge_i18n::t!("tray.global");
-                        notify_event(NotificationEvent::ClashModeChanged { mode: &mode }).await;
+                        notify_event(NotificationEvent::ClashModeChanged { mode: &mode });
                     }
                 });
             }
@@ -189,17 +189,17 @@ impl Hotkey {
                 AsyncHandler::spawn(async move || {
                     if feat::change_clash_mode("direct".into()).await.is_ok() {
                         let mode = clash_verge_i18n::t!("tray.direct");
-                        notify_event(NotificationEvent::ClashModeChanged { mode: &mode }).await;
+                        notify_event(NotificationEvent::ClashModeChanged { mode: &mode });
                     }
                 });
             }
             HotkeyFunction::ToggleSystemProxy => {
                 AsyncHandler::spawn(async move || match feat::toggle_system_proxy().await {
                     feat::Toggled::To(is_proxy_enabled) => {
-                        notify_event(NotificationEvent::SystemProxyToggled(is_proxy_enabled)).await;
+                        notify_event(NotificationEvent::SystemProxyToggled(is_proxy_enabled));
                     }
                     feat::Toggled::Locked => {
-                        notify_event(NotificationEvent::ConnectMethodLocked { tun: false }).await;
+                        notify_event(NotificationEvent::ConnectMethodLocked { tun: false });
                     }
                     feat::Toggled::Untouched => {}
                 });
@@ -207,10 +207,10 @@ impl Hotkey {
             HotkeyFunction::ToggleTunMode => {
                 AsyncHandler::spawn(async move || match feat::toggle_tun_mode().await {
                     feat::Toggled::To(is_tun_enable) => {
-                        notify_event(NotificationEvent::TunModeToggled(is_tun_enable)).await;
+                        notify_event(NotificationEvent::TunModeToggled(is_tun_enable));
                     }
                     feat::Toggled::Locked => {
-                        notify_event(NotificationEvent::ConnectMethodLocked { tun: true }).await;
+                        notify_event(NotificationEvent::ConnectMethodLocked { tun: true });
                     }
                     feat::Toggled::Untouched => {}
                 });
@@ -218,13 +218,13 @@ impl Hotkey {
             HotkeyFunction::EntryLightweightMode => {
                 AsyncHandler::spawn(async move || {
                     entry_lightweight_mode().await;
-                    notify_event(NotificationEvent::LightweightModeEntered).await;
+                    notify_event(NotificationEvent::LightweightModeEntered);
                 });
             }
             HotkeyFunction::ReactivateProfiles => {
                 AsyncHandler::spawn(async move || match feat::enhance_profiles().await {
                     Ok(outcome) if outcome.is_valid() => {
-                        notify_event(NotificationEvent::ProfilesReactivated).await;
+                        notify_event(NotificationEvent::ProfilesReactivated);
                     }
                     Ok(outcome) => {
                         let message = outcome.to_string();
@@ -239,8 +239,7 @@ impl Hotkey {
                             "reactivate_profiles::error",
                             message,
                             NotificationEvent::ProfilesNotReactivated { reason: &reason },
-                        )
-                        .await;
+                        );
                     }
                     Err(err) => {
                         logging!(
@@ -254,14 +253,13 @@ impl Hotkey {
                             "reactivate_profiles::error",
                             err.to_string(),
                             NotificationEvent::ProfilesNotReactivated { reason: &reason },
-                        )
-                        .await;
+                        );
                     }
                 });
             }
             HotkeyFunction::Quit => {
                 AsyncHandler::spawn(async move || {
-                    notify_event(NotificationEvent::AppQuit).await;
+                    notify_event(NotificationEvent::AppQuit);
                     feat::quit().await;
                 });
             }

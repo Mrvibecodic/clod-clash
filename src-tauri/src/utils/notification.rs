@@ -87,7 +87,7 @@ fn tun_setup_refusal_text(marker: &str) -> Option<Cow<'static, str>> {
     })
 }
 
-pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
+pub fn notify_event<'a>(event: NotificationEvent<'a>) {
     match event {
         NotificationEvent::DashboardToggled => {
             let title = clash_verge_i18n::t!("notifications.dashboardToggled.title");
@@ -96,9 +96,7 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         }
         NotificationEvent::ClashModeChanged { mode } => {
             let title = clash_verge_i18n::t!("notifications.clashModeChanged.title");
-            let body = clash_verge_i18n::t!("notifications.clashModeChanged.body")
-                .replace("{mode}", mode)
-                .into();
+            let body = clash_verge_i18n::t!("notifications.clashModeChanged.body", mode = mode);
             notify(title, body);
         }
         NotificationEvent::SystemProxyToggled(enabled) => {
@@ -192,16 +190,12 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         }
         NotificationEvent::ProxyHostGone { host } => {
             let title = clash_verge_i18n::t!("notifications.systemProxyToggled.title");
-            let body = clash_verge_i18n::t!("notifications.proxyHostGone.body")
-                .replace("{host}", host)
-                .into();
+            let body = clash_verge_i18n::t!("notifications.proxyHostGone.body", host = host);
             notify(title, body);
         }
         NotificationEvent::ProxyHostRefused { host } => {
             let title = clash_verge_i18n::t!("notifications.systemProxyToggled.title");
-            let body = clash_verge_i18n::t!("notifications.proxyHostRefused.body")
-                .replace("{host}", host)
-                .into();
+            let body = clash_verge_i18n::t!("notifications.proxyHostRefused.body", host = host);
             notify(title, body);
         }
         NotificationEvent::CoreUpdateRolledBack => {
@@ -225,9 +219,7 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         }
         NotificationEvent::LogOpenFailed { path } => {
             let title = clash_verge_i18n::t!("notifications.logOpenFailed.title");
-            let body = clash_verge_i18n::t!("notifications.logOpenFailed.body")
-                .replace("{path}", path)
-                .into();
+            let body = clash_verge_i18n::t!("notifications.logOpenFailed.body", path = path);
             notify(title, body);
         }
         // clod:F7
@@ -238,16 +230,12 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         }
         NotificationEvent::SubExpiresIn { days } => {
             let title = clash_verge_i18n::t!("notifications.subExpiresIn.title");
-            let body = clash_verge_i18n::t!("notifications.subExpiresIn.body")
-                .replace("{days}", &days.to_string())
-                .into();
+            let body = clash_verge_i18n::t!("notifications.subExpiresIn.body", days = days.to_string());
             notify(title, body);
         }
         NotificationEvent::SubTraffic { percent } => {
             let title = clash_verge_i18n::t!("notifications.subTraffic.title");
-            let body = clash_verge_i18n::t!("notifications.subTraffic.body")
-                .replace("{percent}", &percent.to_string())
-                .into();
+            let body = clash_verge_i18n::t!("notifications.subTraffic.body", percent = percent.to_string());
             notify(title, body);
         }
     }
