@@ -111,7 +111,7 @@ pub fn resolve_setup_async() {
             crate::core::sysopt::spawn_proxy_observer();
         });
 
-        init_silent_updater();
+        init_background_modules();
 
         let _ = futures::join!(
             core_init,
@@ -152,47 +152,47 @@ pub fn resolve_setup_async() {
 }
 
 #[cfg(not(target_os = "macos"))]
-pub(super) fn init_scheme() {
+fn init_scheme() {
     logging_error!(Type::Setup, init::init_scheme());
 }
 
-pub(super) fn init_embed_server() {
+fn init_embed_server() {
     server::embed_server();
 }
 
-pub(super) async fn init_resources() {
+async fn init_resources() {
     logging_error!(Type::Setup, init::init_resources().await);
 }
 
-pub(super) async fn init_startup_script() {
+async fn init_startup_script() {
     logging_error!(Type::Setup, init::startup_script().await);
 }
 
-pub(super) async fn init_timer() {
+async fn init_timer() {
     logging_error!(Type::Setup, Timer::global().init().await);
 }
 
-pub(super) async fn init_hotkey() {
+async fn init_hotkey() {
     let skip_register_hotkeys = !Config::verge().await.latest_arc().enable_global_hotkey.unwrap_or(true);
     logging_error!(Type::Setup, Hotkey::global().init(skip_register_hotkeys).await);
 }
 
-pub(super) async fn init_auto_lightweight_boot() {
+async fn init_auto_lightweight_boot() {
     logging_error!(Type::Setup, auto_lightweight_boot().await);
 }
 
-pub(super) async fn init_auto_backup() {
+async fn init_auto_backup() {
     logging_error!(Type::Setup, AutoBackupManager::global().refresh_settings().await);
 }
 
-pub(super) async fn init_auto_launch_resync() {
+async fn init_auto_launch_resync() {
     let enabled = Config::verge().await.latest_arc().enable_auto_launch.unwrap_or(false);
     if enabled {
         logging_error!(Type::Setup, crate::core::autostart::update_launch().await);
     }
 }
 
-fn init_silent_updater() {
+fn init_background_modules() {
     use crate::core::SilentUpdater;
     use crate::core::handle::Handle;
 
@@ -235,35 +235,35 @@ pub async fn init_work_config() {
     logging_error!(Type::Setup, init::init_config().await);
 }
 
-pub(super) async fn init_tray() {
+async fn init_tray() {
     logging_error!(Type::Setup, Tray::global().init().await);
 }
 
-pub(super) async fn init_verge_config() {
+async fn init_verge_config() {
     logging_error!(Type::Setup, Config::init_runtime_config().await);
 }
 
-pub(super) async fn init_verge_config_before_window() -> bool {
+async fn init_verge_config_before_window() -> bool {
     let result = Config::init_config_before_window().await;
     let success = result.is_ok();
     logging_error!(Type::Setup, result);
     success
 }
 
-pub(super) async fn init_service_manager() {
+async fn init_service_manager() {
     clash_verge_service_ipc::set_config(Some(ServiceManager::config())).await;
     if is_service_ipc_path_exists() {
         logging_error!(Type::Setup, SERVICE_MANAGER.refresh().await);
     }
 }
 
-pub(super) async fn init_core_manager() {
+async fn init_core_manager() {
     logging_error!(Type::Setup, CoreManager::global().init().await);
 }
 
 /// Что поднято в этом сеансе. Решается до первого читателя — окна, трея,
 /// проверки службы и сборки конфига ядра.
-pub(super) async fn init_launch_connect_state() {
+async fn init_launch_connect_state() {
     let (sys, tun) = crate::feat::launch_connect_state().await;
 
     let current = {
@@ -318,30 +318,30 @@ async fn adopt_our_proxy_left_for_the_service_core() -> bool {
         .is_ok()
 }
 
-pub(super) async fn init_system_proxy() {
+async fn init_system_proxy() {
     CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
     init_connect_targets().await;
 }
 
-pub(super) async fn init_connect_targets() {
+async fn init_connect_targets() {
     let verge = Config::verge().await.latest_arc();
     let active = verge.enable_system_proxy.unwrap_or(false) || verge.enable_tun_mode.unwrap_or(false);
     crate::feat::record_connect_targets(active);
 }
 
-pub(super) async fn init_tun_ready() {
+async fn init_tun_ready() {
     crate::feat::tun::init_startup_setup().await;
 }
 
-pub(super) async fn init_system_proxy_guard() {
+async fn init_system_proxy_guard() {
     sysopt::Sysopt::global().refresh_guard().await;
 }
 
-pub(super) async fn refresh_tray_menu() {
+async fn refresh_tray_menu() {
     logging_error!(Type::Setup, Tray::global().update_part().await);
 }
 
-pub(super) async fn init_window() {
+async fn init_window() {
     let is_silent_start = Config::verge().await.data_arc().enable_silent_start.unwrap_or(false);
     if !is_silent_start {
         WindowManager::create_window().await;
@@ -349,7 +349,7 @@ pub(super) async fn init_window() {
 }
 
 #[cfg(target_os = "macos")]
-pub(super) async fn resolve_dock_show() {
+async fn resolve_dock_show() {
     let is_silent_start = Config::verge().await.data_arc().enable_silent_start.unwrap_or(false);
     if is_silent_start {
         Handle::global().set_activation_policy_accessory();

@@ -90,7 +90,7 @@ pub async fn read_image(response: reqwest::Response, cap: usize) -> anyhow::Resu
     Ok((bytes, extension))
 }
 
-pub fn image_extension(bytes: &[u8]) -> Option<&'static str> {
+fn image_extension(bytes: &[u8]) -> Option<&'static str> {
     const SIGNATURES: [(&[u8], &str); 6] = [
         (b"\x89PNG\r\n\x1a\n", "png"),
         (b"\xFF\xD8\xFF", "jpg"),
@@ -128,7 +128,7 @@ fn looks_like_svg(content: &[u8]) -> bool {
         || ((prefix.starts_with("<?xml") || prefix.starts_with("<!doctype svg")) && prefix.contains("<svg"))
 }
 
-pub fn is_public_https(url: &reqwest::Url) -> bool {
+fn is_public_https(url: &reqwest::Url) -> bool {
     if url.scheme() != "https" {
         return false;
     }

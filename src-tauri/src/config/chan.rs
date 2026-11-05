@@ -32,7 +32,7 @@ use x25519_dalek::{PublicKey, StaticSecret};
 /// текст на языке интерфейса. Русская фраза из бэкенда попала бы в окно как
 /// есть, мимо всех тринадцати переводов.
 pub const VERSION: u8 = 1;
-const SALT: &[u8] = b"clod-chan-v1";
+const SALT: &str = "clod-chan-v1";
 /// Допустимый разбег часов, секунд. Симметричный: врут обе стороны.
 pub const SKEW: i64 = 300;
 /// Значение заголовка не в UTF-8 прослойка присылает в base64 с этим префиксом.
@@ -151,11 +151,7 @@ fn hkdf32(ikm: &[u8], salt: &str, info: &[u8]) -> Result<[u8; 32]> {
 
 /// Ключ подписки, выведенный из её адреса.
 pub fn psk(token: &str) -> Result<[u8; 32]> {
-    let mut out = [0u8; 32];
-    Hkdf::<Sha256>::new(Some(SALT), token.as_bytes())
-        .expand(b"psk", &mut out)
-        .map_err(|_| anyhow!("clod-chan-kdf"))?;
-    Ok(out)
+    hkdf32(token.as_bytes(), SALT, b"psk")
 }
 
 #[must_use]

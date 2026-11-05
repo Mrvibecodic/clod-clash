@@ -123,11 +123,6 @@ fn spelled_out(span: Duration) -> std::string::String {
     format!("{}h {}m", seconds / 3600, (seconds % 3600) / 60)
 }
 
-fn looks_like_the_core_default_tunnel(name: &str) -> bool {
-    name.strip_prefix(CORE_TUNNEL_BASE)
-        .is_some_and(|index| index.chars().all(|c| c.is_ascii_digit()))
-}
-
 fn digits_after<'a>(name: &'a str, base: &str) -> Option<&'a str> {
     name.strip_prefix(base)
         .filter(|digits| !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()))
@@ -219,7 +214,10 @@ fn is_a_local_sandbox_adapter(name: &str) -> bool {
 
 fn is_our_tunnel(name: &str) -> bool {
     let name = name.to_lowercase();
-    name.contains("mihomo") || name.starts_with("utun") || looks_like_the_core_default_tunnel(&name)
+    name.contains("mihomo")
+        || name.starts_with("utun")
+        || name == CORE_TUNNEL_BASE
+        || named_with_an_index(&name, CORE_TUNNEL_BASE)
 }
 
 const fn v4_carries_traffic(ip: Ipv4Addr) -> bool {
@@ -847,9 +845,9 @@ pub fn ensure_environment_watchdog() {
 mod tests {
     use super::{
         CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, ask_for_each_rule_set, changes_from, fingerprint_of,
-        interface_of, is_a_local_sandbox_adapter, is_our_tunnel, listed, looks_like_the_core_default_tunnel,
-        names_its_own_sandbox, path_was_lost, sleep_gap, slept_through, spelled_out, v4_carries_traffic,
-        v6_carries_traffic, v6_is_transition_tunnel, worth_spelling_out,
+        interface_of, is_a_local_sandbox_adapter, is_our_tunnel, listed, names_its_own_sandbox, path_was_lost,
+        sleep_gap, slept_through, spelled_out, v4_carries_traffic, v6_carries_traffic, v6_is_transition_tunnel,
+        worth_spelling_out,
     };
     use crate::constants::timing;
     use std::{
@@ -875,13 +873,13 @@ mod tests {
 
     #[test]
     fn the_core_default_tunnel_is_the_base_name_with_an_index() {
-        assert!(looks_like_the_core_default_tunnel(CORE_TUNNEL_BASE));
-        assert!(looks_like_the_core_default_tunnel(&format!("{CORE_TUNNEL_BASE}0")));
-        assert!(looks_like_the_core_default_tunnel(&format!("{CORE_TUNNEL_BASE}12")));
-        assert!(!looks_like_the_core_default_tunnel(&format!("{CORE_TUNNEL_BASE}-work")));
-        assert!(!looks_like_the_core_default_tunnel("tun0"));
-        assert!(!looks_like_the_core_default_tunnel("wg0"));
-        assert!(!looks_like_the_core_default_tunnel("eth0"));
+        assert!(is_our_tunnel(CORE_TUNNEL_BASE));
+        assert!(is_our_tunnel(&format!("{CORE_TUNNEL_BASE}0")));
+        assert!(is_our_tunnel(&format!("{CORE_TUNNEL_BASE}12")));
+        assert!(!is_our_tunnel(&format!("{CORE_TUNNEL_BASE}-work")));
+        assert!(!is_our_tunnel("tun0"));
+        assert!(!is_our_tunnel("wg0"));
+        assert!(!is_our_tunnel("eth0"));
     }
 
     #[test]

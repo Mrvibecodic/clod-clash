@@ -10,7 +10,6 @@ use tokio::time::Instant;
 /// Ёмкость ограниченной очереди потока Mihomo WebSocket, предотвращает
 /// неограниченный рост памяти в нештатных ситуациях.
 const MIHOMO_WS_STREAM_BUFFER_SIZE: usize = 8;
-const MIHOMO_WS_STREAM_FORCE_CLOSE_WAIT_MS: u64 = 0;
 const MIHOMO_WS_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Сколько раз закрывались потоки окна, а с ними и здешние.
@@ -38,16 +37,12 @@ pub enum StreamConsumeState<T> {
     ExitRequested,
 }
 
-enum InternalWsEvent<T> {
-    Data(T),
-}
-
 /// Дескриптор подписки Mihomo WebSocket (общий поток событий).
 pub struct MihomoWsEventStream<T> {
     /// ID текущего подключения подписки, для принудительного отключения.
     pub connection_id: WsConnectionId,
     /// Приёмник сообщений текущей подписки.
-    receiver: mpsc::Receiver<InternalWsEvent<T>>,
+    receiver: mpsc::Receiver<T>,
     /// Метка времени последнего валидного события.
     last_valid_event_at: Instant,
     /// `PAGE_STREAMS_CLOSED` в момент подключения.
@@ -60,15 +55,15 @@ struct TrafficPayload {
     down: u64,
 }
 
-fn parse_traffic_event(data: &[u8]) -> Option<InternalWsEvent<TrafficSpeedEvent>> {
+fn parse_traffic_event(data: &[u8]) -> Option<TrafficSpeedEvent> {
     let payload = serde_json::from_slice::<TrafficPayload>(data).ok()?;
-    Some(InternalWsEvent::Data(TrafficSpeedEvent {
+    Some(TrafficSpeedEvent {
         up: payload.up,
         down: payload.down,
-    }))
+    })
 }
 
-fn try_send_internal_event<T>(message_tx: &mpsc::Sender<InternalWsEvent<T>>, event: InternalWsEvent<T>) {
+fn try_send_internal_event<T>(message_tx: &mpsc::Sender<T>, event: T) {
     if let Err(err) = message_tx.try_send(event) {
         match err {
             // Очередь заполнена, событие отбрасывается, следующее событие всё равно перезапишет данные.
@@ -82,7 +77,7 @@ fn try_send_internal_event<T>(message_tx: &mpsc::Sender<InternalWsEvent<T>>, eve
 /// Установить подписку WebSocket `/traffic` (общий поток).
 pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeedEvent>> {
     // Используем ограниченный mpsc-канал для приёма событий из колбэка, ограничивая накопление сообщений.
-    let (message_tx, message_rx) = mpsc::channel::<InternalWsEvent<TrafficSpeedEvent>>(MIHOMO_WS_STREAM_BUFFER_SIZE);
+    let (message_tx, message_rx) = mpsc::channel::<TrafficSpeedEvent>(MIHOMO_WS_STREAM_BUFFER_SIZE);
     let page_streams_closed_at_connect = PAGE_STREAMS_CLOSED.load(Ordering::Acquire);
     // Устанавливаем подписку WebSocket `/traffic` Mihomo.
     let core = crate::core::handle::Handle::mihomo();
@@ -143,7 +138,7 @@ impl<T> MihomoWsEventStream<T> {
             tokio::select! {
                 maybe_event = self.receiver.recv() => {
                     match maybe_event {
-                        Some(InternalWsEvent::Data(event)) => {
+                        Some(event) => {
                             self.last_valid_event_at = Instant::now();
                             sleep.as_mut().reset(self.last_valid_event_at + stale_timeout);
                             return StreamConsumeState::Event(event);
@@ -176,10 +171,7 @@ impl<T> MihomoWsEventStream<T> {
 /// * `connection_id` - ID целевого соединения
 pub async fn disconnect_connection(connection_id: WsConnectionId) {
     let core = crate::core::handle::Handle::mihomo();
-    if let Err(err) = core
-        .disconnect(connection_id, Some(MIHOMO_WS_STREAM_FORCE_CLOSE_WAIT_MS))
-        .await
-    {
+    if let Err(err) = core.disconnect(connection_id, Some(0)).await {
         logging!(
             debug,
             Type::Tray,
@@ -190,14 +182,14 @@ pub async fn disconnect_connection(connection_id: WsConnectionId) {
 
 #[cfg(test)]
 mod tests {
-    use super::{InternalWsEvent, MihomoWsEventStream, PAGE_STREAMS_CLOSED, StreamConsumeState, WsConnectionId};
+    use super::{MihomoWsEventStream, PAGE_STREAMS_CLOSED, StreamConsumeState, WsConnectionId};
     use std::sync::atomic::Ordering;
     use std::time::Duration;
     use tokio::sync::mpsc;
     use tokio::time::Instant;
 
     fn a_closed_stream() -> MihomoWsEventStream<u8> {
-        let (sender, receiver) = mpsc::channel::<InternalWsEvent<u8>>(1);
+        let (sender, receiver) = mpsc::channel::<u8>(1);
         drop(sender);
         MihomoWsEventStream {
             connection_id: WsConnectionId::default(),

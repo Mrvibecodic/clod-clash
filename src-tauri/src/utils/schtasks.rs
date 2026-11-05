@@ -19,7 +19,7 @@ const TASK_XML_USER: &str = "clash-verge-task-user.xml";
 const TASK_XML_ADMIN: &str = "clash-verge-task-admin.xml";
 
 #[derive(Clone, Copy)]
-pub enum TaskMode {
+enum TaskMode {
     User,
     Admin,
 }
@@ -308,7 +308,7 @@ fn schtasks_output(mut cmd: Command) -> Result<Output> {
         .map_err(|e| anyhow!("failed to execute schtasks: {}", e))
 }
 
-pub fn is_task_enabled(mode: TaskMode) -> Result<bool> {
+fn is_task_enabled(mode: TaskMode) -> Result<bool> {
     let output = schtasks_output({
         let mut cmd = Command::new("schtasks");
         cmd.args(["/Query", "/TN", mode.name()]);
@@ -318,7 +318,7 @@ pub fn is_task_enabled(mode: TaskMode) -> Result<bool> {
     Ok(output.status.success())
 }
 
-pub fn create_task(mode: TaskMode) -> Result<()> {
+fn create_task(mode: TaskMode) -> Result<()> {
     let task_xml_path = write_task_xml(mode)?;
     let output = schtasks_output({
         let mut cmd = Command::new("schtasks");
@@ -335,12 +335,13 @@ pub fn create_task(mode: TaskMode) -> Result<()> {
             output_message(&output)
         ));
     }
+    let _ = fs::remove_file(&task_xml_path);
 
     logging!(info, Type::Setup, "Created {} auto-launch task", mode.label());
     Ok(())
 }
 
-pub fn remove_task(mode: TaskMode) -> Result<()> {
+fn remove_task(mode: TaskMode) -> Result<()> {
     let output = schtasks_output({
         let mut cmd = Command::new("schtasks");
         cmd.args(["/Delete", "/TN", mode.name(), "/F"]);

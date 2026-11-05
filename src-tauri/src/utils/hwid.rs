@@ -318,7 +318,7 @@ pub async fn hwid() -> Option<String> {
 }
 
 /// Remnawave >= 2.9 server side validation.
-pub fn is_valid_hwid(value: &str) -> bool {
+fn is_valid_hwid(value: &str) -> bool {
     let len = value.chars().count();
     (10..=64).contains(&len) && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '=' || c == '-')
 }

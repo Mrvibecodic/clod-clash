@@ -1,9 +1,4 @@
-pub fn build_window_initial_script(initial_theme_mode: &str, dark_background: &str, light_background: &str) -> String {
-    let theme_mode = match initial_theme_mode {
-        "dark" => "dark",
-        "light" => "light",
-        _ => "system",
-    };
+pub fn build_window_initial_script(theme_mode: &str, dark_background: &str, light_background: &str) -> String {
     format!(
         r#"
     window.__VERGE_INITIAL_THEME_MODE = "{theme_mode}";
@@ -23,20 +18,7 @@ pub fn build_window_initial_script(initial_theme_mode: &str, dark_background: &s
 pub const WINDOW_INITIAL_SCRIPT: &str = r##"
     console.log('[Tauri] запуск скрипта инициализации окна');
 
-    const initialColors = (() => {
-        try {
-            const colors = window.__VERGE_INITIAL_THEME_COLORS;
-            if (colors && typeof colors === "object") {
-                const { darkBg, lightBg } = colors;
-                if (typeof darkBg === "string" && typeof lightBg === "string") {
-                    return { darkBg, lightBg };
-                }
-            }
-        } catch (error) {
-            console.warn("[Tauri] не удалось прочитать начальные цвета темы:", error);
-        }
-        return { darkBg: "#2E303D", lightBg: "#F5F5F5" };
-    })();
+    const initialColors = window.__VERGE_INITIAL_THEME_COLORS;
 
     const prefersDark = (() => {
         try {
@@ -47,9 +29,7 @@ pub const WINDOW_INITIAL_SCRIPT: &str = r##"
         }
     })();
 
-    const initialThemeMode = typeof window.__VERGE_INITIAL_THEME_MODE === "string"
-        ? window.__VERGE_INITIAL_THEME_MODE
-        : "system";
+    const initialThemeMode = window.__VERGE_INITIAL_THEME_MODE;
 
     let initialTheme = prefersDark ? "dark" : "light";
     if (initialThemeMode === "dark") {
