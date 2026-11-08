@@ -11,7 +11,7 @@ use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging};
 use compact_str::CompactString;
 use flexi_logger::{
-    Cleanup, Criterion, DeferredNow, FileSpec, FormatFunction, LogSpecBuilder, LogSpecification, LoggerHandle,
+    Age, Cleanup, Criterion, DeferredNow, FileSpec, FormatFunction, LogSpecBuilder, LogSpecification, LoggerHandle,
     writers::{FileLogWriter, FileLogWriterBuilder, LogWriter as _},
 };
 use log::{Level, LevelFilter, Record};
@@ -136,9 +136,18 @@ fn redacted_file_writer(file_spec: FileSpec, format: FileFormat, log_max_size: u
     )
 }
 
+/// Журнал ядра без службы: строки о соединениях и DNS — в свой файл, который
+/// меняется раз в час, и на диске их последние час-два; остальное — целиком.
+struct SidecarWriters {
+    main: FileLogWriter,
+    connections: FileLogWriter,
+}
+
+const SIDECAR_CONNECTIONS_CAP: u64 = 32 * 1024 * 1024;
+
 pub struct Logger {
     handle: Arc<Mutex<Option<LoggerHandle>>>,
-    sidecar_file_writer: Arc<RwLock<Option<FileLogWriter>>>,
+    sidecar_file_writer: Arc<RwLock<Option<SidecarWriters>>>,
     log_max_size: AtomicU64,
 }
 
@@ -222,9 +231,10 @@ impl Logger {
                 .unwrap_or_else(|| "Unknown location".to_string());
             logging!(error, Type::System, "Panic occurred at {}: {}", location, payload);
             if let Some(guard) = Self::global().sidecar_file_writer.try_read()
-                && let Some(writer) = guard.as_ref()
+                && let Some(writers) = guard.as_ref()
             {
-                let _ = writer.flush();
+                let _ = writers.main.flush();
+                let _ = writers.connections.flush();
             }
             if let Some(h) = Self::global().handle.lock().as_ref() {
                 h.flush();
@@ -277,8 +287,12 @@ impl Logger {
         Ok(())
     }
 
+    /// Новые писатели начинают новые файлы (и файл соединений теряет старший
+    /// из двух) — пересоздаются только при другом размере.
     pub fn update_log_config(&self, log_max_size: u64) -> Result<()> {
-        self.log_max_size.store(log_max_size, Ordering::SeqCst);
+        if self.log_max_size.swap(log_max_size, Ordering::SeqCst) == log_max_size {
+            return Ok(());
+        }
         if let Some(handle) = self.handle.lock().as_ref() {
             let log_file_writer = self.generate_file_log_writer()?;
             handle.reset_flw(&log_file_writer)?;
@@ -290,22 +304,44 @@ impl Logger {
         Ok(())
     }
 
-    fn generate_sidecar_writer(&self) -> Result<FileLogWriter> {
+    fn generate_sidecar_writer(&self) -> Result<SidecarWriters> {
         let sidecar_log_dir = sidecar_log_dir()?;
         let log_max_size = self.log_max_size.load(Ordering::SeqCst);
-        Ok(redacted_file_writer(
+        let main = redacted_file_writer(
             FileSpec::default()
-                .directory(sidecar_log_dir)
+                .directory(&sidecar_log_dir)
                 .basename("sidecar")
                 .suppress_timestamp(),
             FileFormat::WithoutLevel,
             log_max_size,
         )
-        .try_build()?)
+        .try_build()?;
+        let connections = FileLogWriter::builder(
+            FileSpec::default()
+                .directory(sidecar_log_dir)
+                .basename("connections")
+                .suppress_timestamp(),
+        )
+        .format(FileFormat::WithoutLevel.redacted())
+        .rotate(
+            Criterion::AgeOrSize(Age::Hour, SIDECAR_CONNECTIONS_CAP),
+            flexi_logger::Naming::TimestampsCustomFormat {
+                current_infix: Some("latest"),
+                format: "%Y-%m-%d_%H-%M-%S",
+            },
+            Cleanup::KeepLogFiles(1),
+        )
+        .try_build()?;
+        Ok(SidecarWriters { main, connections })
     }
 
     pub fn writer_sidecar_log(&self, level: Level, message: &CompactString) {
-        if let Some(writer) = self.sidecar_file_writer.read().as_ref() {
+        if let Some(writers) = self.sidecar_file_writer.read().as_ref() {
+            let writer = if crate::module::support_bundle::is_connection_line(message) {
+                &writers.connections
+            } else {
+                &writers.main
+            };
             let mut now = DeferredNow::default();
             let args = format_args!("{}", message);
             let record = Record::builder().args(args).level(level).target("sidecar").build();
@@ -377,6 +413,17 @@ mod tests {
         assert!(!written.is_empty(), "the writer produced no file");
         assert!(!written.contains(SECRET), "{written}");
         assert!(written.contains("panel.example.com"), "{written}");
+    }
+
+    /// Logger — синглтон без инициализированного handle: при том же размере
+    /// возврат идёт до обращения к нему, при другом — доходит до ошибки handle.
+    #[test]
+    fn the_same_log_size_does_not_rebuild_the_writers() {
+        let logger = Logger::default();
+        let size = logger.log_max_size.load(std::sync::atomic::Ordering::SeqCst);
+        assert!(logger.update_log_config(size).is_ok());
+        assert!(logger.update_log_config(size + 1).is_err());
+        assert_eq!(logger.log_max_size.load(std::sync::atomic::Ordering::SeqCst), size + 1);
     }
 
     #[test]
