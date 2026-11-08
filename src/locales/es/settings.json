@@ -444,7 +444,7 @@
       "fields": {
         "appLogLevel": "Nivel de registro de la aplicación",
         "appLogMaxSize": "App Log Max Size",
-        "appLogMaxCount": "App Log Max Count",
+        "appLogMaxCount": "Log files kept from past runs",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Cerrar conexiones automáticamente",
         "autoCloseConnectionsHome": "Cerrar conexiones al cambiar de servidor en Inicio",

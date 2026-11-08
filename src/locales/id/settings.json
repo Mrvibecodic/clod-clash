@@ -444,7 +444,7 @@
       "fields": {
         "appLogLevel": "Tingkat Log Aplikasi",
         "appLogMaxSize": "App Log Max Size",
-        "appLogMaxCount": "App Log Max Count",
+        "appLogMaxCount": "Log files kept from past runs",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Tutup Koneksi Otomatis",
         "autoCloseConnectionsHome": "Tutup koneksi saat mengganti server di Beranda",

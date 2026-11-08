@@ -10,7 +10,7 @@ use backon::{ConstantBuilder, Retryable as _};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::{
     IPC_AUTH_EXPECT, IpcCommand, MIN_REQUIRED_SERVICE_REVISION, OwnerSessionProof, ProtocolInfo, ProtocolVersion,
-    ServiceErrorCode, ServiceStatusSnapshot, StageRuntimeOutcome, StartClashRequest, WriterConfig,
+    ServiceErrorCode, ServiceStatusSnapshot, StageRuntimeOutcome, StartClashRequest,
 };
 use compact_str::CompactString;
 use parking_lot::Mutex;
@@ -60,10 +60,6 @@ pub(crate) fn active_service_supports_runtime_staging() -> bool {
 
 pub(crate) fn clear_active_service_session() {
     ACTIVE_SERVICE_SESSION.lock().take();
-}
-
-pub(crate) fn has_active_service_session() -> bool {
-    ACTIVE_SERVICE_SESSION.lock().is_some()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1248,18 +1244,6 @@ pub(super) async fn stop_core_by_service() -> Result<()> {
 
     clear_active_service_session();
     logging!(info, Type::Service, "Служба успешно остановила ядро");
-    Ok(())
-}
-
-pub(crate) async fn update_writer_by_service(writer: &WriterConfig) -> Result<()> {
-    let credentials = current_owner_credentials()?;
-    let session = active_service_session()?;
-    let response = clash_verge_service_ipc::update_writer(&credentials, &session, writer)
-        .await
-        .context(clash_verge_i18n::t!("service.connectFailed"))?;
-    if response.code > 0 {
-        bail!(response.message);
-    }
     Ok(())
 }
 

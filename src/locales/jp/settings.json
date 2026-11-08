@@ -444,7 +444,7 @@
       "fields": {
         "appLogLevel": "アプリケーションログレベル",
         "appLogMaxSize": "App Log Max Size",
-        "appLogMaxCount": "App Log Max Count",
+        "appLogMaxCount": "Log files kept from past runs",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "接続を自動的に閉じる",
         "autoCloseConnectionsHome": "ホームでサーバーを切り替えたときに接続を閉じる",

@@ -444,7 +444,7 @@
       "fields": {
         "appLogLevel": "مستوى سجلات التطبيق",
         "appLogMaxSize": "App Log Max Size",
-        "appLogMaxCount": "App Log Max Count",
+        "appLogMaxCount": "Log files kept from past runs",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "إغلاق الاتصالات تلقائيًا",
         "autoCloseConnectionsHome": "إغلاق الاتصالات عند تغيير الخادم من الصفحة الرئيسية",

@@ -444,7 +444,7 @@
       "fields": {
         "appLogLevel": "应用日志等级",
         "appLogMaxSize": "应用日志最大大小",
-        "appLogMaxCount": "应用日志最大数量",
+        "appLogMaxCount": "Log files kept from past runs",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "自动关闭连接",
         "autoCloseConnectionsHome": "在主页切换服务器时关闭连接",

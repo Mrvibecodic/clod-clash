@@ -444,7 +444,7 @@
       "fields": {
         "appLogLevel": "سطح لاگ برنامه",
         "appLogMaxSize": "App Log Max Size",
-        "appLogMaxCount": "App Log Max Count",
+        "appLogMaxCount": "Log files kept from past runs",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "بستن خودکار اتصالات",
         "autoCloseConnectionsHome": "بستن اتصالات هنگام تغییر سرور در صفحه اصلی",

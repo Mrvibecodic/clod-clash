@@ -444,7 +444,7 @@
       "fields": {
         "appLogLevel": "앱 로그 레벨",
         "appLogMaxSize": "앱 로그 최대 크기",
-        "appLogMaxCount": "앱 로그 최대 개수",
+        "appLogMaxCount": "Log files kept from past runs",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "연결 자동 종료",
         "autoCloseConnectionsHome": "홈에서 서버 변경 시 연결 종료",

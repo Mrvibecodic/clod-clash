@@ -444,7 +444,7 @@
       "fields": {
         "appLogLevel": "應用程式日誌等級",
         "appLogMaxSize": "應用程式日誌最大大小",
-        "appLogMaxCount": "應用程式日誌最大數量",
+        "appLogMaxCount": "Log files kept from past runs",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "自動關閉連線",
         "autoCloseConnectionsHome": "在主頁切換伺服器時關閉連線",

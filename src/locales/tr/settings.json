@@ -444,7 +444,7 @@
       "fields": {
         "appLogLevel": "Uygulama Günlük Seviyesi",
         "appLogMaxSize": "App Log Max Size",
-        "appLogMaxCount": "App Log Max Count",
+        "appLogMaxCount": "Log files kept from past runs",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Bağlantıları Otomatik Kapat",
         "autoCloseConnectionsHome": "Ana sayfada sunucu değişince bağlantıları kapat",

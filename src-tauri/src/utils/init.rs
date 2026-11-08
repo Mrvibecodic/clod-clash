@@ -54,6 +54,43 @@ fn is_cleaned_by_age(file_name: &str) -> bool {
     file_name.ends_with(".log") && file_name != "latest.log"
 }
 
+/// Сверх `keep` самых новых — прошлые файлы журнала: текущий файл и всё, что
+/// записано за этот сеанс, не трогаем, сколько бы их ни набралось.
+fn old_log_files_over(mut files: Vec<(String, SystemTime)>, keep: usize, session_started: SystemTime) -> Vec<String> {
+    files.retain(|(name, modified)| name.ends_with(".log") && !name.contains("latest") && *modified < session_started);
+    files.sort_by_key(|(_, modified)| std::cmp::Reverse(*modified));
+    files.into_iter().skip(keep).map(|(name, _)| name).collect()
+}
+
+async fn delete_old_log_files() -> Result<()> {
+    let keep = Config::verge()
+        .await
+        .data_arc()
+        .app_log_max_count
+        .unwrap_or(IVerge::DEFAULT_APP_LOG_MAX_COUNT);
+    let session_started = crate::core::logger::session_started();
+    for dir in [dirs::app_logs_dir()?, dirs::sidecar_log_dir()?] {
+        let Ok(mut entries) = fs::read_dir(&dir).await else {
+            continue;
+        };
+        let mut files = Vec::new();
+        while let Some(entry) = entries.next_entry().await? {
+            let Ok(meta) = entry.metadata().await else {
+                continue;
+            };
+            if meta.is_file()
+                && let (Some(name), Ok(modified)) = (entry.file_name().to_str(), meta.modified())
+            {
+                files.push((name.to_owned(), modified));
+            }
+        }
+        for name in old_log_files_over(files, keep, session_started) {
+            let _ = dir.join(&name).remove_if_exists().await;
+        }
+    }
+    Ok(())
+}
+
 pub async fn delete_log() -> Result<()> {
     let log_dir = dirs::app_logs_dir()?;
     let service_log_dir = dirs::service_log_dir()?;
@@ -695,6 +732,9 @@ pub async fn init_config() -> Result<()> {
         if let Err(e) = delete_log().await {
             logging!(warn, Type::Setup, "Failed to clean old logs: {}", e);
         }
+        if let Err(e) = delete_old_log_files().await {
+            logging!(warn, Type::Setup, "Failed to clean old logs: {}", e);
+        }
         logging!(info, Type::Setup, "Фоновая задача очистки логов завершена");
     });
 
@@ -957,7 +997,7 @@ mod tests {
     use super::{
         BundledAssetAction, DNS_CONFIG_HEADER, SECONDS_IN_A_DAY, bundled_asset_action, dns_config_problem,
         drop_legacy_dns_keys, drop_webdav_keys, has_untouched_legacy_fallback, has_user_comments, is_cleaned_by_age,
-        legacy_fallback_filter, move_to_the_default_core, older_than_days,
+        legacy_fallback_filter, move_to_the_default_core, old_log_files_over, older_than_days,
     };
     use serde_yaml_ng::{Mapping, Value};
     use std::time::{Duration, SystemTime};
@@ -1066,6 +1106,29 @@ mod tests {
     fn a_file_dated_in_the_future_is_kept() {
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(SECONDS_IN_A_DAY * 1000);
         assert!(!older_than_days(now + Duration::from_secs(SECONDS_IN_A_DAY), now, 1));
+    }
+
+    #[test]
+    fn the_running_session_keeps_every_log_file() {
+        let started = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1000);
+        let at = |secs| std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs);
+        let files = vec![
+            ("latest.log".to_owned(), at(1500)),
+            ("2026-11-08_10-00-00.log".to_owned(), at(1200)),
+            ("2026-11-08_09-00-00.log".to_owned(), at(1100)),
+            ("2026-11-07_09-00-00.log".to_owned(), at(900)),
+            ("2026-11-06_09-00-00.log".to_owned(), at(800)),
+            ("2026-11-05_09-00-00.log".to_owned(), at(700)),
+            ("sidecar_latest.log".to_owned(), at(10)),
+            ("notes.txt".to_owned(), at(10)),
+        ];
+        assert_eq!(
+            old_log_files_over(files, 1, started),
+            vec![
+                "2026-11-06_09-00-00.log".to_owned(),
+                "2026-11-05_09-00-00.log".to_owned()
+            ]
+        );
     }
 
     #[test]

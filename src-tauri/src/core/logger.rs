@@ -1,14 +1,14 @@
 use std::{
     str::FromStr as _,
     sync::{
-        Arc,
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc, LazyLock,
+        atomic::{AtomicU64, Ordering},
     },
+    time::SystemTime,
 };
 
 use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging};
-use clash_verge_service_ipc::WriterConfig;
 use compact_str::CompactString;
 use flexi_logger::{
     Cleanup, Criterion, DeferredNow, FileSpec, FormatFunction, LogSpecBuilder, LogSpecification, LoggerHandle,
@@ -18,7 +18,6 @@ use log::{Level, LevelFilter, Record};
 use parking_lot::{Mutex, RwLock};
 
 use crate::{
-    core::service,
     singleton,
     utils::{
         dirs::{self, sidecar_log_dir},
@@ -111,19 +110,22 @@ impl FileFormat {
     }
 }
 
-fn redacted_file_writer(
-    file_spec: FileSpec,
-    format: FileFormat,
-    log_max_size: u64,
-    log_max_count: usize,
-) -> FileLogWriterBuilder {
+static SESSION_STARTED: LazyLock<SystemTime> = LazyLock::new(SystemTime::now);
+
+/// Запуск программы: журналы с этого момента — один сеанс, его файлы не
+/// удаляются, пока он идёт, и целиком уходят в выгрузку для поддержки.
+pub fn session_started() -> SystemTime {
+    *SESSION_STARTED
+}
+
+fn redacted_file_writer(file_spec: FileSpec, format: FileFormat, log_max_size: u64) -> FileLogWriterBuilder {
     FileLogWriter::builder(file_spec).format(format.redacted()).rotate(
         Criterion::Size(log_max_size * 1024),
         flexi_logger::Naming::TimestampsCustomFormat {
             current_infix: Some("latest"),
             format: "%Y-%m-%d_%H-%M-%S",
         },
-        Cleanup::KeepLogFiles(log_max_count),
+        Cleanup::Never,
     )
 }
 
@@ -131,7 +133,6 @@ pub struct Logger {
     handle: Arc<Mutex<Option<LoggerHandle>>>,
     sidecar_file_writer: Arc<RwLock<Option<FileLogWriter>>>,
     log_max_size: AtomicU64,
-    log_max_count: AtomicUsize,
 }
 
 impl Default for Logger {
@@ -140,7 +141,6 @@ impl Default for Logger {
             handle: Arc::new(Mutex::new(None)),
             sidecar_file_writer: Arc::new(RwLock::new(None)),
             log_max_size: AtomicU64::new(crate::config::IVerge::DEFAULT_APP_LOG_MAX_SIZE),
-            log_max_count: AtomicUsize::new(crate::config::IVerge::DEFAULT_APP_LOG_MAX_COUNT),
         }
     }
 }
@@ -153,7 +153,8 @@ impl Logger {
     }
 
     pub async fn init(&self) -> Result<()> {
-        let (log_level, log_max_size, log_max_count) = {
+        let _ = session_started();
+        let (log_level, log_max_size) = {
             let verge_guard = crate::config::Config::verge().await;
             let verge = verge_guard.latest_arc();
             (
@@ -161,13 +162,9 @@ impl Logger {
                 verge
                     .app_log_max_size
                     .unwrap_or(crate::config::IVerge::DEFAULT_APP_LOG_MAX_SIZE),
-                verge
-                    .app_log_max_count
-                    .unwrap_or(crate::config::IVerge::DEFAULT_APP_LOG_MAX_COUNT),
             )
         };
         self.log_max_size.store(log_max_size, Ordering::SeqCst);
-        self.log_max_count.store(log_max_count, Ordering::SeqCst);
 
         #[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
         {
@@ -185,7 +182,7 @@ impl Logger {
                         current_infix: Some("latest"),
                         format: "%Y-%m-%d_%H-%M-%S",
                     },
-                    Cleanup::KeepLogFiles(log_max_count),
+                    Cleanup::Never,
                 );
 
             let mut filter_modules = vec!["wry", "tokio_tungstenite", "tungstenite"];
@@ -254,12 +251,10 @@ impl Logger {
     fn generate_file_log_writer(&self) -> Result<FileLogWriterBuilder> {
         let log_dir = dirs::app_logs_dir()?;
         let log_max_size = self.log_max_size.load(Ordering::SeqCst);
-        let log_max_count = self.log_max_count.load(Ordering::SeqCst);
         Ok(redacted_file_writer(
             FileSpec::default().directory(log_dir).basename(""),
             FileFormat::WithLevel,
             log_max_size,
-            log_max_count,
         ))
     }
 
@@ -275,9 +270,8 @@ impl Logger {
         Ok(())
     }
 
-    pub async fn update_log_config(&self, log_max_size: u64, log_max_count: usize) -> Result<()> {
+    pub fn update_log_config(&self, log_max_size: u64) -> Result<()> {
         self.log_max_size.store(log_max_size, Ordering::SeqCst);
-        self.log_max_count.store(log_max_count, Ordering::SeqCst);
         if let Some(handle) = self.handle.lock().as_ref() {
             let log_file_writer = self.generate_file_log_writer()?;
             handle.reset_flw(&log_file_writer)?;
@@ -286,25 +280,12 @@ impl Logger {
         };
         let sidecar_writer = self.generate_sidecar_writer()?;
         *self.sidecar_file_writer.write() = Some(sidecar_writer);
-
-        if service::has_active_service_session()
-            && let Err(error) = service::update_writer_by_service(&WriterConfig {
-                directory: String::new(),
-                max_log_size: log_max_size * 1024,
-                max_log_files: log_max_count,
-            })
-            .await
-        {
-            logging!(warn, Type::Service, "failed to update service writer config: {error:#}");
-        }
-
         Ok(())
     }
 
     fn generate_sidecar_writer(&self) -> Result<FileLogWriter> {
         let sidecar_log_dir = sidecar_log_dir()?;
         let log_max_size = self.log_max_size.load(Ordering::SeqCst);
-        let log_max_count = self.log_max_count.load(Ordering::SeqCst);
         Ok(redacted_file_writer(
             FileSpec::default()
                 .directory(sidecar_log_dir)
@@ -312,7 +293,6 @@ impl Logger {
                 .suppress_timestamp(),
             FileFormat::WithoutLevel,
             log_max_size,
-            log_max_count,
         )
         .try_build()?)
     }
@@ -370,7 +350,6 @@ mod tests {
                 .suppress_timestamp(),
             FileFormat::WithLevel,
             128,
-            8,
         )
         .try_build()
         .expect("cannot build the file log writer");

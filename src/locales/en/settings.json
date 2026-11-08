@@ -444,7 +444,7 @@
       "fields": {
         "appLogLevel": "App Log Level",
         "appLogMaxSize": "App Log Max Size",
-        "appLogMaxCount": "App Log Max Count",
+        "appLogMaxCount": "Log files kept from past runs",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Auto Close Connections",
         "autoCloseConnectionsHome": "Close connections on Home server switch",
