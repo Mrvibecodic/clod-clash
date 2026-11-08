@@ -680,7 +680,6 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
   const { current: currentProfile } = useProfiles()
-  const descriptions = useServerDescriptions()
   const freezeMarks = useFreezeMarks()
   const visible = useVisibility()
   // clod: сама Главная пингует, только пока окно на экране И подключение
@@ -899,17 +898,12 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const statusColor =
     severity === 'info' ? 'text.secondary' : `${severity}.main`
 
-  const description =
-    (leaf ? descriptions[leaf] : undefined) ??
-    (current ? descriptions[current] : undefined)
   const names = current
     ? serverRowNames(current, behind, leaf, t('shared.labels.direct'))
     : undefined
-  const subject =
-    description ??
-    (names?.via
-      ? t('home.components.serverSelect.via', { group: names.via })
-      : names?.leaf)
+  const subject = names?.via
+    ? t('home.components.serverSelect.via', { group: names.via })
+    : names?.leaf
   // clod:freeze — значок того узла, через который сейчас идёт трафик.
   const frozen =
     (!!leaf && freezeMarks.has(leaf)) || (!!current && freezeMarks.has(current))
@@ -981,7 +975,6 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
           noWrap
           sx={{ fontSize: 12, display: 'block' }}
           color={statusRow ? statusColor : 'text.secondary'}
-          title={statusRow ? undefined : description}
         >
           {statusCaption ?? caption}
         </Typography>
