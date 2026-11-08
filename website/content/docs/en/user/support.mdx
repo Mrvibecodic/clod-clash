@@ -30,12 +30,16 @@ subscription state figures.
 
 If support needs the full log, not just the tail: **"Export logs as an archive"** in
 **Advanced settings → Maintenance**. The app asks where to save the
-`.zip` and puts the report and the app and core log files into it (for large ones,
-the last 8 MB) — each already passed through the same masking, with connection lines
-dropped and only the node, port and error text left of their errors.
+`.zip` and puts the report and the app and core logs of the current app run into it —
+from its start up to the moment of export, each already passed through the same masking.
+Core lines about connections and DNS are included only for the last hour or two and
+without addresses: the port, rule type and node stay, while the program name, address
+and rule contents are replaced with `***`. Of connection errors, the node, port and
+error text are left.
 
 Masking is also applied in the log itself: log files on disk are already written without tokens
-and subscription addresses.
+and subscription addresses, and connection lines go to a separate file that keeps only
+the last hour or two.
 
 ## Device identifier
 
