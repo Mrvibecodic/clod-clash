@@ -96,9 +96,89 @@ fn is_masked_address(source: &str) -> bool {
         .is_some_and(|port| port.parse::<u16>().is_ok())
 }
 
+/// Файл, куда журнал ядра откладывает строки о соединениях: `core_<запуск>.conn.log`
+/// под службой, `connections_<дата>.log` без неё.
+pub(crate) fn is_connections_file(name: &str) -> bool {
+    (name.starts_with("core_") && name.contains(".conn")) || name.starts_with("connections_")
+}
+
 /// Строка ядра о соединении или DNS — не ошибка соединения.
 pub(crate) fn is_connection_line(line: &str) -> bool {
     dial_error_without_addresses(line).is_none() && is_traffic_line(line)
+}
+
+/// Строка для архива выгрузки: ничего не выбрасывается. У ошибки соединения
+/// остаются узел, порт и текст ошибки; у остальных строк о соединениях —
+/// вид, порт, тип правила и узел, без адресов, программы и содержимого правила.
+pub(crate) fn archive_line(line: &str, home: Option<&str>, core: bool) -> std::string::String {
+    if core && let Some(error) = dial_error_without_addresses(line) {
+        return cleaned(&error, home);
+    }
+    if core && is_traffic_line(line) {
+        return ipv4_masked(&connection_without_details(&cleaned(line, home)));
+    }
+    cleaned(line, home)
+}
+
+/// `[TCP] 10.0.0.5:41230(Mail App.exe) --> *** match DomainSuffix(***) using X`
+/// → `[TCP] ***:41230 --> *** match DomainSuffix(***) using X`: источник с
+/// программой — до стрелки, после неё — содержимое правил и голые IP.
+fn connection_without_details(line: &str) -> std::string::String {
+    let (left, right) = match line.split_once(" --> ") {
+        Some((left, right)) => (Cow::Owned(source_without_details(left)), Some(right)),
+        None => (Cow::Borrowed(line), None),
+    };
+    let words = |part: &str| part.split(' ').map(word_without_details).collect::<Vec<_>>().join(" ");
+    match right {
+        Some(right) => format!("{} --> {}", words(&left), words(right)),
+        None => words(&left),
+    }
+}
+
+fn source_without_details(left: &str) -> std::string::String {
+    let (prefix, source) = left.rfind("] ").map_or(("", left), |at| left.split_at(at + 2));
+    let address = source.split('(').next().unwrap_or_default();
+    match address.rsplit_once(':').filter(|(_, port)| port.parse::<u16>().is_ok()) {
+        Some((_, port)) => format!("{prefix}***:{port}"),
+        None => format!("{prefix}***"),
+    }
+}
+
+/// IPv4 где угодно в строке, в том числе внутри `[1.2.3.4:443]-->[…]`.
+fn ipv4_masked(line: &str) -> std::string::String {
+    let mut out = std::string::String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(start) = rest.find(|c: char| c.is_ascii_digit()) {
+        let run = rest[start..]
+            .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+            .map_or(&rest[start..], |end| &rest[start..start + end]);
+        let address = run.trim_end_matches('.');
+        out.push_str(&rest[..start]);
+        if address.parse::<std::net::Ipv4Addr>().is_ok() {
+            out.push_str("***");
+            out.push_str(&run[address.len()..]);
+        } else {
+            out.push_str(run);
+        }
+        rest = &rest[start + run.len()..];
+    }
+    out.push_str(rest);
+    out
+}
+
+fn word_without_details(word: &str) -> Cow<'_, str> {
+    if let Some((head, rest)) = word.split_once('(')
+        && rest.ends_with(')')
+        && !head.is_empty()
+        && head.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Cow::Owned(format!("{head}(***)"));
+    }
+    let core = word.trim_matches(|c: char| matches!(c, '[' | ']' | ',' | ';' | '"' | '\'' | '<' | '>'));
+    if !core.is_empty() && core.parse::<std::net::IpAddr>().is_ok() {
+        return Cow::Owned(word.replacen(core, "***", 1));
+    }
+    Cow::Borrowed(word)
 }
 
 fn is_traffic_line(line: &str) -> bool {
@@ -500,8 +580,9 @@ async fn logs_section(out: &mut std::string::String, lines: usize) {
     let core_first = service && !crate::module::core_log_archive::save().await;
     // Оба каталога: ядро бывает и под службой, и sidecar, а остановленное —
     // ни тем ни другим; свежие запуски идут первыми, откуда бы они ни были.
+    // Файлы соединений в хвост не идут: их строки здесь выбрасываются все до одной.
     let core_logs = log_files(&[dirs::service_log_dir().ok(), dirs::sidecar_log_dir().ok()], |name| {
-        name.ends_with(".log")
+        name.ends_with(".log") && !is_connections_file(name)
     })
     .await;
     let _ = writeln!(out, "\n## Лог ядра (последние {lines} строк, без адресов соединений)");
@@ -546,7 +627,8 @@ pub async fn build() -> Result<std::string::String> {
     let _ = writeln!(
         out,
         "Токены, пароли и пути подписок заменены на `***`; строки ядра о соединениях\n\
-         и DNS не включены, от ошибок соединений остались узел, порт и текст ошибки.\n\
+         и DNS в отчёт не включены (в архиве логов они есть — без адресов, программ и\n\
+         содержимого правил), от ошибок соединений остались узел, порт и текст ошибки.\n\
          Домен провайдера и версии остались — без них отчёт бесполезен.\n"
     );
 
@@ -561,6 +643,24 @@ pub async fn build() -> Result<std::string::String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn connection_files_stay_out_of_the_report_tail() {
+        for name in [
+            "core_2026-11-08_16-06-39.conn.log",
+            "core_2026-11-08_16-06-39.conn.1.log",
+            "connections_latest.log",
+            "connections_2026-11-08_16-00-00.log",
+        ] {
+            assert!(super::is_connections_file(name), "{name}");
+        }
+        for name in ["core_2026-11-08_16-06-39.log", "sidecar_latest.log", "service_latest.log"] {
+            assert!(!super::is_connections_file(name), "{name}");
+        }
+        let section = crate::utils::source_scan::fn_body(include_str!("support_bundle.rs"), "async fn logs_section(")
+            .unwrap_or_default();
+        assert!(section.contains("!is_connections_file(name)"), "{section}");
+    }
+
     #[test]
     fn a_name_made_from_the_subscription_link_stays_out_of_the_report() {
         let unnamed = crate::config::PrfItem {
