@@ -49,7 +49,11 @@ pub(crate) fn support_line(line: &str, home: Option<&str>, core: bool) -> Option
     } else {
         Cow::Borrowed(line)
     };
-    Some(redact_for_support(&scrub_home(&line, home)))
+    Some(cleaned(&line, home))
+}
+
+fn cleaned(line: &str, home: Option<&str>) -> std::string::String {
+    redact_for_support(&scrub_home(line, home))
 }
 
 pub(crate) fn core_line_for_support(line: &str) -> Option<Cow<'_, str>> {
@@ -79,9 +83,22 @@ fn proxy_before_source(head: &str) -> Option<&str> {
         .map(|(at, _)| at)
         .find(|at| {
             let source = head[at + 1..].split('(').next().unwrap_or_default();
-            source == "mihomo" || source.parse::<std::net::SocketAddr>().is_ok()
+            source == "mihomo" || source.parse::<std::net::SocketAddr>().is_ok() || is_masked_address(source)
         })
         .map(|at| &head[..at])
+}
+
+/// Адрес, который редакция уже заменила: `***:52100` — так источник
+/// соединения лежит в копиях журнала ядра на диске.
+fn is_masked_address(source: &str) -> bool {
+    source
+        .strip_prefix("***:")
+        .is_some_and(|port| port.parse::<u16>().is_ok())
+}
+
+/// Строка ядра о соединении или DNS — не ошибка соединения.
+pub(crate) fn is_connection_line(line: &str) -> bool {
+    dial_error_without_addresses(line).is_none() && is_traffic_line(line)
 }
 
 fn is_traffic_line(line: &str) -> bool {

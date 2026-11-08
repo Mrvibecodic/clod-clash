@@ -13,17 +13,24 @@
 //! - сразу, как сторож заметил, что служба подняла ядро сама: копии идут уже
 //!   в файл нового запуска. Конец прошлого запуска служба к этому моменту не
 //!   отдаёт — в копии он есть до последней плановой копии;
-//! - раз в [`SAVE_EVERY`], пока ядро работает, — на случай выключения
-//!   компьютера и перезапуска службы; если с прошлой копии служба успела
-//!   начать новый файл, следующая копия — через [`SAVE_SOON`];
+//! - раз в [`SAVE_EVERY`], пока ядро работает, а при большом потоке строк —
+//!   раз в [`SAVE_BUSY`]: служба отдаёт лишь последние 4 МБ, и всё, что
+//!   ушло дальше, потеряно; такой пропуск помечается в файле строкой;
 //! - при выгрузке отчёта.
 //!
 //! Строки ложатся на диск отредактированными, как у нашего логгера: без
 //! секретов, адресов и домашнего каталога. Копия дописывает в файл запуска
-//! только новые строки, файл держит последние [`FILE_CAP`] байт. Хранится [`KEEP`] последних запусков; дальше их чистит и
-//! общая уборка журналов по возрасту.
+//! только новые строки, запуск хранится целиком — кроме строк о соединениях
+//! и DNS (девять десятых журнала): они идут в соседний файл, который
+//! меняется раз в [`CONNECTIONS_SPAN`], и на диске лежат последние один-два
+//! таких промежутка — для разбора проблемы этого хватает. Хранится [`KEEP`] последних
+//! запусков, кроме запусков текущего сеанса программы, файлы соединений — у
+//! [`CONNECTIONS_RUNS`] последних запусков и у запусков этого сеанса; дальше
+//! их чистит и общая уборка журналов по возрасту. Новый сеанс программы
+//! продолжает файл запуска, который служба всё ещё пишет: его конец ищется в
+//! снимке, и только если его там нет, запуск считается новым.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use clash_verge_logging::{Type, logging};
@@ -36,22 +43,39 @@ use crate::{
     utils::{dirs, help::write_atomic, redact},
 };
 
-const SAVE_EVERY: Duration = Duration::from_secs(10 * 60);
-const SAVE_SOON: Duration = Duration::from_secs(2 * 60);
+const SAVE_EVERY: Duration = Duration::from_secs(60);
+const SAVE_BUSY: Duration = Duration::from_secs(15);
+const BUSY_BYTES: usize = 1024 * 1024;
+const TAIL_READ: u64 = 64 * 1024;
+/// Сколько последних строк сверяется со снимком: одной мало — одинаковые
+/// строки в одну миллисекунду (пачка одних и тех же ошибок) сбили бы место, с
+/// которого снимок новый.
+const TAIL_LINES: usize = 8;
+const CONNECTIONS_SPAN: chrono::TimeDelta = chrono::TimeDelta::hours(1);
+const CONNECTIONS_CAP: u64 = 32 * 1024 * 1024;
+const GAP_LINE: &str = "[clod] the service no longer had part of this core run's log; lines are missing here";
 /// Дольше копия ответа службы не ждёт (её IPC повторяет запрос до 20 раз):
 /// ни запуск ядра, ни отчёт не держатся за неотвечающую службу.
 const ANSWER_WAIT: Duration = Duration::from_secs(3);
 /// Перед остановкой ядра — меньше: у выхода свой срок на остановку.
 const STOP_WAIT: Duration = Duration::from_secs(1);
 const KEEP: usize = 10;
+const CONNECTIONS_RUNS: usize = 2;
 const PREFIX: &str = "core_";
-const FILE_CAP: usize = 4 * 1024 * 1024;
 /// Метка в каталоге копий: копии, записанные до редакции, уже переписаны.
 const REDACTED_MARK: &str = ".redacted";
 
 /// Файл запуска ядра, который сейчас пишет служба: все копии этого запуска
 /// ложатся в него. Нет — имя даёт первая строка журнала.
-static RUN: Mutex<Option<String>> = Mutex::new(None);
+static RUN: Mutex<Option<Run>> = Mutex::new(None);
+
+/// Файл запуска и последние строки журнала службы, на которых остановилась
+/// прошлая копия: по ним, а не по сохранённому, ищется начало новых строк —
+/// сохраняется не всё, и сохранённое бывает уже за пределами снимка.
+struct Run {
+    name: String,
+    seen: Vec<String>,
+}
 /// Копии идут по одной: каждая читает и дописывает файл запуска.
 static SAVING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
@@ -90,7 +114,21 @@ pub async fn after_a_restart_by_the_service() {
     }
 }
 
-/// Копия раз в [`SAVE_EVERY`], пока ядро работает под службой.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Saved {
+    gap: bool,
+    fresh: usize,
+}
+
+const fn next_wait(saved: Option<Saved>) -> Duration {
+    match saved {
+        Some(saved) if saved.gap || saved.fresh >= BUSY_BYTES => SAVE_BUSY,
+        _ => SAVE_EVERY,
+    }
+}
+
+/// Копии, пока ядро работает под службой: раз в [`SAVE_EVERY`], при большом
+/// потоке строк или после пропуска — раз в [`SAVE_BUSY`].
 pub fn spawn() {
     AsyncHandler::spawn(|| async {
         redact_old_copies().await;
@@ -103,22 +141,20 @@ pub fn spawn() {
             {
                 continue;
             }
-            if save_within(ANSWER_WAIT).await == Some(true) {
-                wait = SAVE_SOON;
-            }
+            wait = next_wait(save_within(ANSWER_WAIT).await);
         }
     });
 }
 
-/// Копия, если служба ответит до срока; `Some(gap)` — файл записан, `gap` —
-/// часть строк до этой копии служба уже убрала.
-async fn save_within(wait: Duration) -> Option<bool> {
+/// Копия, если служба ответит до срока; `None` — служба не ответила или
+/// журнал пуст.
+async fn save_within(wait: Duration) -> Option<Saved> {
     let deadline = Instant::now() + wait;
     let _saving = tokio::time::timeout_at(deadline, SAVING.lock()).await.ok()?;
     save_locked(deadline).await
 }
 
-async fn save_locked(deadline: Instant) -> Option<bool> {
+async fn save_locked(deadline: Instant) -> Option<Saved> {
     let text = match tokio::time::timeout_at(deadline, CoreManager::global().get_clash_log_snapshot()).await {
         Ok(Ok(text)) => text,
         Ok(Err(error)) => {
@@ -137,16 +173,49 @@ async fn save_locked(deadline: Instant) -> Option<bool> {
     if text.trim().is_empty() {
         return None;
     }
-    let text = for_disk(&text, redact::home_prefix().as_deref());
     let dir = dirs::service_log_dir().ok()?;
-    let name = RUN
-        .lock()
-        .get_or_insert_with(|| file_name(&text, chrono::Local::now().naive_local()))
-        .clone();
-    let path = dir.join(name);
-    let saved = tokio::fs::read_to_string(&path).await.unwrap_or_default();
-    let (merged, gap) = merge(&saved, &text);
-    if let Err(error) = write_atomic(&path, merged.as_bytes()).await {
+    let home = redact::home_prefix();
+    let (name, seen, saved) = match known_run() {
+        Some((name, seen)) if !seen.is_empty() => (name, seen, Vec::new()),
+        // Запуск известен, а его снимка ещё не видели (первая копия не записалась):
+        // новые строки — от сохранённого конца файла.
+        Some((name, _)) => {
+            let saved = last_lines_of(&dir.join(&name)).await;
+            (name, Vec::new(), saved)
+        }
+        None => {
+            let (name, saved) = run_continued_by(&text, &dir, home.as_deref()).await;
+            RUN.lock().get_or_insert_with(|| Run {
+                name: name.clone(),
+                seen: Vec::new(),
+            });
+            (name, Vec::new(), saved)
+        }
+    };
+    let path = dir.join(&name);
+    let (lines, gap) = new_lines(&text, &seen, &saved, home.as_deref());
+    let fresh: usize = lines.iter().map(|line| line.len() + 1).sum();
+    let mut chunk = String::new();
+    let mut connections = String::new();
+    if gap {
+        chunk.push_str(GAP_LINE);
+        chunk.push('\n');
+    }
+    for line in &lines {
+        let (clean, connection) = for_disk_line(line, home.as_deref());
+        let out = if connection { &mut connections } else { &mut chunk };
+        out.push_str(&clean);
+        out.push('\n');
+    }
+    let written = if chunk.is_empty() {
+        Ok(())
+    } else {
+        append(&path, chunk.as_bytes()).await
+    };
+    if let Err(error) = match written {
+        Ok(()) => append_connections(&path, &connections).await,
+        Err(error) => Err(error),
+    } {
         logging!(
             warn,
             Type::Core,
@@ -155,8 +224,155 @@ async fn save_locked(deadline: Instant) -> Option<bool> {
         );
         return None;
     }
+    if let Some(run) = RUN.lock().as_mut().filter(|run| run.name == name) {
+        run.seen = last_raw_lines(&text);
+    }
     prune(&dir).await;
-    Some(gap)
+    Some(Saved { gap, fresh })
+}
+
+fn known_run() -> Option<(String, Vec<String>)> {
+    RUN.lock().as_ref().map(|run| (run.name.clone(), run.seen.clone()))
+}
+
+/// Файл запуска для снимка, когда текущий запуск неизвестен (старт программы,
+/// ожидание нового запуска): самая свежая копия, чей сохранённый конец есть в
+/// снимке, — тот же запуск; иначе имя даёт первая строка снимка. Вместе с
+/// именем — сохранённый конец файла, от которого считаются новые строки.
+async fn run_continued_by(text: &str, dir: &Path, home: Option<&str>) -> (String, Vec<String>) {
+    if let Some(newest) = newest_run_copy(dir).await {
+        let saved = last_lines_of(&dir.join(&newest)).await;
+        if !saved.is_empty() && !new_lines(text, &[], &saved, home).1 {
+            return (newest, saved);
+        }
+    }
+    let name = file_name(text, chrono::Local::now().naive_local());
+    let saved = last_lines_of(&dir.join(&name)).await;
+    (name, saved)
+}
+
+async fn newest_run_copy(dir: &Path) -> Option<String> {
+    let mut entries = tokio::fs::read_dir(dir).await.ok()?;
+    let mut newest: Option<String> = None;
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        if let Some(name) = entry.file_name().to_str()
+            && is_run_copy(name)
+            && newest.as_deref().is_none_or(|current| name > current)
+        {
+            newest = Some(name.to_owned());
+        }
+    }
+    newest
+}
+
+/// Копия запуска ядра — не файл соединений и не что-то другое из каталога.
+pub(crate) fn is_run_copy(name: &str) -> bool {
+    name.starts_with(PREFIX) && name.ends_with(".log") && !name.contains(".conn")
+}
+
+/// Запуск, которому принадлежит файл соединений: `core_<запуск>.conn.1.log` → `core_<запуск>`.
+fn run_of_connections(name: &str) -> &str {
+    name.split(".conn").next().unwrap_or(name)
+}
+
+/// Строка журнала ядра в том виде, в каком она ложится на диск, и строка ли
+/// это о соединении (идёт в файл соединений).
+fn for_disk_line(line: &str, home: Option<&str>) -> (String, bool) {
+    let clean = redact::core_line_for_disk(line, home);
+    let connection = crate::module::support_bundle::is_connection_line(&clean);
+    (clean, connection)
+}
+
+/// Файл соединений запуска: `core_<запуск>.conn.log`, прошлый промежуток —
+/// `core_<запуск>.conn.1.log`.
+pub(crate) fn connections_path(run: &Path) -> PathBuf {
+    run.with_extension("conn.log")
+}
+
+pub(crate) fn older_connections_path(run: &Path) -> PathBuf {
+    run.with_extension("conn.1.log")
+}
+
+async fn append_connections(run: &Path, chunk: &str) -> std::io::Result<()> {
+    if chunk.is_empty() {
+        return Ok(());
+    }
+    let current = connections_path(run);
+    if connections_are_due(&current, chrono::Local::now().naive_local()).await {
+        tokio::fs::rename(&current, older_connections_path(run)).await?;
+    }
+    append(&current, chunk.as_bytes()).await
+}
+
+/// Пора начинать новый файл соединений: текущий начат [`CONNECTIONS_SPAN`]
+/// назад или дорос до [`CONNECTIONS_CAP`].
+async fn connections_are_due(path: &Path, now: chrono::NaiveDateTime) -> bool {
+    use tokio::io::AsyncReadExt as _;
+    let Ok(mut file) = tokio::fs::File::open(path).await else {
+        return false;
+    };
+    if file.metadata().await.is_ok_and(|meta| meta.len() >= CONNECTIONS_CAP) {
+        return true;
+    }
+    let mut head = [0u8; 64];
+    let read = file.read(&mut head).await.unwrap_or_default();
+    let head = String::from_utf8_lossy(&head[..read]);
+    crate::core::logger::line_stamp(&head).is_some_and(|started| now - started >= CONNECTIONS_SPAN)
+}
+
+fn last_raw_lines(text: &str) -> Vec<String> {
+    let mut lines: Vec<String> = text
+        .lines()
+        .rev()
+        .filter(|line| !line.trim().is_empty())
+        .take(TAIL_LINES)
+        .map(str::to_owned)
+        .collect();
+    lines.reverse();
+    lines
+}
+
+async fn append(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use tokio::io::AsyncWriteExt as _;
+    let mut file = tokio::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .await?;
+    file.write_all(bytes).await?;
+    file.flush().await
+}
+
+/// До [`TAIL_LINES`] последних сохранённых строк файла запуска, по порядку;
+/// читается только хвост файла.
+async fn last_lines_of(path: &Path) -> Vec<String> {
+    use tokio::io::{AsyncReadExt as _, AsyncSeekExt as _};
+    let Ok(mut file) = tokio::fs::File::open(path).await else {
+        return Vec::new();
+    };
+    let length = file.metadata().await.map(|meta| meta.len()).unwrap_or_default();
+    let mut tail = Vec::new();
+    if file
+        .seek(std::io::SeekFrom::Start(length.saturating_sub(TAIL_READ)))
+        .await
+        .is_err()
+        || file.read_to_end(&mut tail).await.is_err()
+    {
+        return Vec::new();
+    }
+    tail_lines(&String::from_utf8_lossy(&tail))
+}
+
+fn tail_lines(text: &str) -> Vec<String> {
+    let mut lines: Vec<String> = text
+        .lines()
+        .rev()
+        .filter(|line| !line.trim().is_empty() && *line != GAP_LINE)
+        .take(TAIL_LINES)
+        .map(str::to_owned)
+        .collect();
+    lines.reverse();
+    lines
 }
 
 fn for_disk(text: &str, home: Option<&str>) -> String {
@@ -231,34 +447,59 @@ fn file_name(text: &str, now: chrono::NaiveDateTime) -> String {
     format!("{PREFIX}{}.log", started.format("%Y-%m-%d_%H-%M-%S"))
 }
 
-/// Сохранённое и новые строки снимка: всё после последней сохранённой строки.
-/// Её в снимке нет — служба завела новый файл или ушла дальше 4 МБ (это
-/// `gap` в ответе), и снимок дописывается целиком. Файл держит последние
-/// [`FILE_CAP`] байт.
-fn merge(saved: &str, snapshot: &str) -> (String, bool) {
-    let lines: Vec<&str> = snapshot.lines().collect();
-    let last = saved.lines().rev().find(|line| !line.trim().is_empty());
-    let found = last.and_then(|last| lines.iter().rposition(|line| *line == last));
-    let gap = last.is_some() && found.is_none();
-    let fresh = found.map_or(0, |at| at + 1);
-    let mut merged = saved.trim_end().to_owned();
-    for line in &lines[fresh..] {
-        if !merged.is_empty() {
-            merged.push('\n');
+/// Строки снимка, которых прошлая копия ещё не видела. `seen` — последние
+/// строки прошлого снимка; их нет (первая копия за жизнь программы) —
+/// сверяется сохранённый хвост файла `saved`. Ни того ни другого в снимке нет
+/// — служба завела новый файл или ушла дальше 4 МБ (`gap`), снимок идёт
+/// целиком.
+fn new_lines<'s>(snapshot: &'s str, seen: &[String], saved: &[String], home: Option<&str>) -> (Vec<&'s str>, bool) {
+    let raw: Vec<&str> = snapshot.lines().filter(|line| !line.trim().is_empty()).collect();
+    if !seen.is_empty() {
+        let found = (seen.len()..=raw.len()).rev().find(|end| {
+            raw[end - seen.len()..*end]
+                .iter()
+                .zip(seen)
+                .all(|(line, kept)| line == kept)
+        });
+        return match found {
+            Some(end) => (raw[end..].to_vec(), false),
+            None => (raw, true),
+        };
+    }
+    if saved.is_empty() {
+        return (raw, false);
+    }
+    let mut kept_newest_first: Vec<(usize, String)> = Vec::new();
+    for (at, line) in raw.iter().enumerate().rev() {
+        let (clean, connection) = for_disk_line(line, home);
+        if connection {
+            continue;
         }
-        merged.push_str(line);
+        kept_newest_first.push((at, clean));
+        if let Some(start) = kept_newest_first.len().checked_sub(saved.len())
+            && saved
+                .iter()
+                .rev()
+                .zip(&kept_newest_first[start..])
+                .all(|(kept, (_, seen))| kept == seen)
+        {
+            let after = kept_newest_first[start].0 + 1;
+            return (raw[after..].to_vec(), false);
+        }
     }
-    merged.push('\n');
-    if merged.len() > FILE_CAP {
-        let cut = merged.len() - FILE_CAP;
-        // По байтам: граница может прийтись на середину буквы.
-        let from = merged.as_bytes()[cut..]
+    // Снимок начинается внутри сохранённого хвоста: его первые строки — конец хвоста.
+    let oldest_first: Vec<(usize, String)> = kept_newest_first.into_iter().rev().collect();
+    for matched in (1..saved.len().min(oldest_first.len() + 1)).rev() {
+        if saved[saved.len() - matched..]
             .iter()
-            .position(|byte| *byte == b'\n')
-            .map_or(merged.len(), |at| cut + at + 1);
-        merged.drain(..from);
+            .zip(&oldest_first)
+            .all(|(kept, (_, seen))| kept == seen)
+        {
+            let after = oldest_first[matched - 1].0 + 1;
+            return (raw[after..].to_vec(), false);
+        }
     }
-    (merged, gap)
+    (raw, true)
 }
 
 /// `[2026-10-09 17:29:15.415] …` — так служба начинает каждую строку.
@@ -275,35 +516,62 @@ async fn prune(dir: &Path) {
     };
     let mut names = Vec::new();
     while let Ok(Some(entry)) = entries.next_entry().await {
+        let modified = entry
+            .metadata()
+            .await
+            .and_then(|meta| meta.modified())
+            .unwrap_or(std::time::UNIX_EPOCH);
         if let Some(name) = entry.file_name().to_str() {
-            names.push(name.to_owned());
+            names.push((name.to_owned(), modified));
         }
     }
-    for name in surplus(names) {
+    for name in surplus(names, crate::core::logger::session_started()) {
         let _ = tokio::fs::remove_file(dir.join(name)).await;
     }
 }
 
 /// Копии сверх [`KEEP`], самые старые (имя — момент запуска, порядок по нему),
-/// и недописанные файлы копий.
-fn surplus(names: Vec<String>) -> Vec<String> {
+/// кроме запусков, которые писались за этот сеанс программы; файлы соединений
+/// всех запусков, кроме [`CONNECTIONS_RUNS`] последних и запусков этого сеанса
+/// (перезапуск программы не отнимает час-два соединений у идущего запуска);
+/// недописанные файлы копий.
+fn surplus(names: Vec<(String, std::time::SystemTime)>, session_started: std::time::SystemTime) -> Vec<String> {
     let torn = format!(".{PREFIX}");
-    let (mut copies, others): (Vec<String>, Vec<String>) = names
+    let (copies, others): (Vec<_>, Vec<_>) = names
         .into_iter()
-        .partition(|name| name.starts_with(PREFIX) && name.ends_with(".log"));
+        .partition(|(name, _)| name.starts_with(PREFIX) && name.ends_with(".log"));
+    let (connections, mut copies): (Vec<_>, Vec<_>) = copies.into_iter().partition(|(name, _)| name.contains(".conn"));
     copies.sort();
+    let recent_runs: Vec<String> = copies
+        .iter()
+        .rev()
+        .take(CONNECTIONS_RUNS)
+        .filter_map(|(name, _)| name.strip_suffix(".log").map(str::to_owned))
+        .collect();
+    let connections = connections
+        .into_iter()
+        .filter(|(name, _)| !recent_runs.iter().any(|run| run == run_of_connections(name)));
     copies.truncate(copies.len().saturating_sub(KEEP));
-    copies.extend(
-        others
-            .into_iter()
-            .filter(|name| name.starts_with(&torn) && name.ends_with(".tmp")),
-    );
     copies
+        .into_iter()
+        .chain(connections)
+        .filter(|(_, modified)| *modified < session_started)
+        .chain(
+            others
+                .into_iter()
+                .filter(|(name, _)| name.starts_with(&torn) && name.ends_with(".tmp")),
+        )
+        .map(|(name, _)| name)
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{FILE_CAP, KEEP, file_name, for_disk, merge, surplus};
+    use super::{
+        BUSY_BYTES, GAP_LINE, KEEP, SAVE_BUSY, SAVE_EVERY, Saved, connections_are_due, connections_path, file_name,
+        for_disk, for_disk_line, is_run_copy, new_lines, newest_run_copy, next_wait, older_connections_path,
+        run_continued_by, run_of_connections, surplus, tail_lines,
+    };
 
     /// Разовая уборка старых копий держит замок копий по файлу: копия перед
     /// новым запуском ядра ждёт замок лишь [`super::ANSWER_WAIT`].
@@ -339,38 +607,191 @@ mod tests {
         assert_eq!(file_name("no stamp here", now()), "core_2026-01-02_03-04-05.log");
     }
 
-    #[test]
-    fn a_new_copy_adds_only_the_lines_the_file_lacks() {
-        let first = "[1] a\n[2] b\n";
-        let (saved, gap) = merge("", first);
-        assert_eq!((saved.as_str(), gap), (first, false));
-        // Та же копия ничего не добавляет, следующая — только новое
-        assert_eq!(merge(&saved, first), (first.to_owned(), false));
-        assert_eq!(
-            merge(&saved, "[2] b\r\n[3] c\r\n"),
-            ("[1] a\n[2] b\n[3] c\n".to_owned(), false)
-        );
-        // Служба завела новый файл: снимок дописывается целиком, пробел замечен
-        assert_eq!(merge(&saved, "[9] z\n"), ("[1] a\n[2] b\n[9] z\n".to_owned(), true));
+    fn saved(lines: &[&str]) -> Vec<String> {
+        lines.iter().map(|line| (*line).to_owned()).collect()
+    }
+
+    fn new(snapshot: &str, seen: &[&str], kept: &[&str]) -> (Vec<String>, bool) {
+        let (lines, gap) = new_lines(snapshot, &saved(seen), &saved(kept), None);
+        (lines.into_iter().map(str::to_owned).collect(), gap)
     }
 
     #[test]
-    fn a_run_file_keeps_its_last_bytes_from_a_line_start() {
-        let line = "x".repeat(999);
-        let snapshot: String = (0..FILE_CAP / 1000 + 10).map(|i| format!("{i:08}{line}\n")).collect();
-        let (merged, _) = merge("", &snapshot);
-        assert!(merged.len() <= FILE_CAP);
-        assert!(merged.ends_with(&format!("{:08}{line}\n", FILE_CAP / 1000 + 9)));
-        assert!(merged.lines().all(|kept| kept.len() == 1007));
+    fn a_new_copy_takes_only_the_lines_the_last_one_did_not_see() {
+        assert_eq!(new("[1] a\n[2] b\n", &[], &[]), (saved(&["[1] a", "[2] b"]), false));
+        assert_eq!(new("[1] a\n[2] b\n", &["[1] a", "[2] b"], &[]), (Vec::new(), false));
+        assert_eq!(new("[2] b\r\n[3] c\r\n", &["[2] b"], &[]), (saved(&["[3] c"]), false));
+        // Служба завела новый файл: снимок идёт целиком, пропуск замечен
+        assert_eq!(new("[9] z\n", &["[2] b"], &[]), (saved(&["[9] z"]), true));
+    }
 
-        // Граница посреди буквы не роняет обрезку
-        let cyrillic = "ж".repeat(1001);
-        let snapshot: String = (0..FILE_CAP / 2000 + 10)
-            .map(|i| format!("{i:08}{cyrillic}\n"))
+    #[test]
+    fn a_repeat_of_the_last_seen_line_does_not_cut_the_lines_before_it() {
+        assert_eq!(
+            new(
+                "[0] start\n[1] error\n[2] other\n[1] error\n[3] next\n",
+                &["[0] start", "[1] error"],
+                &[]
+            ),
+            (saved(&["[2] other", "[1] error", "[3] next"]), false)
+        );
+        assert_eq!(
+            tail_lines(&format!("[1] a\n\n{GAP_LINE}\n[2] b\n")),
+            saved(&["[1] a", "[2] b"])
+        );
+    }
+
+    #[test]
+    fn connection_lines_go_to_their_own_file_and_do_not_fake_a_gap() {
+        let tcp = "[1] [TCP] 10.0.0.2:44100 --> mail.example.com:443 match Rule using NL";
+        let dial = "[2] [TCP] dial NL 10.0.0.2:44101 --> mail.example.com:443 error: EOF";
+        let (clean, connection) = for_disk_line(tcp, None);
+        assert!(connection && !clean.contains("mail.example.com"), "{clean}");
+        assert!(!for_disk_line(dial, None).1);
+        assert_eq!(
+            for_disk_line("[3] TUN started", None),
+            ("[3] TUN started".to_owned(), false)
+        );
+
+        // Сохранённое давно ушло за пределы снимка, но прошлая копия видела его
+        // конец — пропуска нет
+        let snapshot = format!("{tcp}\n{tcp}\n[4] later\n");
+        assert_eq!(
+            new(&snapshot, &[tcp, tcp], &["[0] long ago"]),
+            (saved(&["[4] later"]), false)
+        );
+        // Первая копия за жизнь программы сверяется с сохранённым основным файлом
+        assert_eq!(
+            new(
+                &format!("[3] TUN started\n{tcp}\n[4] later\n"),
+                &[],
+                &["[3] TUN started"]
+            ),
+            (saved(&[tcp, "[4] later"]), false)
+        );
+        // Снимок начинается внутри сохранённого хвоста — это тот же запуск, не пропуск
+        assert_eq!(
+            new(&format!("[2] b\n{tcp}\n[3] c\n"), &[], &["[0] z", "[1] a", "[2] b"]),
+            (saved(&[tcp, "[3] c"]), false)
+        );
+        assert_eq!(new("[7] q\n", &[], &["[1] a", "[2] b"]), (saved(&["[7] q"]), true));
+    }
+
+    #[test]
+    fn the_connections_file_turns_over_hourly_and_old_sessions_lose_theirs() {
+        let run = std::path::Path::new("/logs/service/core_2026-11-08_16-06-39.log");
+        assert_eq!(
+            connections_path(run),
+            std::path::Path::new("/logs/service/core_2026-11-08_16-06-39.conn.log")
+        );
+        assert_eq!(
+            older_connections_path(run),
+            std::path::Path::new("/logs/service/core_2026-11-08_16-06-39.conn.1.log")
+        );
+        let dir = std::env::temp_dir().join(format!("clod-conn-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("core_x.conn.log");
+        let _ = std::fs::write(&file, "[2026-11-08 16:00:00.000] [TCP] a --> b\n");
+        let at = |time: &str| chrono::NaiveDateTime::parse_from_str(time, "%Y-%m-%d %H:%M:%S").unwrap_or_default();
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build();
+        let due = runtime.map(|runtime| {
+            (
+                runtime.block_on(connections_are_due(&file, at("2026-11-08 16:59:59"))),
+                runtime.block_on(connections_are_due(&file, at("2026-11-08 17:00:00"))),
+                runtime.block_on(connections_are_due(&dir.join("missing.log"), at("2026-11-09 00:00:00"))),
+            )
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(due.ok(), Some((false, true, false)));
+
+        // Соединения двух последних запусков переживают перезапуск программы;
+        // более ранних и без своей копии — уходят; этого сеанса — остаются.
+        let old = std::time::UNIX_EPOCH;
+        let started = old + std::time::Duration::from_secs(10);
+        let names = vec![
+            ("core_2026-11-01_00-00-00.log".to_owned(), old),
+            ("core_2026-11-01_00-00-00.conn.log".to_owned(), old),
+            ("core_2026-11-02_00-00-00.log".to_owned(), old),
+            ("core_2026-11-02_00-00-00.conn.log".to_owned(), old),
+            ("core_2026-11-02_00-00-00.conn.1.log".to_owned(), old),
+            ("core_2026-11-03_00-00-00.log".to_owned(), old),
+            ("core_2026-11-03_00-00-00.conn.log".to_owned(), old),
+            ("core_2026-10-20_00-00-00.conn.log".to_owned(), old),
+            ("core_2026-11-08_00-00-00.conn.log".to_owned(), started),
+        ];
+        assert_eq!(
+            surplus(names, started),
+            vec![
+                "core_2026-11-01_00-00-00.conn.log".to_owned(),
+                "core_2026-10-20_00-00-00.conn.log".to_owned()
+            ]
+        );
+        assert_eq!(
+            run_of_connections("core_2026-11-02_00-00-00.conn.1.log"),
+            "core_2026-11-02_00-00-00"
+        );
+        assert!(is_run_copy("core_2026-11-02_00-00-00.log"));
+        assert!(!is_run_copy("core_2026-11-02_00-00-00.conn.log"));
+        assert!(!is_run_copy("service_latest.log"));
+    }
+
+    /// Новый сеанс программы застаёт запуск, который служба всё ещё пишет:
+    /// копии идут в его файл, а не в новый с именем из середины журнала.
+    #[test]
+    fn a_new_session_continues_the_run_the_service_still_writes() {
+        let dir = std::env::temp_dir().join(format!("clod-run-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::write(
+            dir.join("core_2026-11-08_09-00-00.log"),
+            "[2026-11-08 09:00:00.000] Start\n[2026-11-08 09:00:01.000] TUN started\n",
+        );
+        let _ = std::fs::write(dir.join("core_2026-11-07_09-00-00.log"), "[2026-11-07 09:00:00.000] Start\n");
+        let continued = "[2026-11-08 09:00:01.000] TUN started\n\
+                         [2026-11-08 12:00:00.000] [TCP] a --> b match Rule using X\n\
+                         [2026-11-08 12:00:01.000] warning\n";
+        let fresh = "[2026-11-08 13:00:00.000] Start\n[2026-11-08 13:00:01.000] TUN started\n";
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build();
+        let runs = runtime.map(|runtime| {
+            (
+                runtime.block_on(newest_run_copy(&dir)),
+                runtime.block_on(run_continued_by(continued, &dir, None)),
+                runtime.block_on(run_continued_by(fresh, &dir, None)),
+            )
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+        let (newest, continued, fresh) = runs.unwrap_or_default();
+        assert_eq!(newest.as_deref(), Some("core_2026-11-08_09-00-00.log"));
+        assert_eq!(continued.0, "core_2026-11-08_09-00-00.log");
+        assert_eq!(
+            continued.1,
+            saved(&["[2026-11-08 09:00:00.000] Start", "[2026-11-08 09:00:01.000] TUN started"])
+        );
+        assert_eq!(fresh, ("core_2026-11-08_13-00-00.log".to_owned(), Vec::new()));
+    }
+
+    #[test]
+    fn a_long_run_is_kept_whole() {
+        let snapshot: String = (0..50_000)
+            .map(|i| format!("[{i}] level=info msg=\"a line of a long run\"\n"))
             .collect();
-        let (merged, _) = merge("", &snapshot);
-        assert!(merged.len() <= FILE_CAP);
-        assert!(merged.lines().all(|kept| kept.ends_with('ж') && kept.len() == 8 + 2002));
+        let (lines, gap) = new_lines(&snapshot, &[], &[], None);
+        assert!(!gap);
+        assert_eq!(lines.len(), 50_000);
+    }
+
+    #[test]
+    fn a_busy_log_or_a_gap_is_copied_sooner() {
+        assert_eq!(next_wait(None), SAVE_EVERY);
+        assert_eq!(next_wait(Some(Saved { gap: false, fresh: 10 })), SAVE_EVERY);
+        assert_eq!(next_wait(Some(Saved { gap: true, fresh: 10 })), SAVE_BUSY);
+        assert_eq!(
+            next_wait(Some(Saved {
+                gap: false,
+                fresh: BUSY_BYTES
+            })),
+            SAVE_BUSY
+        );
     }
 
     #[test]
@@ -382,13 +803,21 @@ mod tests {
         names.push(".core_2026-10-12_00-00-00.log.Ab3dEf9h.tmp".to_owned());
         names.push(".verge.yaml.Ab3dEf9h.tmp".to_owned());
         names.reverse();
+        let old = std::time::UNIX_EPOCH;
+        let started = old + std::time::Duration::from_secs(10);
+        let dated = |names: &[String], at| names.iter().map(|name| (name.clone(), at)).collect::<Vec<_>>();
         assert_eq!(
-            surplus(names),
+            surplus(dated(&names, old), started),
             vec![
                 "core_2026-10-01_00-00-00.log".to_owned(),
                 "core_2026-10-02_00-00-00.log".to_owned(),
                 ".core_2026-10-12_00-00-00.log.Ab3dEf9h.tmp".to_owned(),
             ]
+        );
+        // Запуски этого сеанса программы не удаляются, сколько бы их ни было
+        assert_eq!(
+            surplus(dated(&names, started), started),
+            vec![".core_2026-10-12_00-00-00.log.Ab3dEf9h.tmp".to_owned()]
         );
     }
 }

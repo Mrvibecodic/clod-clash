@@ -118,6 +118,13 @@ pub fn session_started() -> SystemTime {
     *SESSION_STARTED
 }
 
+/// Время строки журнала — `[2026-11-08 16:06:29.763] …` у нашего журнала и
+/// у журнала ядра; у продолжения многострочной записи его нет.
+pub(crate) fn line_stamp(line: &str) -> Option<chrono::NaiveDateTime> {
+    let stamp = line.strip_prefix('[')?.get(..19)?;
+    chrono::NaiveDateTime::parse_from_str(stamp, "%Y-%m-%d %H:%M:%S").ok()
+}
+
 fn redacted_file_writer(file_spec: FileSpec, format: FileFormat, log_max_size: u64) -> FileLogWriterBuilder {
     FileLogWriter::builder(file_spec).format(format.redacted()).rotate(
         Criterion::Size(log_max_size * 1024),
