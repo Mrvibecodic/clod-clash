@@ -407,7 +407,10 @@ mod tests {
         );
         // Ни одной строки сеанса ни в журнале, ни в соединениях — в архив ничего, даже заголовка
         let before = line_stamp("[2026-11-09 00:00:00]").unwrap_or_default();
-        assert_eq!(exported(vec![run, connections], || SessionWindow::new(before), true), "");
+        assert_eq!(
+            exported(vec![run, connections], || SessionWindow::new(before), true),
+            ""
+        );
     }
 
     #[test]
@@ -460,7 +463,10 @@ mod tests {
             ]
         );
         assert!(stitched.3.is_empty(), "{:?}", stitched.3);
-        assert_eq!(standalone, vec![true, true, true, false, false, false, true, true, false]);
+        assert_eq!(
+            standalone,
+            vec![true, true, true, false, false, false, true, true, false]
+        );
     }
 
     #[test]

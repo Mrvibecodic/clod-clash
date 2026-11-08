@@ -653,7 +653,11 @@ mod tests {
         ] {
             assert!(super::is_connections_file(name), "{name}");
         }
-        for name in ["core_2026-11-08_16-06-39.log", "sidecar_latest.log", "service_latest.log"] {
+        for name in [
+            "core_2026-11-08_16-06-39.log",
+            "sidecar_latest.log",
+            "service_latest.log",
+        ] {
             assert!(!super::is_connections_file(name), "{name}");
         }
         let section = crate::utils::source_scan::fn_body(include_str!("support_bundle.rs"), "async fn logs_section(")

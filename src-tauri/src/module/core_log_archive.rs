@@ -746,7 +746,10 @@ mod tests {
             dir.join("core_2026-11-08_09-00-00.log"),
             "[2026-11-08 09:00:00.000] Start\n[2026-11-08 09:00:01.000] TUN started\n",
         );
-        let _ = std::fs::write(dir.join("core_2026-11-07_09-00-00.log"), "[2026-11-07 09:00:00.000] Start\n");
+        let _ = std::fs::write(
+            dir.join("core_2026-11-07_09-00-00.log"),
+            "[2026-11-07 09:00:00.000] Start\n",
+        );
         let continued = "[2026-11-08 09:00:01.000] TUN started\n\
                          [2026-11-08 12:00:00.000] [TCP] a --> b match Rule using X\n\
                          [2026-11-08 12:00:01.000] warning\n";
@@ -765,7 +768,10 @@ mod tests {
         assert_eq!(continued.0, "core_2026-11-08_09-00-00.log");
         assert_eq!(
             continued.1,
-            saved(&["[2026-11-08 09:00:00.000] Start", "[2026-11-08 09:00:01.000] TUN started"])
+            saved(&[
+                "[2026-11-08 09:00:00.000] Start",
+                "[2026-11-08 09:00:01.000] TUN started"
+            ])
         );
         assert_eq!(fresh, ("core_2026-11-08_13-00-00.log".to_owned(), Vec::new()));
     }

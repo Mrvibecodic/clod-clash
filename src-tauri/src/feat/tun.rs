@@ -2242,7 +2242,11 @@ mod tests {
         }
         assert_eq!(armed(Revival::Idle), Revival::Armed);
         assert_eq!(armed(Revival::Armed), Revival::Armed);
-        assert_eq!(armed(Revival::Revived), Revival::Revived, "вердикт по оживлению не перебивается");
+        assert_eq!(
+            armed(Revival::Revived),
+            Revival::Revived,
+            "вердикт по оживлению не перебивается"
+        );
 
         let tun = crate::utils::source_scan::production_code(include_str!("tun.rs"));
         let follow_up =
