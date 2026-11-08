@@ -1,5 +1,5 @@
 use std::{
-    sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering},
     time::{Duration, Instant},
 };
 
@@ -34,6 +34,7 @@ static LAST_FAILURE: Mutex<Option<&'static str>> = Mutex::new(None);
 static TRAFFIC_PROBE_RUNNING: AtomicBool = AtomicBool::new(false);
 static NO_TRAFFIC_NOTICED: AtomicBool = AtomicBool::new(false);
 static TRAFFIC_PROBE_EPOCH: AtomicU64 = AtomicU64::new(0);
+static REVIVAL: AtomicU8 = AtomicU8::new(Revival::Idle as u8);
 static LAST_REARM_AT: Mutex<Option<Instant>> = Mutex::new(None);
 static RECREATE_RUNNING: AtomicBool = AtomicBool::new(false);
 static BRING_BACK_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -66,6 +67,9 @@ const TRAFFIC_PROBE_URL: &str = "https://cp.cloudflare.com/generate_204";
 const TRAFFIC_PROBE_TIMEOUT_SECS: u64 = 8;
 const TRAFFIC_PROBE_DELAY: Duration = Duration::from_secs(5);
 const TRAFFIC_PROBE_RETRY_DELAY: Duration = Duration::from_secs(3);
+const NETWORK_WAIT_STEP: Duration = Duration::from_secs(1);
+const NETWORK_WAIT_LIMIT: Duration = Duration::from_secs(10 * 60);
+const NETWORK_SETTLE: Duration = Duration::from_secs(2);
 const CAPABILITY_FRESH_FOR: Duration = Duration::from_secs(60);
 
 pub fn is_suppressed() -> bool {
@@ -204,8 +208,12 @@ const fn new_core_tun(claimed: bool, accepted_has_tun: bool) -> NewCoreTun {
 /// — снимаем.
 pub async fn follow_up_on_a_new_core() {
     match new_core_tun(claimed().await, accepted_has_tun().await) {
-        NewCoreTun::Verify => spawn_start_verification(log_anchor().await),
+        NewCoreTun::Verify => {
+            arm_revival();
+            spawn_start_verification(log_anchor().await);
+        }
         NewCoreTun::BringBack => {
+            arm_revival();
             spawn_bringing_tun_back_if_the_config_lacks_it("the core came up without the TUN it should have");
         }
         NewCoreTun::TakeDown => {
@@ -517,7 +525,7 @@ fn schedule_retry() {
         if !claimed().await {
             return;
         }
-        recreate_tun_device().await;
+        let _ = recreate_tun_device().await;
     });
 }
 
@@ -558,14 +566,15 @@ async fn switch_tun_device(enable: bool) -> Result<(), SwitchFailure> {
     }
 }
 
-async fn recreate_tun_device() {
+/// `true` — устройство пересоздано и проверка после подъёма запущена.
+async fn recreate_tun_device() -> bool {
     if RECREATE_RUNNING.swap(true, Ordering::AcqRel) {
         logging!(
             info,
             Type::Core,
             "a TUN device re-creation is already running; skipping this one"
         );
-        return;
+        return false;
     }
     scopeguard::defer! {
         RECREATE_RUNNING.store(false, Ordering::Release);
@@ -588,11 +597,12 @@ async fn recreate_tun_device() {
                 "the core is not running; this does not count against the TUN start budget"
             );
         }
-        return;
+        return false;
     }
 
     logging!(info, Type::Core, "the TUN device was re-created");
     spawn_start_verification(anchor);
+    true
 }
 
 /// Вернуть туннель, снятый уборкой отменённого выхода.
@@ -667,7 +677,18 @@ pub async fn rearm_after_wake() {
                 "the TUN device does not work after the wake-up ({}); re-creating it",
                 why
             );
-            recreate_tun_device().await;
+            let _ = recreate_tun_device().await;
+        }
+        Health::Dead => {
+            if !claimed().await {
+                return;
+            }
+            logging!(
+                warn,
+                Type::Core,
+                "nothing passes through the TUN device or the proxy port after the wake-up; reloading the config and re-creating the device"
+            );
+            revive_the_tunnel().await;
         }
     }
 }
@@ -676,6 +697,7 @@ pub async fn rearm_after_wake() {
 enum Health {
     Works,
     Broken(&'static str),
+    Dead,
     Unknown(&'static str),
 }
 
@@ -691,13 +713,19 @@ async fn health_after_wake() -> Health {
     if system_route(&tun) == Route::Bypass {
         return Health::Broken("the system route to the internet bypasses it");
     }
-    match traffic_through_the_tunnel().await {
-        Traffic::Flows => {
-            traffic_seen_flowing();
-            Health::Works
-        }
+    let traffic = traffic_through_the_tunnel().await;
+    if traffic == Traffic::Flows {
+        traffic_seen_flowing();
+    }
+    health_by_traffic(traffic)
+}
+
+const fn health_by_traffic(traffic: Traffic) -> Health {
+    match traffic {
+        Traffic::Flows => Health::Works,
         Traffic::Stuck => Health::Broken("it passes no traffic"),
-        Traffic::Unknown => Health::Unknown("the proxy itself does not answer"),
+        Traffic::Dead => Health::Dead,
+        Traffic::Unknown => Health::Unknown("the proxy port did not answer consistently"),
     }
 }
 
@@ -807,34 +835,185 @@ pub fn recheck_traffic() {
 enum Traffic {
     Flows,
     Stuck,
+    Dead,
     Unknown,
 }
 
-/// Идёт ли трафик машины через туннель. «Не знаю» — когда не отвечает сам
-/// прокси (сеть или узел, а не туннель) или туннель перестали хотеть.
+/// Идёт ли трафик машины через туннель. «Не знаю» — когда порт ядра ответил
+/// на одну попытку из двух или туннель перестали хотеть.
 async fn traffic_through_the_tunnel() -> Traffic {
-    if !probe_traffic(ProxyType::Localhost).await {
-        return Traffic::Unknown;
-    }
-    if probe_traffic(ProxyType::None).await {
+    let (proxy, direct) = tokio::join!(probe_traffic(ProxyType::Localhost), probe_traffic(ProxyType::None));
+    if direct {
         return Traffic::Flows;
     }
     tokio::time::sleep(TRAFFIC_PROBE_RETRY_DELAY).await;
     if !claimed().await {
         return Traffic::Unknown;
     }
-    if probe_traffic(ProxyType::None).await {
+    let (proxy_again, direct_again) = tokio::join!(probe_traffic(ProxyType::Localhost), probe_traffic(ProxyType::None));
+    traffic_verdict(proxy, proxy_again, direct_again)
+}
+
+const fn traffic_verdict(proxy: bool, proxy_again: bool, direct_again: bool) -> Traffic {
+    if direct_again {
         return Traffic::Flows;
     }
-    if !probe_traffic(ProxyType::Localhost).await {
-        return Traffic::Unknown;
+    match (proxy, proxy_again) {
+        (true, true) => Traffic::Stuck,
+        (false, false) => Traffic::Dead,
+        _ => Traffic::Unknown,
     }
-    Traffic::Stuck
 }
 
 fn traffic_seen_flowing() {
     NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
     clear_failure_tag(FAILURE_NO_TRAFFIC);
+}
+
+/// Взводится только событием (новое ядро, смена сети): плановая проба посреди
+/// сеанса при упавшем сервере рвала бы пересозданием живые соединения.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+enum Revival {
+    Idle,
+    Armed,
+    Revived,
+}
+
+impl Revival {
+    const fn from_u8(value: u8) -> Self {
+        match value {
+            1 => Self::Armed,
+            2 => Self::Revived,
+            _ => Self::Idle,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RevivalStep {
+    Revive,
+    Helped,
+    DidNotHelp,
+    Nothing,
+}
+
+const fn revival_step(state: Revival, traffic: Traffic) -> RevivalStep {
+    match (state, traffic) {
+        (Revival::Armed, Traffic::Dead) => RevivalStep::Revive,
+        (Revival::Revived, Traffic::Flows) => RevivalStep::Helped,
+        (Revival::Revived, Traffic::Dead) => RevivalStep::DidNotHelp,
+        _ => RevivalStep::Nothing,
+    }
+}
+
+/// Событие во время ожидания вердикта по оживлению ничего не взводит: проба,
+/// которая идёт за пересозданием, измерит и так, а второе оживление подряд
+/// дало бы второе мигание туннеля.
+const fn armed(state: Revival) -> Revival {
+    match state {
+        Revival::Idle => Revival::Armed,
+        other => other,
+    }
+}
+
+fn arm_revival() {
+    let _ = REVIVAL.fetch_update(Ordering::AcqRel, Ordering::Acquire, |state| {
+        Some(armed(Revival::from_u8(state)) as u8)
+    });
+}
+
+async fn wait_for_the_network() -> bool {
+    let mut since: Option<Instant> = None;
+    loop {
+        if Handle::global().is_exiting() || !claimed().await {
+            return false;
+        }
+        if since.is_some_and(|since| since.elapsed() >= NETWORK_WAIT_LIMIT) {
+            logging!(
+                info,
+                Type::Core,
+                "no network address seen for {}s; checking the TUN device anyway",
+                NETWORK_WAIT_LIMIT.as_secs()
+            );
+            return true;
+        }
+        if crate::feat::environment::the_network_carries_traffic().await != Some(false) {
+            if let Some(since) = since {
+                logging!(
+                    info,
+                    Type::Core,
+                    "the network is there after {}s; checking the TUN device",
+                    since.elapsed().as_secs()
+                );
+                tokio::time::sleep(NETWORK_SETTLE).await;
+                return claimed().await;
+            }
+            return true;
+        }
+        if since.is_none() {
+            logging!(info, Type::Core, "the TUN device check waits for the network");
+            since = Some(Instant::now());
+        }
+        tokio::time::sleep(NETWORK_WAIT_STEP).await;
+    }
+}
+
+async fn follow_the_revival(traffic: Traffic) -> bool {
+    let state = Revival::from_u8(REVIVAL.swap(Revival::Idle as u8, Ordering::AcqRel));
+    match revival_step(state, traffic) {
+        RevivalStep::Revive => {
+            if !claimed().await {
+                return true;
+            }
+            logging!(
+                warn,
+                Type::Core,
+                "nothing passes through the TUN device or the proxy port after the core start or a network change; reloading the config and re-creating the device once"
+            );
+            AsyncHandler::spawn(|| async { revive_the_tunnel().await });
+            true
+        }
+        RevivalStep::Helped => {
+            logging!(info, Type::Core, "traffic flows after the TUN device was re-created");
+            false
+        }
+        RevivalStep::DidNotHelp => {
+            logging!(
+                warn,
+                Type::Core,
+                "nothing passes even after the TUN device was re-created: the server or the internet does not answer; left as it is"
+            );
+            false
+        }
+        RevivalStep::Nothing => false,
+    }
+}
+
+/// Как переключение TUN руками: ядро заново собирает узлы и DNS, затем
+/// поднимает туннель с нуля — одно пересоздание устройства их не трогает.
+async fn revive_the_tunnel() {
+    match crate::core::CoreManager::global().update_config_forced().await {
+        Ok(Ok(_)) => {}
+        Ok(Err(outcome)) => logging!(
+            info,
+            Type::Core,
+            "the config was not reloaded before re-creating the TUN device: {}",
+            outcome
+        ),
+        Err(e) => logging!(
+            info,
+            Type::Core,
+            "the config was not reloaded before re-creating the TUN device: {}",
+            e
+        ),
+    }
+    if Handle::global().is_exiting() || !claimed().await {
+        return;
+    }
+    if recreate_tun_device().await {
+        REVIVAL.store(Revival::Revived as u8, Ordering::Release);
+    }
 }
 
 fn spawn_traffic_probe() {
@@ -850,8 +1029,16 @@ fn spawn_traffic_probe() {
         if !claimed().await {
             return;
         }
-        match traffic_through_the_tunnel().await {
-            Traffic::Unknown => return,
+        let armed = REVIVAL.load(Ordering::Acquire) == Revival::Armed as u8;
+        if armed && !wait_for_the_network().await {
+            return;
+        }
+        let traffic = traffic_through_the_tunnel().await;
+        if follow_the_revival(traffic).await {
+            return;
+        }
+        match traffic {
+            Traffic::Unknown | Traffic::Dead => return,
             Traffic::Flows => {
                 traffic_seen_flowing();
                 return;
@@ -927,7 +1114,9 @@ pub async fn enforce_undesired_off() {
                     Type::Core,
                     "TUN became wanted while it was being taken down; bringing it back"
                 );
-                AsyncHandler::spawn(|| async { recreate_tun_device().await });
+                AsyncHandler::spawn(|| async {
+                    let _ = recreate_tun_device().await;
+                });
             } else {
                 logging!(info, Type::Core, "the unwanted TUN device was taken down");
             }
@@ -994,11 +1183,14 @@ pub async fn recheck_after_network_change() {
             return;
         }
         clear_suppression();
+        // Возврат сам пересобирает конфиг и поднимает устройство — оживление
+        // поверх него повторило бы то же самое.
         AsyncHandler::spawn(|| async {
             bring_tun_back("the network changed and the suppressed device gets a fresh budget").await;
         });
         return;
     }
+    arm_revival();
     if RETRY_PENDING.load(Ordering::Acquire) {
         logging!(
             info,
@@ -2000,5 +2192,91 @@ mod tests {
                 && follow_up.contains("spawn_bringing_tun_back_if_the_config_lacks_it("),
             "{follow_up}"
         );
+    }
+
+    #[test]
+    fn nothing_through_the_tunnel_or_the_port_is_dead_not_unknown() {
+        let cases = [
+            ((false, false, false), Traffic::Dead),
+            ((true, true, false), Traffic::Stuck),
+            ((true, false, false), Traffic::Unknown),
+            ((false, true, false), Traffic::Unknown),
+            ((false, false, true), Traffic::Flows),
+            ((true, true, true), Traffic::Flows),
+        ];
+        for ((proxy, proxy_again, direct_again), expected) in cases {
+            assert_eq!(
+                traffic_verdict(proxy, proxy_again, direct_again),
+                expected,
+                "{proxy} {proxy_again} {direct_again}"
+            );
+        }
+        assert_eq!(health_by_traffic(Traffic::Dead), Health::Dead);
+        assert!(matches!(health_by_traffic(Traffic::Stuck), Health::Broken(_)));
+        assert!(matches!(health_by_traffic(Traffic::Unknown), Health::Unknown(_)));
+        assert_eq!(health_by_traffic(Traffic::Flows), Health::Works);
+    }
+
+    #[test]
+    fn a_dead_tunnel_is_re_created_once_per_event() {
+        let traffic = [Traffic::Flows, Traffic::Stuck, Traffic::Dead, Traffic::Unknown];
+        for verdict in traffic {
+            let armed = if verdict == Traffic::Dead {
+                RevivalStep::Revive
+            } else {
+                RevivalStep::Nothing
+            };
+            assert_eq!(revival_step(Revival::Armed, verdict), armed, "{verdict:?}");
+            assert_eq!(
+                revival_step(Revival::Idle, verdict),
+                RevivalStep::Nothing,
+                "{verdict:?}"
+            );
+        }
+        assert_eq!(revival_step(Revival::Revived, Traffic::Dead), RevivalStep::DidNotHelp);
+        assert_eq!(revival_step(Revival::Revived, Traffic::Flows), RevivalStep::Helped);
+        assert_eq!(revival_step(Revival::Revived, Traffic::Stuck), RevivalStep::Nothing);
+        assert_eq!(revival_step(Revival::Revived, Traffic::Unknown), RevivalStep::Nothing);
+        for state in [Revival::Idle, Revival::Armed, Revival::Revived] {
+            assert_eq!(Revival::from_u8(state as u8), state);
+        }
+        assert_eq!(armed(Revival::Idle), Revival::Armed);
+        assert_eq!(armed(Revival::Armed), Revival::Armed);
+        assert_eq!(armed(Revival::Revived), Revival::Revived, "вердикт по оживлению не перебивается");
+
+        let tun = crate::utils::source_scan::production_code(include_str!("tun.rs"));
+        let follow_up =
+            crate::utils::source_scan::fn_body(tun, "pub async fn follow_up_on_a_new_core").unwrap_or_default();
+        assert_eq!(follow_up.matches("arm_revival();").count(), 2, "{follow_up}");
+        let network =
+            crate::utils::source_scan::fn_body(tun, "pub async fn recheck_after_network_change").unwrap_or_default();
+        let bring_back = network.find("bring_tun_back(").unwrap_or_default();
+        let armed_at = network.find("arm_revival();").unwrap_or_default();
+        assert!(
+            armed_at > bring_back,
+            "возврат подавленного устройства сам пересобирает конфиг — взвод после него: {network}"
+        );
+        let wait = crate::utils::source_scan::fn_body(tun, "async fn wait_for_the_network(").unwrap_or_default();
+        assert!(wait.contains("NETWORK_WAIT_LIMIT"), "ожидание сети ограничено: {wait}");
+        let revive = crate::utils::source_scan::fn_body(tun, "async fn revive_the_tunnel(").unwrap_or_default();
+        assert!(
+            revive.contains("if recreate_tun_device().await {"),
+            "«оживлено» только после настоящего пересоздания: {revive}"
+        );
+        assert_eq!(
+            tun.matches("arm_revival();").count(),
+            3,
+            "взводят только события, а не плановые пробы"
+        );
+        let probe = crate::utils::source_scan::fn_body(tun, "fn spawn_traffic_probe(").unwrap_or_default();
+        let wait = probe.find("wait_for_the_network()").unwrap_or(usize::MAX);
+        let check = probe.find("traffic_through_the_tunnel()").unwrap_or_default();
+        assert!(
+            probe.contains("armed && !wait_for_the_network()") && wait < check,
+            "проба после события сначала ждёт сеть: {probe}"
+        );
+        assert!(probe.contains("follow_the_revival(traffic)"), "{probe}");
+        let wake = crate::utils::source_scan::fn_body(tun, "pub async fn rearm_after_wake").unwrap_or_default();
+        assert_eq!(wake.matches("revive_the_tunnel()").count(), 1, "{wake}");
     }
 }

@@ -307,6 +307,14 @@ fn network_fingerprint() -> Option<BTreeSet<std::string::String>> {
     Some(fingerprint_of(crate::cmd::network::network_interfaces_info().ok()?))
 }
 
+pub(crate) async fn the_network_carries_traffic() -> Option<bool> {
+    AsyncHandler::spawn_blocking(network_fingerprint)
+        .await
+        .ok()
+        .flatten()
+        .map(|view| !view.is_empty())
+}
+
 fn listing_just_failed() -> bool {
     !LISTING_FAILED.swap(true, Ordering::AcqRel)
 }
