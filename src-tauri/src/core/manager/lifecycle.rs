@@ -1026,7 +1026,10 @@ impl CoreManager {
         }
         match self.try_handoff_sidecar_to_service(HandoffReason::Tun).await {
             HandoffOutcome::Done => {
-                crate::feat::tun::spawn_bringing_tun_back_if_the_config_lacks_it("the core is under the service now");
+                crate::feat::tun::spawn_bringing_tun_back_if_the_config_lacks_it(
+                    "the core is under the service now",
+                    crate::feat::tun::Occasion::Scheduled,
+                );
             }
             HandoffOutcome::NotReady => self.spawn_service_handoff_watcher(HandoffReason::Tun).await,
             HandoffOutcome::Failed => {
@@ -1106,6 +1109,7 @@ impl CoreManager {
                     HandoffOutcome::Done => {
                         crate::feat::tun::spawn_bringing_tun_back_if_the_config_lacks_it(
                             "the core is under the service now",
+                            crate::feat::tun::Occasion::Scheduled,
                         );
                         break;
                     }

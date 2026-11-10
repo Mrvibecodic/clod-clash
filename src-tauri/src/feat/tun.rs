@@ -31,10 +31,12 @@ static VERIFY_GENERATION: AtomicU64 = AtomicU64::new(0);
 static START_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
 static RETRY_PENDING: AtomicBool = AtomicBool::new(false);
 static LAST_FAILURE: Mutex<Option<&'static str>> = Mutex::new(None);
-static TRAFFIC_PROBE_RUNNING: AtomicBool = AtomicBool::new(false);
 static NO_TRAFFIC_NOTICED: AtomicBool = AtomicBool::new(false);
 static TRAFFIC_PROBE_EPOCH: AtomicU64 = AtomicU64::new(0);
-static REVIVAL: AtomicU8 = AtomicU8::new(Revival::Idle as u8);
+static VERIFY_OCCASION: AtomicU8 = AtomicU8::new(0);
+static PROBE_OCCASION: AtomicU8 = AtomicU8::new(0);
+static PROBE_WORKER: AtomicBool = AtomicBool::new(false);
+static REVIVE_RUNNING: AtomicBool = AtomicBool::new(false);
 static LAST_REARM_AT: Mutex<Option<Instant>> = Mutex::new(None);
 static RECREATE_RUNNING: AtomicBool = AtomicBool::new(false);
 static BRING_BACK_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -83,7 +85,7 @@ async fn wait_before_the_next_bring_back() -> bool {
     desired().await && !is_suppressed()
 }
 
-async fn bring_tun_back(reason: &str) {
+async fn bring_tun_back(reason: &str, occasion: Occasion) {
     if BRING_BACK_RUNNING.swap(true, Ordering::AcqRel) {
         logging!(info, Type::Core, "TUN is already being brought back; skipping this one");
         return;
@@ -99,7 +101,7 @@ async fn bring_tun_back(reason: &str) {
         let anchor = log_anchor().await;
         match crate::core::CoreManager::global().update_config_forced().await {
             Ok(Ok(_)) => {
-                spawn_start_verification(anchor);
+                spawn_start_verification(anchor, occasion);
                 Handle::refresh_verge();
                 crate::core::tray::Tray::global().redraw().await;
                 return;
@@ -147,16 +149,16 @@ async fn bring_tun_back(reason: &str) {
 /// передачи). Передача случается и посреди `patch_verge` (тумблер TUN, кнопка
 /// починки службы): сначала дождаться этой правки, иначе пересборка пошла бы
 /// из ещё не зафиксированных настроек и заняла бы дверь у самого `patch_verge`.
-pub fn spawn_bringing_tun_back_if_the_config_lacks_it(reason: &'static str) {
+pub fn spawn_bringing_tun_back_if_the_config_lacks_it(reason: &'static str, occasion: Occasion) {
     AsyncHandler::spawn(move || {
         Box::pin(async move {
             drop(crate::feat::patch_verge_lock().lock().await);
-            bring_tun_back_if_the_config_lacks_it(reason).await;
+            bring_tun_back_if_the_config_lacks_it(reason, occasion).await;
         }) as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
     });
 }
 
-pub async fn bring_tun_back_if_the_config_lacks_it(reason: &str) {
+pub async fn bring_tun_back_if_the_config_lacks_it(reason: &str, occasion: Occasion) {
     // По зафиксированным настройкам, не по черновику: идущая правка тумблера
     // сама пересоберёт конфиг, когда её зафиксируют.
     let wanted = Config::verge().await.data_arc().enable_tun_mode.unwrap_or(false);
@@ -166,7 +168,7 @@ pub async fn bring_tun_back_if_the_config_lacks_it(reason: &str) {
     if accepted_has_tun().await {
         return;
     }
-    bring_tun_back(reason).await;
+    bring_tun_back(reason, occasion).await;
 }
 
 /// Есть ли туннель в принятом конфиге — в том, на котором работает ядро.
@@ -210,14 +212,11 @@ const fn new_core_tun(claimed: bool, accepted_has_tun: bool) -> NewCoreTun {
 /// — снимаем.
 pub async fn follow_up_on_a_new_core() {
     match new_core_tun(claimed().await, accepted_has_tun().await) {
-        NewCoreTun::Verify => {
-            arm_revival();
-            spawn_start_verification(log_anchor().await);
-        }
-        NewCoreTun::BringBack => {
-            arm_revival();
-            spawn_bringing_tun_back_if_the_config_lacks_it("the core came up without the TUN it should have");
-        }
+        NewCoreTun::Verify => spawn_start_verification(log_anchor().await, Occasion::Event),
+        NewCoreTun::BringBack => spawn_bringing_tun_back_if_the_config_lacks_it(
+            "the core came up without the TUN it should have",
+            Occasion::Event,
+        ),
         NewCoreTun::TakeDown => {
             AsyncHandler::spawn(|| async { enforce_undesired_off().await });
         }
@@ -225,6 +224,7 @@ pub async fn follow_up_on_a_new_core() {
 }
 
 pub fn suppress(reason: &str) {
+    VERIFY_OCCASION.store(0, Ordering::Release);
     if !SUPPRESSED.swap(true, Ordering::AcqRel) {
         logging!(warn, Type::Core, "TUN suppressed for this session: {}", reason);
         the_tray_follows_the_suppression(false, true);
@@ -527,7 +527,7 @@ fn schedule_retry() {
         if !claimed().await {
             return;
         }
-        let _ = recreate_tun_device().await;
+        recreate_tun_device(Occasion::Scheduled).await;
     });
 }
 
@@ -568,15 +568,14 @@ async fn switch_tun_device(enable: bool) -> Result<(), SwitchFailure> {
     }
 }
 
-/// `true` — устройство пересоздано и проверка после подъёма запущена.
-async fn recreate_tun_device() -> bool {
+async fn recreate_tun_device(occasion: Occasion) {
     if RECREATE_RUNNING.swap(true, Ordering::AcqRel) {
         logging!(
             info,
             Type::Core,
             "a TUN device re-creation is already running; skipping this one"
         );
-        return false;
+        return;
     }
     scopeguard::defer! {
         RECREATE_RUNNING.store(false, Ordering::Release);
@@ -599,12 +598,11 @@ async fn recreate_tun_device() -> bool {
                 "the core is not running; this does not count against the TUN start budget"
             );
         }
-        return false;
+        return;
     }
 
     logging!(info, Type::Core, "the TUN device was re-created");
-    spawn_start_verification(anchor);
-    true
+    spawn_start_verification(anchor, occasion);
 }
 
 /// Вернуть туннель, снятый уборкой отменённого выхода.
@@ -619,7 +617,7 @@ pub async fn bring_back_after_a_cancelled_exit() {
     match switch_tun_device(true).await {
         Ok(()) => {
             logging!(info, Type::Core, "TUN brought back after the cancelled exit");
-            spawn_start_verification(anchor);
+            spawn_start_verification(anchor, Occasion::Scheduled);
         }
         Err(failure) => logging!(
             warn,
@@ -651,7 +649,7 @@ pub async fn rearm_after_wake() {
     START_FAILED.store(false, Ordering::Release);
     stamp_rearm();
     if was_suppressed {
-        bring_tun_back("the machine woke up into a new environment").await;
+        bring_tun_back("the machine woke up into a new environment", Occasion::Scheduled).await;
         return;
     }
     // clod:Р30П-11 — рабочий туннель после сна не трогаем: пересоздание рвёт
@@ -679,7 +677,7 @@ pub async fn rearm_after_wake() {
                 "the TUN device does not work after the wake-up ({}); re-creating it",
                 why
             );
-            let _ = recreate_tun_device().await;
+            recreate_tun_device(Occasion::Scheduled).await;
         }
         Health::Dead => {
             if !claimed().await {
@@ -857,7 +855,7 @@ fn ipv4_only(addresses: impl Iterator<Item = std::net::SocketAddr>) -> Vec<std::
 #[cfg(windows)]
 pub fn recheck_traffic() {
     TRAFFIC_PROBE_EPOCH.fetch_add(1, Ordering::AcqRel);
-    spawn_traffic_probe();
+    request_traffic_probe(Occasion::Scheduled);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -899,22 +897,28 @@ fn traffic_seen_flowing() {
     clear_failure_tag(FAILURE_NO_TRAFFIC);
 }
 
-/// Взводится только событием (новое ядро, смена сети): плановая проба посреди
-/// сеанса при упавшем сервере рвала бы пересозданием живые соединения.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Зачем идёт проба. Причина едет вместе с ней от события до вердикта и
+/// тратится одной пробой: никакого общего «взведено», которое досталось бы
+/// чужой пробе через полчаса. Мёртвый туннель оживляется только по событию
+/// (новое ядро, смена сети): плановая проба посреди сеанса при упавшем сервере
+/// рвала бы пересозданием живые соединения.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
-enum Revival {
-    Idle,
-    Armed,
-    Revived,
+pub enum Occasion {
+    Scheduled = 1,
+    Event = 2,
+    /// Проба за пересозданием: её вердикт — итог оживления. Важнее события,
+    /// пришедшего за это время: второе оживление подряд — второе мигание.
+    Revival = 3,
 }
 
-impl Revival {
-    const fn from_u8(value: u8) -> Self {
+impl Occasion {
+    const fn from_u8(value: u8) -> Option<Self> {
         match value {
-            1 => Self::Armed,
-            2 => Self::Revived,
-            _ => Self::Idle,
+            1 => Some(Self::Scheduled),
+            2 => Some(Self::Event),
+            3 => Some(Self::Revival),
+            _ => None,
         }
     }
 }
@@ -927,29 +931,13 @@ enum RevivalStep {
     Nothing,
 }
 
-const fn revival_step(state: Revival, traffic: Traffic) -> RevivalStep {
-    match (state, traffic) {
-        (Revival::Armed, Traffic::Dead) => RevivalStep::Revive,
-        (Revival::Revived, Traffic::Flows) => RevivalStep::Helped,
-        (Revival::Revived, Traffic::Dead) => RevivalStep::DidNotHelp,
+const fn revival_step(occasion: Occasion, traffic: Traffic) -> RevivalStep {
+    match (occasion, traffic) {
+        (Occasion::Event, Traffic::Dead) => RevivalStep::Revive,
+        (Occasion::Revival, Traffic::Flows) => RevivalStep::Helped,
+        (Occasion::Revival, Traffic::Dead) => RevivalStep::DidNotHelp,
         _ => RevivalStep::Nothing,
     }
-}
-
-/// Событие во время ожидания вердикта по оживлению ничего не взводит: проба,
-/// которая идёт за пересозданием, измерит и так, а второе оживление подряд
-/// дало бы второе мигание туннеля.
-const fn armed(state: Revival) -> Revival {
-    match state {
-        Revival::Idle => Revival::Armed,
-        other => other,
-    }
-}
-
-fn arm_revival() {
-    let _ = REVIVAL.fetch_update(Ordering::AcqRel, Ordering::Acquire, |state| {
-        Some(armed(Revival::from_u8(state)) as u8)
-    });
 }
 
 async fn wait_for_the_network() -> bool {
@@ -988,9 +976,8 @@ async fn wait_for_the_network() -> bool {
     }
 }
 
-async fn follow_the_revival(traffic: Traffic) -> bool {
-    let state = Revival::from_u8(REVIVAL.swap(Revival::Idle as u8, Ordering::AcqRel));
-    match revival_step(state, traffic) {
+async fn follow_the_revival(occasion: Occasion, traffic: Traffic) -> bool {
+    match revival_step(occasion, traffic) {
         RevivalStep::Revive => {
             if !claimed().await {
                 return true;
@@ -1000,7 +987,7 @@ async fn follow_the_revival(traffic: Traffic) -> bool {
                 Type::Core,
                 "nothing passes through the TUN device or the proxy port after the core start or a network change; reloading the config and re-creating the device once"
             );
-            AsyncHandler::spawn(|| async { revive_the_tunnel().await });
+            revive_the_tunnel().await;
             true
         }
         RevivalStep::Helped => {
@@ -1022,6 +1009,17 @@ async fn follow_the_revival(traffic: Traffic) -> bool {
 /// Как переключение TUN руками: ядро заново собирает узлы и DNS, затем
 /// поднимает туннель с нуля — одно пересоздание устройства их не трогает.
 async fn revive_the_tunnel() {
+    if REVIVE_RUNNING.swap(true, Ordering::AcqRel) {
+        logging!(
+            info,
+            Type::Core,
+            "the TUN device is already being revived; skipping this one"
+        );
+        return;
+    }
+    scopeguard::defer! {
+        REVIVE_RUNNING.store(false, Ordering::Release);
+    }
     match crate::core::CoreManager::global().update_config_forced().await {
         Ok(Ok(_)) => {}
         Ok(Err(outcome)) => logging!(
@@ -1040,60 +1038,69 @@ async fn revive_the_tunnel() {
     if Handle::global().is_exiting() || !claimed().await {
         return;
     }
-    if recreate_tun_device().await {
-        REVIVAL.store(Revival::Revived as u8, Ordering::Release);
-    }
+    recreate_tun_device(Occasion::Revival).await;
 }
 
-fn spawn_traffic_probe() {
-    if TRAFFIC_PROBE_RUNNING.swap(true, Ordering::AcqRel) {
+/// Пробы идут по одной. Просьба во время идущей не теряется: причины
+/// сливаются (побеждает важнейшая), и следующая проба идёт сразу за текущей.
+fn request_traffic_probe(occasion: Occasion) {
+    PROBE_OCCASION.fetch_max(occasion as u8, Ordering::AcqRel);
+    if PROBE_WORKER.swap(true, Ordering::AcqRel) {
         return;
     }
     AsyncHandler::spawn(|| async {
-        scopeguard::defer! {
-            TRAFFIC_PROBE_RUNNING.store(false, Ordering::Release);
-        }
-        let epoch = TRAFFIC_PROBE_EPOCH.load(Ordering::Acquire);
-        tokio::time::sleep(TRAFFIC_PROBE_DELAY).await;
-        if !claimed().await {
-            return;
-        }
-        let armed = REVIVAL.load(Ordering::Acquire) == Revival::Armed as u8;
-        if armed && !wait_for_the_network().await {
-            return;
-        }
-        let traffic = traffic_through_the_tunnel().await;
-        if follow_the_revival(traffic).await {
-            return;
-        }
-        match traffic {
-            Traffic::Unknown | Traffic::Dead => return,
-            Traffic::Flows => {
-                traffic_seen_flowing();
+        loop {
+            while let Some(occasion) = Occasion::from_u8(PROBE_OCCASION.swap(0, Ordering::AcqRel)) {
+                probe_the_tunnel(occasion).await;
+            }
+            PROBE_WORKER.store(false, Ordering::Release);
+            if PROBE_OCCASION.load(Ordering::Acquire) == 0 || PROBE_WORKER.swap(true, Ordering::AcqRel) {
                 return;
             }
-            Traffic::Stuck => {}
-        }
-        if TRAFFIC_PROBE_EPOCH.load(Ordering::Acquire) != epoch {
-            logging!(
-                info,
-                Type::Core,
-                "the traffic probe began before a fix and its verdict is stale; not reporting it"
-            );
-            return;
-        }
-        let stack = runtime_stack().await.unwrap_or_else(|| String::from("unknown"));
-        logging!(
-            warn,
-            Type::Core,
-            "the TUN device is up but passes no traffic (stack {})",
-            stack
-        );
-        if !NO_TRAFFIC_NOTICED.swap(true, Ordering::AcqRel) {
-            set_failure(FAILURE_NO_TRAFFIC);
-            Handle::notice_message("tun::no_traffic", stack);
         }
     });
+}
+
+async fn probe_the_tunnel(occasion: Occasion) {
+    let epoch = TRAFFIC_PROBE_EPOCH.load(Ordering::Acquire);
+    tokio::time::sleep(TRAFFIC_PROBE_DELAY).await;
+    if !claimed().await {
+        return;
+    }
+    if occasion == Occasion::Event && !wait_for_the_network().await {
+        return;
+    }
+    let traffic = traffic_through_the_tunnel().await;
+    if follow_the_revival(occasion, traffic).await {
+        return;
+    }
+    match traffic {
+        Traffic::Unknown | Traffic::Dead => return,
+        Traffic::Flows => {
+            traffic_seen_flowing();
+            return;
+        }
+        Traffic::Stuck => {}
+    }
+    if TRAFFIC_PROBE_EPOCH.load(Ordering::Acquire) != epoch {
+        logging!(
+            info,
+            Type::Core,
+            "the traffic probe began before a fix and its verdict is stale; not reporting it"
+        );
+        return;
+    }
+    let stack = runtime_stack().await.unwrap_or_else(|| String::from("unknown"));
+    logging!(
+        warn,
+        Type::Core,
+        "the TUN device is up but passes no traffic (stack {})",
+        stack
+    );
+    if !NO_TRAFFIC_NOTICED.swap(true, Ordering::AcqRel) {
+        set_failure(FAILURE_NO_TRAFFIC);
+        Handle::notice_message("tun::no_traffic", stack);
+    }
 }
 
 async fn read_tun_config() -> Option<TunConfig> {
@@ -1170,9 +1177,7 @@ pub async fn enforce_undesired_off() {
                     Type::Core,
                     "TUN became wanted while it was being taken down; bringing it back"
                 );
-                AsyncHandler::spawn(|| async {
-                    let _ = recreate_tun_device().await;
-                });
+                AsyncHandler::spawn(|| async { recreate_tun_device(Occasion::Scheduled).await });
             } else {
                 logging!(info, Type::Core, "the unwanted TUN device was taken down");
             }
@@ -1242,12 +1247,17 @@ pub async fn recheck_after_network_change() {
         // Возврат сам пересобирает конфиг и поднимает устройство — оживление
         // поверх него повторило бы то же самое.
         AsyncHandler::spawn(|| async {
-            bring_tun_back("the network changed and the suppressed device gets a fresh budget").await;
+            bring_tun_back(
+                "the network changed and the suppressed device gets a fresh budget",
+                Occasion::Scheduled,
+            )
+            .await;
         });
         return;
     }
-    arm_revival();
     if RETRY_PENDING.load(Ordering::Acquire) {
+        // Проверку после повтора запуска эта смена сети ждёт вместе с ним.
+        VERIFY_OCCASION.fetch_max(Occasion::Event as u8, Ordering::AcqRel);
         logging!(
             info,
             Type::Core,
@@ -1257,7 +1267,7 @@ pub async fn recheck_after_network_change() {
     }
     START_ATTEMPTS.store(0, Ordering::Release);
     START_FAILED.store(false, Ordering::Release);
-    spawn_start_verification(log_anchor().await);
+    spawn_start_verification(log_anchor().await, Occasion::Event);
 }
 
 pub async fn log_anchor() -> Option<String> {
@@ -1269,18 +1279,23 @@ pub async fn log_anchor() -> Option<String> {
 }
 
 /// Новая проверка сменяет прежнюю вместе с её сторожем: журнал читает одна
-/// проверка, от своего якоря.
-pub fn spawn_start_verification(anchor: Option<String>) {
+/// проверка, от своего якоря. Причину сменённой забирает сменившая.
+pub fn spawn_start_verification(anchor: Option<String>, occasion: Occasion) {
+    VERIFY_OCCASION.fetch_max(occasion as u8, Ordering::AcqRel);
     let generation = VERIFY_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
     AsyncHandler::spawn(move || async move {
         let mut anchor = anchor;
         tokio::time::sleep(timing::TUN_VERIFY_DELAY).await;
-        if VERIFY_GENERATION.load(Ordering::Acquire) != generation || !claimed().await {
+        if VERIFY_GENERATION.load(Ordering::Acquire) != generation {
+            return;
+        }
+        let occasion = Occasion::from_u8(VERIFY_OCCASION.swap(0, Ordering::AcqRel)).unwrap_or(occasion);
+        if !claimed().await {
             return;
         }
         if !matches!(verify_round(&mut anchor).await, Round::Done) {
             spawn_watchdog(generation, anchor);
-            spawn_traffic_probe();
+            request_traffic_probe(occasion);
         }
     });
 }
@@ -1356,7 +1371,7 @@ fn spawn_watchdog(generation: u64, anchor: Option<String>) {
                 Round::Clean => {
                     rounds = rounds.saturating_add(1);
                     if rounds >= next_probe {
-                        spawn_traffic_probe();
+                        request_traffic_probe(Occasion::Scheduled);
                         probe_gap = probe_gap.saturating_mul(2).min(TRAFFIC_RECHECK_MAX_ROUNDS);
                         next_probe = rounds.saturating_add(probe_gap);
                     }
@@ -1531,7 +1546,7 @@ async fn already_ready(user_initiated: bool) -> bool {
         if matches!(*manager.get_running_mode(), crate::core::manager::RunningMode::Sidecar) && !is_app_elevated() {
             manager.handoff_to_service_if_needed().await;
         } else {
-            bring_tun_back_if_the_config_lacks_it("the service turned out to be available").await;
+            bring_tun_back_if_the_config_lacks_it("the service turned out to be available", Occasion::Scheduled).await;
         }
         return true;
     }
@@ -2286,68 +2301,76 @@ mod tests {
 
     #[test]
     fn a_dead_tunnel_is_re_created_once_per_event() {
-        let traffic = [Traffic::Flows, Traffic::Stuck, Traffic::Dead, Traffic::Unknown];
-        for verdict in traffic {
-            let armed = if verdict == Traffic::Dead {
-                RevivalStep::Revive
-            } else {
-                RevivalStep::Nothing
-            };
-            assert_eq!(revival_step(Revival::Armed, verdict), armed, "{verdict:?}");
-            assert_eq!(
-                revival_step(Revival::Idle, verdict),
-                RevivalStep::Nothing,
-                "{verdict:?}"
-            );
+        use Occasion::{Event, Revival, Scheduled};
+        use RevivalStep::{DidNotHelp, Helped, Nothing, Revive};
+        use Traffic::{Dead, Flows, Stuck, Unknown};
+        let cases = [
+            ((Event, Dead), Revive),
+            ((Event, Flows), Nothing),
+            ((Event, Stuck), Nothing),
+            ((Event, Unknown), Nothing),
+            ((Scheduled, Dead), Nothing),
+            ((Scheduled, Flows), Nothing),
+            ((Revival, Flows), Helped),
+            ((Revival, Dead), DidNotHelp),
+            ((Revival, Stuck), Nothing),
+            ((Revival, Unknown), Nothing),
+        ];
+        for ((occasion, traffic), expected) in cases {
+            assert_eq!(revival_step(occasion, traffic), expected, "{occasion:?} {traffic:?}");
         }
-        assert_eq!(revival_step(Revival::Revived, Traffic::Dead), RevivalStep::DidNotHelp);
-        assert_eq!(revival_step(Revival::Revived, Traffic::Flows), RevivalStep::Helped);
-        assert_eq!(revival_step(Revival::Revived, Traffic::Stuck), RevivalStep::Nothing);
-        assert_eq!(revival_step(Revival::Revived, Traffic::Unknown), RevivalStep::Nothing);
-        for state in [Revival::Idle, Revival::Armed, Revival::Revived] {
-            assert_eq!(Revival::from_u8(state as u8), state);
+        for occasion in [Scheduled, Event, Revival] {
+            assert_eq!(Occasion::from_u8(occasion as u8), Some(occasion));
         }
-        assert_eq!(armed(Revival::Idle), Revival::Armed);
-        assert_eq!(armed(Revival::Armed), Revival::Armed);
-        assert_eq!(
-            armed(Revival::Revived),
-            Revival::Revived,
-            "вердикт по оживлению не перебивается"
+        assert_eq!(Occasion::from_u8(0), None);
+        assert!(
+            Revival > Event && Event > Scheduled,
+            "при слиянии побеждает важнейшая причина"
         );
+    }
 
+    #[test]
+    fn the_occasion_travels_with_the_probe() {
         let tun = crate::utils::source_scan::production_code(include_str!("tun.rs"));
-        let follow_up =
-            crate::utils::source_scan::fn_body(tun, "pub async fn follow_up_on_a_new_core").unwrap_or_default();
-        assert_eq!(follow_up.matches("arm_revival();").count(), 2, "{follow_up}");
-        let network =
-            crate::utils::source_scan::fn_body(tun, "pub async fn recheck_after_network_change").unwrap_or_default();
-        let bring_back = network.find("bring_tun_back(").unwrap_or_default();
-        let armed_at = network.find("arm_revival();").unwrap_or_default();
-        assert!(
-            armed_at > bring_back,
-            "возврат подавленного устройства сам пересобирает конфиг — взвод после него: {network}"
-        );
-        let wait = crate::utils::source_scan::fn_body(tun, "async fn wait_for_the_network(").unwrap_or_default();
-        assert!(wait.contains("NETWORK_WAIT_LIMIT"), "ожидание сети ограничено: {wait}");
-        let revive = crate::utils::source_scan::fn_body(tun, "async fn revive_the_tunnel(").unwrap_or_default();
-        assert!(
-            revive.contains("if recreate_tun_device().await {"),
-            "«оживлено» только после настоящего пересоздания: {revive}"
-        );
+        let body = |name: &str| crate::utils::source_scan::fn_body(tun, name).unwrap_or_default();
+        let follow_up = body("pub async fn follow_up_on_a_new_core");
+        assert_eq!(follow_up.matches("Occasion::Event").count(), 2, "{follow_up}");
+        let network = body("pub async fn recheck_after_network_change");
+        assert_eq!(network.matches("Occasion::Event").count(), 2, "{network}");
+        let revive = body("async fn revive_the_tunnel(");
+        assert!(revive.contains("recreate_tun_device(Occasion::Revival)"), "{revive}");
         assert_eq!(
-            tun.matches("arm_revival();").count(),
-            3,
-            "взводят только события, а не плановые пробы"
+            tun.matches("(Occasion::Revival)").count(),
+            1,
+            "вердикт по оживлению ждёт только проба за ним"
         );
-        let probe = crate::utils::source_scan::fn_body(tun, "fn spawn_traffic_probe(").unwrap_or_default();
-        let wait = probe.find("wait_for_the_network()").unwrap_or(usize::MAX);
-        let check = probe.find("traffic_through_the_tunnel()").unwrap_or_default();
+        let verify = body("pub fn spawn_start_verification(");
+        let superseded = verify.find("!= generation").unwrap_or(usize::MAX);
+        let taken = verify.find("VERIFY_OCCASION.swap(0").unwrap_or_default();
+        let wanted = verify.find("!claimed().await").unwrap_or_default();
         assert!(
-            probe.contains("armed && !wait_for_the_network()") && wait < check,
+            superseded < taken && taken < wanted,
+            "сменённая проверка оставляет причину сменившей, ненужный туннель её гасит: {verify}"
+        );
+        let worker = body("fn request_traffic_probe(");
+        let freed = worker.find("PROBE_WORKER.store(false").unwrap_or(usize::MAX);
+        let rechecked = worker.find("PROBE_OCCASION.load(").unwrap_or_default();
+        assert!(
+            freed < rechecked,
+            "просьба, пришедшая на выходе пробы, не теряется: {worker}"
+        );
+        let probe = body("async fn probe_the_tunnel(");
+        let wait = probe.find("wait_for_the_network()").unwrap_or(usize::MAX);
+        let check = probe.find("traffic_through_the_tunnel(").unwrap_or_default();
+        assert!(
+            probe.contains("occasion == Occasion::Event && !wait_for_the_network()") && wait < check,
             "проба после события сначала ждёт сеть: {probe}"
         );
-        assert!(probe.contains("follow_the_revival(traffic)"), "{probe}");
-        let wake = crate::utils::source_scan::fn_body(tun, "pub async fn rearm_after_wake").unwrap_or_default();
+        let wait = body("async fn wait_for_the_network(");
+        assert!(wait.contains("NETWORK_WAIT_LIMIT"), "ожидание сети ограничено: {wait}");
+        let suppress = body("pub fn suppress(");
+        assert!(suppress.contains("VERIFY_OCCASION.store(0"), "{suppress}");
+        let wake = body("pub async fn rearm_after_wake");
         assert_eq!(wake.matches("revive_the_tunnel()").count(), 1, "{wake}");
     }
 }

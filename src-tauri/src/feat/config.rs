@@ -549,7 +549,7 @@ async fn finish_patch_verge(patch: &IVerge, tun_log_anchor: Option<String>, not_
     }
 
     if patch.enable_tun_mode == Some(true) {
-        crate::feat::tun::spawn_start_verification(tun_log_anchor);
+        crate::feat::tun::spawn_start_verification(tun_log_anchor, crate::feat::tun::Occasion::Scheduled);
     }
 
     logging_error!(Type::Backup, AutoBackupManager::global().refresh_settings().await);
