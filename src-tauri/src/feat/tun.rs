@@ -32,11 +32,14 @@ static START_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
 static RETRY_PENDING: AtomicBool = AtomicBool::new(false);
 static LAST_FAILURE: Mutex<Option<&'static str>> = Mutex::new(None);
 static NO_TRAFFIC_NOTICED: AtomicBool = AtomicBool::new(false);
+static BYPASS_NOTICED: AtomicBool = AtomicBool::new(false);
+static STUCK_DESPITE_REVIVAL: AtomicBool = AtomicBool::new(false);
 static TRAFFIC_PROBE_EPOCH: AtomicU64 = AtomicU64::new(0);
 static VERIFY_OCCASION: AtomicU8 = AtomicU8::new(0);
 static PROBE_OCCASION: AtomicU8 = AtomicU8::new(0);
 static PROBE_WORKER: AtomicBool = AtomicBool::new(false);
 static REVIVE_RUNNING: AtomicBool = AtomicBool::new(false);
+static REVIVED_AT: Mutex<Option<Instant>> = Mutex::new(None);
 static LAST_REARM_AT: Mutex<Option<Instant>> = Mutex::new(None);
 static RECREATE_RUNNING: AtomicBool = AtomicBool::new(false);
 static BRING_BACK_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -53,6 +56,7 @@ const FAILURE_START: &str = "startFailed";
 const FAILURE_ADAPTER_BUSY: &str = "adapterBusy";
 const FAILURE_NO_RIGHTS: &str = "noRights";
 const FAILURE_NO_TRAFFIC: &str = "noTraffic";
+const FAILURE_BYPASSED: &str = "bypassed";
 const FAILURE_SETUP: &str = "setupFailed";
 const FAILURE_RIGHTS_DECLINED: &str = "rightsDeclined";
 const FAILURE_SERVICE_SILENT: &str = "serviceSilent";
@@ -74,6 +78,7 @@ const TRAFFIC_PROBE_RETRY_DELAY: Duration = Duration::from_secs(3);
 const NETWORK_WAIT_STEP: Duration = Duration::from_secs(1);
 const NETWORK_WAIT_LIMIT: Duration = Duration::from_secs(10 * 60);
 const NETWORK_SETTLE: Duration = Duration::from_secs(2);
+const REVIVAL_VERDICT_WAIT: Duration = Duration::from_secs(60);
 const CAPABILITY_FRESH_FOR: Duration = Duration::from_secs(60);
 
 pub fn is_suppressed() -> bool {
@@ -249,6 +254,8 @@ pub fn clear_suppression() {
     START_FAILED.store(false, Ordering::Release);
     START_ATTEMPTS.store(0, Ordering::Release);
     NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
+    BYPASS_NOTICED.store(false, Ordering::Release);
+    STUCK_DESPITE_REVIVAL.store(false, Ordering::Release);
     if was_suppressed {
         the_tray_follows_the_suppression(true, false);
     }
@@ -679,14 +686,15 @@ pub async fn rearm_after_wake() {
             );
             recreate_tun_device(Occasion::Scheduled).await;
         }
-        Health::Dead => {
+        Health::Revive(why) => {
             if !claimed().await {
                 return;
             }
             logging!(
                 warn,
                 Type::Core,
-                "nothing passes through the TUN device or the proxy port after the wake-up; reloading the config and re-creating the device"
+                "{} after the wake-up; reloading the config and re-creating the device",
+                why
             );
             revive_the_tunnel().await;
         }
@@ -697,7 +705,7 @@ pub async fn rearm_after_wake() {
 enum Health {
     Works,
     Broken(&'static str),
-    Dead,
+    Revive(&'static str),
     Unknown(&'static str),
 }
 
@@ -710,21 +718,26 @@ async fn health_after_wake() -> Health {
     if !tun.enable {
         return Health::Broken("the core reports the device is not up");
     }
-    if system_route(&tun) == Route::Bypass {
-        return Health::Broken("the system route to the internet bypasses it");
-    }
-    let traffic = traffic_through_the_tunnel().await;
-    if traffic == Traffic::Flows {
-        traffic_seen_flowing();
-    }
+    let traffic = traffic_through_the_tunnel(Some(&tun)).await;
+    note_the_verdict(traffic, route_checked(Some(&tun)));
     health_by_traffic(traffic)
+}
+
+const fn what_is_wrong(traffic: Traffic) -> &'static str {
+    match traffic {
+        Traffic::Bypassed => "the system route to the internet bypasses the TUN device",
+        Traffic::Stuck => "nothing passes through the TUN device while the proxy port works",
+        Traffic::Dead => "nothing passes through the TUN device or the proxy port",
+        Traffic::Flows => "traffic passes through the TUN device",
+        Traffic::Unknown => "the TUN device could not be judged",
+    }
 }
 
 const fn health_by_traffic(traffic: Traffic) -> Health {
     match traffic {
         Traffic::Flows => Health::Works,
         Traffic::Stuck => Health::Broken("it passes no traffic"),
-        Traffic::Dead => Health::Dead,
+        Traffic::Dead | Traffic::Bypassed => Health::Revive(what_is_wrong(traffic)),
         Traffic::Unknown => Health::Unknown("the proxy port did not answer consistently"),
     }
 }
@@ -863,12 +876,25 @@ enum Traffic {
     Flows,
     Stuck,
     Dead,
+    Bypassed,
     Unknown,
 }
 
 /// Идёт ли трафик машины через туннель. «Не знаю» — когда порт ядра ответил
-/// на одну попытку из двух или туннель перестали хотеть.
-async fn traffic_through_the_tunnel() -> Traffic {
+/// на одну попытку из двух или туннель перестали хотеть. Прямой запрос
+/// доказывает туннель, только если система ведёт путь наружу в него: иначе
+/// он проходит мимо, и ядро его не видит.
+async fn traffic_through_the_tunnel(tun: Option<&TunConfig>) -> Traffic {
+    let bypassed = || tun.is_some_and(|tun| system_route(tun) == Route::Bypass);
+    if bypassed() {
+        tokio::time::sleep(TRAFFIC_PROBE_RETRY_DELAY).await;
+        if !claimed().await {
+            return Traffic::Unknown;
+        }
+        if bypassed() {
+            return Traffic::Bypassed;
+        }
+    }
     let (proxy, direct) = tokio::join!(probe_traffic(ProxyType::Localhost), probe_traffic(ProxyType::None));
     if direct {
         return Traffic::Flows;
@@ -892,16 +918,38 @@ const fn traffic_verdict(proxy: bool, proxy_again: bool, direct_again: bool) -> 
     }
 }
 
-fn traffic_seen_flowing() {
-    NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
-    clear_failure_tag(FAILURE_NO_TRAFFIC);
+/// Система ответила, куда ведёт путь наружу: без этого «мимо туннеля» не
+/// опровергнуто.
+fn route_checked(tun: Option<&TunConfig>) -> bool {
+    tun.is_some_and(|tun| system_route(tun) != Route::Unknown)
+}
+
+fn note_the_verdict(traffic: Traffic, route_known: bool) {
+    if the_bypass_is_over(traffic, route_known) {
+        BYPASS_NOTICED.store(false, Ordering::Release);
+        clear_failure_tag(FAILURE_BYPASSED);
+    }
+    if traffic == Traffic::Flows {
+        NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
+        STUCK_DESPITE_REVIVAL.store(false, Ordering::Release);
+        clear_failure_tag(FAILURE_NO_TRAFFIC);
+        crate::core::notification::withdraw_pending_notice("tun::no_traffic");
+    }
+}
+
+const fn the_bypass_is_over(traffic: Traffic, route_known: bool) -> bool {
+    match traffic {
+        Traffic::Bypassed => false,
+        Traffic::Flows | Traffic::Stuck | Traffic::Dead | Traffic::Unknown => route_known,
+    }
 }
 
 /// Зачем идёт проба. Причина едет вместе с ней от события до вердикта и
 /// тратится одной пробой: никакого общего «взведено», которое досталось бы
-/// чужой пробе через полчаса. Мёртвый туннель оживляется только по событию
-/// (новое ядро, смена сети): плановая проба посреди сеанса при упавшем сервере
-/// рвала бы пересозданием живые соединения.
+/// чужой пробе через полчаса. Мёртвый или стоящий туннель оживляется только по
+/// событию (новое ядро, смена сети): плановая проба посреди сеанса при упавшем
+/// сервере рвала бы пересозданием живые соединения. Путь мимо туннеля
+/// оживляется и плановой пробой — через туннель тогда не идёт ничего.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum Occasion {
@@ -928,15 +976,33 @@ enum RevivalStep {
     Revive,
     Helped,
     DidNotHelp,
+    StillStuck,
+    StillBypassed,
     Nothing,
 }
 
-const fn revival_step(occasion: Occasion, traffic: Traffic) -> RevivalStep {
+/// `tried` — оживление от этой поломки уже не помогло (стоящий туннель за
+/// брандмауэром, путь, перехваченный другим VPN): пока трафик снова не пойдёт,
+/// туннель не дёргают — пересоздание такое не лечит.
+const fn revival_step(occasion: Occasion, traffic: Traffic, tried: bool) -> RevivalStep {
     match (occasion, traffic) {
         (Occasion::Event, Traffic::Dead) => RevivalStep::Revive,
+        (Occasion::Event, Traffic::Stuck) | (Occasion::Event | Occasion::Scheduled, Traffic::Bypassed) if !tried => {
+            RevivalStep::Revive
+        }
         (Occasion::Revival, Traffic::Flows) => RevivalStep::Helped,
         (Occasion::Revival, Traffic::Dead) => RevivalStep::DidNotHelp,
+        (Occasion::Revival, Traffic::Stuck) => RevivalStep::StillStuck,
+        (Occasion::Revival, Traffic::Bypassed) => RevivalStep::StillBypassed,
         _ => RevivalStep::Nothing,
+    }
+}
+
+fn revival_already_failed(traffic: Traffic) -> bool {
+    match traffic {
+        Traffic::Stuck => STUCK_DESPITE_REVIVAL.load(Ordering::Acquire),
+        Traffic::Bypassed => BYPASS_NOTICED.load(Ordering::Acquire),
+        Traffic::Flows | Traffic::Dead | Traffic::Unknown => false,
     }
 }
 
@@ -977,7 +1043,7 @@ async fn wait_for_the_network() -> bool {
 }
 
 async fn follow_the_revival(occasion: Occasion, traffic: Traffic) -> bool {
-    match revival_step(occasion, traffic) {
+    match revival_step(occasion, traffic, revival_already_failed(traffic)) {
         RevivalStep::Revive => {
             if !claimed().await {
                 return true;
@@ -985,10 +1051,30 @@ async fn follow_the_revival(occasion: Occasion, traffic: Traffic) -> bool {
             logging!(
                 warn,
                 Type::Core,
-                "nothing passes through the TUN device or the proxy port after the core start or a network change; reloading the config and re-creating the device once"
+                "{}; reloading the config and re-creating the device once",
+                what_is_wrong(traffic)
             );
             revive_the_tunnel().await;
             true
+        }
+        RevivalStep::StillStuck => {
+            logging!(
+                warn,
+                Type::Core,
+                "nothing passes through the TUN device even after it was re-created, while the proxy port works"
+            );
+            STUCK_DESPITE_REVIVAL.store(true, Ordering::Release);
+            false
+        }
+        RevivalStep::StillBypassed => {
+            logging!(
+                warn,
+                Type::Core,
+                "the system route to the internet still bypasses the TUN device after it was re-created; left as it is"
+            );
+            set_failure(FAILURE_BYPASSED);
+            BYPASS_NOTICED.store(true, Ordering::Release);
+            false
         }
         RevivalStep::Helped => {
             logging!(info, Type::Core, "traffic flows after the TUN device was re-created");
@@ -1006,6 +1092,16 @@ async fn follow_the_revival(occasion: Occasion, traffic: Traffic) -> bool {
     }
 }
 
+/// Пока проба за оживлением не дала вердикт, новое не начинается: причина,
+/// вставшая в очередь до него, уже получила своё оживление. Срок — на случай,
+/// когда вердикта не будет (ядро упало, устройство не поднялось).
+const fn awaits_its_verdict(since_the_revival: Option<Duration>) -> bool {
+    match since_the_revival {
+        Some(passed) => passed.as_secs() < REVIVAL_VERDICT_WAIT.as_secs(),
+        None => false,
+    }
+}
+
 /// Как переключение TUN руками: ядро заново собирает узлы и DNS, затем
 /// поднимает туннель с нуля — одно пересоздание устройства их не трогает.
 async fn revive_the_tunnel() {
@@ -1019,6 +1115,14 @@ async fn revive_the_tunnel() {
     }
     scopeguard::defer! {
         REVIVE_RUNNING.store(false, Ordering::Release);
+    }
+    if awaits_its_verdict(REVIVED_AT.lock().map(|at| at.elapsed())) {
+        logging!(
+            info,
+            Type::Core,
+            "the TUN device was just revived and its check is still to come; skipping this one"
+        );
+        return;
     }
     match crate::core::CoreManager::global().update_config_forced().await {
         Ok(Ok(_)) => {}
@@ -1038,6 +1142,7 @@ async fn revive_the_tunnel() {
     if Handle::global().is_exiting() || !claimed().await {
         return;
     }
+    *REVIVED_AT.lock() = Some(Instant::now());
     recreate_tun_device(Occasion::Revival).await;
 }
 
@@ -1070,16 +1175,17 @@ async fn probe_the_tunnel(occasion: Occasion) {
     if occasion == Occasion::Event && !wait_for_the_network().await {
         return;
     }
-    let traffic = traffic_through_the_tunnel().await;
+    let tun = tun_config_for_the_check().await;
+    let traffic = traffic_through_the_tunnel(tun.as_ref()).await;
+    note_the_verdict(traffic, route_checked(tun.as_ref()));
+    if occasion == Occasion::Revival {
+        *REVIVED_AT.lock() = None;
+    }
     if follow_the_revival(occasion, traffic).await {
         return;
     }
     match traffic {
-        Traffic::Unknown | Traffic::Dead => return,
-        Traffic::Flows => {
-            traffic_seen_flowing();
-            return;
-        }
+        Traffic::Flows | Traffic::Bypassed | Traffic::Unknown | Traffic::Dead => return,
         Traffic::Stuck => {}
     }
     if TRAFFIC_PROBE_EPOCH.load(Ordering::Acquire) != epoch {
@@ -2282,7 +2388,8 @@ mod tests {
                 "{proxy} {proxy_again} {direct_again}"
             );
         }
-        assert_eq!(health_by_traffic(Traffic::Dead), Health::Dead);
+        assert!(matches!(health_by_traffic(Traffic::Dead), Health::Revive(_)));
+        assert!(matches!(health_by_traffic(Traffic::Bypassed), Health::Revive(_)));
         assert!(matches!(health_by_traffic(Traffic::Stuck), Health::Broken(_)));
         assert!(matches!(health_by_traffic(Traffic::Unknown), Health::Unknown(_)));
         assert_eq!(health_by_traffic(Traffic::Flows), Health::Works);
@@ -2300,24 +2407,66 @@ mod tests {
     }
 
     #[test]
+    fn only_a_checked_route_lifts_the_bypass() {
+        use Traffic::{Bypassed, Dead, Flows, Stuck, Unknown};
+        for traffic in [Flows, Stuck, Dead, Unknown] {
+            assert!(the_bypass_is_over(traffic, true), "{traffic:?}");
+            assert!(
+                !the_bypass_is_over(traffic, false),
+                "непроверенный маршрут не снимает «мимо туннеля»: {traffic:?}"
+            );
+        }
+        assert!(!the_bypass_is_over(Bypassed, true));
+        let tun = crate::utils::source_scan::production_code(include_str!("tun.rs"));
+        let body = |name: &str| crate::utils::source_scan::fn_body(tun, name).unwrap_or_default();
+        let health = body("async fn health_after_wake(");
+        let probe = body("async fn probe_the_tunnel(");
+        for (place, code) in [("wake", &health), ("probe", &probe)] {
+            assert!(code.contains("route_checked("), "{place}: {code}");
+            assert!(
+                !code.contains("system_route("),
+                "путь мимо туннеля проверяется в одном месте: {place}"
+            );
+        }
+        assert!(
+            body("async fn traffic_through_the_tunnel(").contains("system_route("),
+            "{probe}"
+        );
+        assert!(body("fn route_checked(").contains("!= Route::Unknown"));
+        assert!(body("async fn probe_traffic(").contains("Ipv4Only"));
+    }
+
+    #[test]
     fn a_dead_tunnel_is_re_created_once_per_event() {
         use Occasion::{Event, Revival, Scheduled};
-        use RevivalStep::{DidNotHelp, Helped, Nothing, Revive};
-        use Traffic::{Dead, Flows, Stuck, Unknown};
+        use RevivalStep::{DidNotHelp, Helped, Nothing, Revive, StillBypassed, StillStuck};
+        use Traffic::{Bypassed, Dead, Flows, Stuck, Unknown};
         let cases = [
-            ((Event, Dead), Revive),
-            ((Event, Flows), Nothing),
-            ((Event, Stuck), Nothing),
-            ((Event, Unknown), Nothing),
-            ((Scheduled, Dead), Nothing),
-            ((Scheduled, Flows), Nothing),
-            ((Revival, Flows), Helped),
-            ((Revival, Dead), DidNotHelp),
-            ((Revival, Stuck), Nothing),
-            ((Revival, Unknown), Nothing),
+            ((Event, Dead, false), Revive),
+            ((Event, Dead, true), Revive),
+            ((Event, Stuck, false), Revive),
+            ((Event, Stuck, true), Nothing),
+            ((Event, Bypassed, false), Revive),
+            ((Event, Bypassed, true), Nothing),
+            ((Event, Flows, false), Nothing),
+            ((Event, Unknown, false), Nothing),
+            ((Scheduled, Bypassed, false), Revive),
+            ((Scheduled, Bypassed, true), Nothing),
+            ((Scheduled, Dead, false), Nothing),
+            ((Scheduled, Stuck, false), Nothing),
+            ((Scheduled, Flows, false), Nothing),
+            ((Revival, Flows, false), Helped),
+            ((Revival, Dead, false), DidNotHelp),
+            ((Revival, Stuck, false), StillStuck),
+            ((Revival, Bypassed, false), StillBypassed),
+            ((Revival, Unknown, false), Nothing),
         ];
-        for ((occasion, traffic), expected) in cases {
-            assert_eq!(revival_step(occasion, traffic), expected, "{occasion:?} {traffic:?}");
+        for ((occasion, traffic, tried), expected) in cases {
+            assert_eq!(
+                revival_step(occasion, traffic, tried),
+                expected,
+                "{occasion:?} {traffic:?} {tried}"
+            );
         }
         for occasion in [Scheduled, Event, Revival] {
             assert_eq!(Occasion::from_u8(occasion as u8), Some(occasion));
@@ -2372,5 +2521,34 @@ mod tests {
         assert!(suppress.contains("VERIFY_OCCASION.store(0"), "{suppress}");
         let wake = body("pub async fn rearm_after_wake");
         assert_eq!(wake.matches("revive_the_tunnel()").count(), 1, "{wake}");
+    }
+
+    #[test]
+    fn a_revival_waits_for_its_verdict_before_the_next_one() {
+        assert!(!awaits_its_verdict(None));
+        assert!(awaits_its_verdict(Some(Duration::ZERO)));
+        assert!(awaits_its_verdict(Some(REVIVAL_VERDICT_WAIT - Duration::from_secs(1))));
+        assert!(
+            !awaits_its_verdict(Some(REVIVAL_VERDICT_WAIT)),
+            "без вердикта ожидание кончается само"
+        );
+        let tun = crate::utils::source_scan::production_code(include_str!("tun.rs"));
+        let body = |name: &str| crate::utils::source_scan::fn_body(tun, name).unwrap_or_default();
+        let revive = body("async fn revive_the_tunnel(");
+        let waits = revive.find("awaits_its_verdict(").unwrap_or(usize::MAX);
+        let reloads = revive.find("update_config_forced()").unwrap_or_default();
+        let stamps = revive.find("REVIVED_AT.lock() = Some(").unwrap_or(usize::MAX);
+        let recreates = revive.find("recreate_tun_device(").unwrap_or_default();
+        assert!(
+            waits < reloads && stamps < recreates,
+            "ждущее вердикта оживление не трогает ни конфиг, ни устройство: {revive}"
+        );
+        let probe = body("async fn probe_the_tunnel(");
+        let judged = probe.find("occasion == Occasion::Revival").unwrap_or(usize::MAX);
+        let followed = probe.find("follow_the_revival(").unwrap_or_default();
+        assert!(
+            probe.contains("REVIVED_AT.lock() = None") && judged < followed,
+            "вердикт пробы за оживлением снимает ожидание: {probe}"
+        );
     }
 }
