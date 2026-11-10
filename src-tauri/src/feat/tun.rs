@@ -58,6 +58,8 @@ const FAILURE_SERVICE_SILENT: &str = "serviceSilent";
 const TUN_START_ATTEMPTS: u32 = 3;
 const TUN_RETRY_DELAY: Duration = Duration::from_secs(5);
 const TUN_READ_TIMEOUT: Duration = Duration::from_secs(3);
+const TUN_READ_ATTEMPTS: u32 = 3;
+const TUN_READ_RETRY_DELAY: Duration = Duration::from_secs(2);
 const TUN_PATCH_TIMEOUT: Duration = Duration::from_secs(10);
 const TUN_TAKEDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 const TUN_REARM_COOLDOWN: Duration = Duration::from_secs(300);
@@ -704,7 +706,7 @@ enum Health {
 /// Состояние туннеля по фактам: что о нём говорит ядро, ведёт ли в него
 /// система путь наружу и идёт ли через него трафик.
 async fn health_after_wake() -> Health {
-    let Some(tun) = read_tun_config().await else {
+    let Some(tun) = tun_config_for_the_check().await else {
         return Health::Unknown("the core did not answer");
     };
     if !tun.enable {
@@ -809,17 +811,44 @@ fn source_towards(target: std::net::Ipv4Addr) -> Option<std::net::IpAddr> {
 }
 
 async fn probe_traffic(proxy_type: ProxyType) -> bool {
-    let client = match NetworkManager::new()
-        .create_request(proxy_type, Some(TRAFFIC_PROBE_TIMEOUT_SECS), None)
-        .await
-    {
-        Ok(client) => client,
-        Err(_) => return false,
+    let network = NetworkManager::new();
+    let timeout = Some(TRAFFIC_PROBE_TIMEOUT_SECS);
+    let client = match proxy_type {
+        ProxyType::None => {
+            network
+                .create_restricted_request(proxy_type, timeout, reqwest::redirect::Policy::default(), Ipv4Only)
+                .await
+        }
+        ProxyType::Localhost | ProxyType::System => network.create_request(proxy_type, timeout, None).await,
+    };
+    let Ok(client) = client else {
+        return false;
     };
     match client.get(TRAFFIC_PROBE_URL).send().await {
         Ok(response) => response.status().as_u16() == 204,
         Err(_) => false,
     }
+}
+
+/// Прямой запрос идёт только по IPv4: туннель везёт IPv4 всегда, а IPv6 — не
+/// всегда, и запрос по IPv6 мимо туннеля доказал бы лишь, что есть интернет.
+struct Ipv4Only;
+
+impl reqwest::dns::Resolve for Ipv4Only {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let host = name.as_str().to_owned();
+        Box::pin(async move {
+            let found = ipv4_only(tokio::net::lookup_host((host.as_str(), 0)).await?);
+            if found.is_empty() {
+                return Err("no IPv4 address".into());
+            }
+            Ok(Box::new(found.into_iter()) as reqwest::dns::Addrs)
+        })
+    }
+}
+
+fn ipv4_only(addresses: impl Iterator<Item = std::net::SocketAddr>) -> Vec<std::net::SocketAddr> {
+    addresses.filter(std::net::SocketAddr::is_ipv4).collect()
 }
 
 /// Причину «трафик не идёт» могли только что убрать (починили брандмауэр).
@@ -1068,11 +1097,38 @@ fn spawn_traffic_probe() {
 }
 
 async fn read_tun_config() -> Option<TunConfig> {
+    ask_tun_config().await.ok()
+}
+
+async fn ask_tun_config() -> Result<TunConfig, std::string::String> {
     let core = crate::core::handle::Handle::mihomo();
     match tokio::time::timeout(TUN_READ_TIMEOUT, core.get_base_config()).await {
-        Ok(Ok(config)) => Some(config.tun),
-        _ => None,
+        Ok(Ok(config)) => Ok(config.tun),
+        Ok(Err(e)) => Err(e.to_string()),
+        Err(_) => Err(format!("no answer in {}s", TUN_READ_TIMEOUT.as_secs())),
     }
+}
+
+/// Сразу после старта ядро несколько секунд не отдаёт свои настройки, а без
+/// них путь мимо туннеля не проверить.
+async fn tun_config_for_the_check() -> Option<TunConfig> {
+    let mut why = std::string::String::new();
+    for attempt in 0..TUN_READ_ATTEMPTS {
+        if attempt > 0 {
+            tokio::time::sleep(TUN_READ_RETRY_DELAY).await;
+        }
+        match ask_tun_config().await {
+            Ok(tun) => return Some(tun),
+            Err(e) => why = e,
+        }
+    }
+    logging!(
+        warn,
+        Type::Core,
+        "the core did not report its TUN settings ({}); the route to the internet is not checked",
+        why
+    );
+    None
 }
 
 pub async fn runtime_stack() -> Option<String> {
@@ -2215,6 +2271,17 @@ mod tests {
         assert!(matches!(health_by_traffic(Traffic::Stuck), Health::Broken(_)));
         assert!(matches!(health_by_traffic(Traffic::Unknown), Health::Unknown(_)));
         assert_eq!(health_by_traffic(Traffic::Flows), Health::Works);
+    }
+
+    #[test]
+    fn the_direct_probe_keeps_only_ipv4_addresses() {
+        let addresses = ["104.16.0.1:0", "[2606:4700::1]:0", "198.18.0.5:0", "[::1]:0"]
+            .iter()
+            .filter_map(|text| text.parse::<std::net::SocketAddr>().ok());
+        let kept = ipv4_only(addresses);
+        assert_eq!(kept.len(), 2, "{kept:?}");
+        assert!(kept.iter().all(std::net::SocketAddr::is_ipv4), "{kept:?}");
+        assert!(ipv4_only(std::iter::empty()).is_empty());
     }
 
     #[test]
