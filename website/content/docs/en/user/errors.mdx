@@ -132,6 +132,15 @@ tunnel don't: programs that go online without proxy settings can't open anything
 almost always the firewall — press "Fix" on the home screen. In other cases
 try a different stack in the TUN dialog.
 
+## "TUN is up but the system sends traffic around the tunnel"
+
+This notification appears when the system sends internet traffic straight
+through the network card instead of the tunnel: sites open, but not through
+the VPN. The app first reconnects the tunnel once by itself, the same as
+turning TUN off and on by hand; the notification means that did not help.
+Most often another VPN or a virtual network adapter has taken the route:
+turn it off and toggle TUN.
+
 ## TUN is on, but nothing opens at all (Windows)
 
 What it looks like: without TUN everything works, but with TUN the whole internet is
