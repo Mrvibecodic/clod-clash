@@ -40,6 +40,7 @@ export const NOTICE_STATUSES = [
   'sysproxy::switch_failed',
   'sysproxy::write_failed',
   'tun::adapter_busy',
+  'tun::bypassed',
   'tun::no_rights',
   'tun::no_traffic',
   'tun::rights_declined',

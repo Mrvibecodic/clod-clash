@@ -928,6 +928,7 @@ fn note_the_verdict(traffic: Traffic, route_known: bool) {
     if the_bypass_is_over(traffic, route_known) {
         BYPASS_NOTICED.store(false, Ordering::Release);
         clear_failure_tag(FAILURE_BYPASSED);
+        crate::core::notification::withdraw_pending_notice("tun::bypassed");
     }
     if traffic == Traffic::Flows {
         NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
@@ -1073,7 +1074,9 @@ async fn follow_the_revival(occasion: Occasion, traffic: Traffic) -> bool {
                 "the system route to the internet still bypasses the TUN device after it was re-created; left as it is"
             );
             set_failure(FAILURE_BYPASSED);
-            BYPASS_NOTICED.store(true, Ordering::Release);
+            if !BYPASS_NOTICED.swap(true, Ordering::AcqRel) {
+                Handle::notice_message("tun::bypassed", "");
+            }
             false
         }
         RevivalStep::Helped => {

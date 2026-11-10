@@ -260,6 +260,10 @@ export const handleNoticeMessage = (
       showNotice.error(
         'settings.sections.system.notifications.tunMode.adapterBusy',
       ),
+    'tun::bypassed': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.tunMode.bypassed',
+      ),
     'tun::no_traffic': () =>
       showNotice.error(
         OS === 'windows' && ['system', 'mixed'].includes(msg.toLowerCase())

@@ -210,6 +210,7 @@ export interface TranslationResources {
           fix: string
           reasons: {
             adapterBusy: string
+            bypassed: string
             noRights: string
             noTraffic: string
             rightsDeclined: string
@@ -1507,6 +1508,7 @@ export interface TranslationResources {
             tunMode: {
               adapterBusy: string
               autoDisabled: string
+              bypassed: string
               noRights: string
               noTraffic: string
               noTrafficWindows: string

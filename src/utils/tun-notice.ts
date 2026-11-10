@@ -21,6 +21,7 @@ const FAILURE_REASONS: Record<string, TranslationKey> = {
   adapterBusy: 'home.components.tunStatus.reasons.adapterBusy',
   noRights: 'home.components.tunStatus.reasons.noRights',
   noTraffic: 'home.components.tunStatus.reasons.noTraffic',
+  bypassed: 'home.components.tunStatus.reasons.bypassed',
   setupFailed: 'home.components.tunStatus.reasons.setupFailed',
   rightsDeclined: 'home.components.tunStatus.reasons.rightsDeclined',
   serviceSilent: 'home.components.tunStatus.reasons.serviceSilent',

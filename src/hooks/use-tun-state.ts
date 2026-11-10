@@ -45,8 +45,12 @@ export const useTunState = () => {
     tunNeedsRepair: tun.needs_repair,
     tunServiceServesThisCopy: tun.service_serves_this_copy,
     tunBroken: tun.desired && !tun.active,
-    // Туннель поднят, но проба не прошла: устройство есть, а трафик не идёт.
-    tunNoTraffic: tun.desired && tun.active && tun.failure === 'noTraffic',
+    // Туннель поднят, но проба не прошла: устройство есть, а трафик через него
+    // не идёт — стоит или уходит мимо.
+    tunNoTraffic:
+      tun.desired &&
+      tun.active &&
+      (tun.failure === 'noTraffic' || tun.failure === 'bypassed'),
     tunRuntimeStack: tun.runtime_stack ?? null,
     tunFailure: tun.failure ?? null,
     mutateTunState,

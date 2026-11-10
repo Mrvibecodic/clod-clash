@@ -42,7 +42,8 @@
           "setupDone": "Mode TUN siap digunakan",
           "setupFailed": "Layanan latar belakang gagal dipasang, mode TUN tetap mati",
           "noTraffic": "TUN aktif tetapi tidak ada lalu lintas melalui terowongan",
-          "noTrafficWindows": "TUN aktif tetapi tidak ada lalu lintas: izinkan core melalui firewall Windows untuk koneksi masuk atau ganti stack. Stack aktif"
+          "noTrafficWindows": "TUN aktif tetapi tidak ada lalu lintas: izinkan core melalui firewall Windows untuk koneksi masuk atau ganti stack. Stack aktif",
+          "bypassed": "TUN is up but the system sends traffic around the tunnel, and reconnecting did not help. Another VPN may have taken the route"
         },
         "core": {
           "binaryChanged": "Berkas core berubah setelah dipasang dan tidak dijalankan",
