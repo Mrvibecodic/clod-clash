@@ -967,7 +967,5 @@ interface IVergeConfig {
 
 interface ILocalBackupFile {
   filename: string
-  path: string
   last_modified: string
-  content_length: number
 }

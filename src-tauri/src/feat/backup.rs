@@ -16,9 +16,7 @@ use tokio::fs;
 #[derive(Debug, Serialize)]
 pub struct LocalBackupFile {
     pub filename: String,
-    pub path: String,
     pub last_modified: String,
-    pub content_length: u64,
 }
 
 fn top_level_backup_files() -> [&'static str; 4] {
@@ -389,9 +387,7 @@ pub async fn list_local_backup() -> Result<Vec<LocalBackupFile>> {
             .unwrap_or_default();
         backups.push(LocalBackupFile {
             filename: file_name.into(),
-            path: path.to_string_lossy().into(),
             last_modified: last_modified.into(),
-            content_length: metadata.len(),
         });
     }
 
