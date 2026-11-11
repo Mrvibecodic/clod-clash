@@ -11,16 +11,6 @@ mod module;
 mod process;
 mod utils;
 
-/// Для проверки подписочных заголовков в `tests/`.
-#[doc(hidden)]
-pub use crate::{
-    config::{
-        PrfItem,
-        sub_headers::{HwidState, SubHeaders, spare_address},
-    },
-    utils::network::{NetworkManager, ProxyType},
-};
-
 use crate::constants::files;
 use crate::{
     core::handle,

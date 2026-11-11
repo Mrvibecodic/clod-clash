@@ -9,6 +9,8 @@ pub mod proxy_label;
 pub mod runtime;
 // clod: Remnawave / Happ subscription headers
 pub mod sub_headers;
+#[cfg(all(test, target_os = "linux"))]
+mod sub_headers_wire;
 mod verge;
 
 pub use self::{clash::*, config::*, prfitem::*, profiles::*, verge::*};
