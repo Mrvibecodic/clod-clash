@@ -1199,7 +1199,10 @@ async fn probe_the_tunnel(occasion: Occasion) {
         );
         return;
     }
-    let stack = runtime_stack().await.unwrap_or_else(|| String::from("unknown"));
+    let stack = match stack_of(tun.as_ref()) {
+        Some(stack) => stack,
+        None => runtime_stack().await.unwrap_or_else(|| String::from("unknown")),
+    };
     logging!(
         warn,
         Type::Core,
@@ -1247,14 +1250,15 @@ async fn tun_config_for_the_check() -> Option<TunConfig> {
     None
 }
 
+fn stack_of(tun: Option<&TunConfig>) -> Option<String> {
+    tun.filter(|tun| tun.enable).map(|tun| tun.stack.to_string())
+}
+
 pub async fn runtime_stack() -> Option<String> {
     if !claimed().await {
         return None;
     }
-    match read_tun_config().await {
-        Some(tun) if tun.enable => Some(tun.stack.to_string()),
-        _ => None,
-    }
+    stack_of(read_tun_config().await.as_ref())
 }
 
 pub async fn enforce_undesired_off() {
@@ -1955,6 +1959,14 @@ mod tests {
         };
         edit(&mut tun);
         tun
+    }
+
+    #[test]
+    fn the_stack_is_named_only_for_a_device_that_is_up() {
+        let up = tunnel(|_| {});
+        assert_eq!(stack_of(Some(&up)), Some(up.stack.to_string()));
+        assert_eq!(stack_of(Some(&tunnel(|tun| tun.enable = false))), None);
+        assert_eq!(stack_of(None), None);
     }
 
     #[test]
