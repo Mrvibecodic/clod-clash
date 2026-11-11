@@ -107,6 +107,19 @@ describe('общие хуки и функции окна', () => {
     }
   })
 
+  it('«сейчас» на экранах идёт от общих часов окна', () => {
+    for (const file of [
+      '../components/home/server-select.tsx',
+      '../pages/home-advanced.tsx',
+      '../components/profile/profile-item.tsx',
+      '../components/connection/connection-relative-time.tsx',
+    ]) {
+      const text = source(file)
+      assert.match(text, /useNow\(/, file)
+      assert.doesNotMatch(text, /set(Now|Tick)\(Date\.now\(\)\)/, file)
+    }
+  })
+
   it('своей копии debounce нет — берётся lodash-es', () => {
     assert.equal(existsSync(path('../utils/debounce.ts')), false)
     for (const file of ['../providers/window/window-provider.tsx']) {

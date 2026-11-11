@@ -9,7 +9,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material'
-import { useInterval } from 'ahooks'
 import dayjs from 'dayjs'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,11 +25,11 @@ import { QuickActions } from '@/components/home/quick-actions'
 import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
 import { SubscriptionCard } from '@/components/home/subscription-card'
 import { useConnectButton } from '@/hooks/use-connect-button'
+import { useNow } from '@/hooks/use-now'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
 import { useToolShortcuts } from '@/hooks/use-tool-shortcuts'
-import { useVisibility } from '@/hooks/use-visibility'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { CARD_SURFACE, SHAPE, TINT, toneText } from '@/pages/_theme'
 import { showNotice } from '@/services/notice-service'
@@ -143,11 +142,7 @@ const HomeAdvancedPage = () => {
   const { fitRef, compact } = useFitWindowToContent()
 
   const [serverOpen, setServerOpen] = useState(false)
-  const visible = useVisibility()
-  const [tick, setTick] = useState(() => Date.now())
-  useInterval(() => setTick(Date.now()), visible ? NOW_TICK_MS : undefined, {
-    immediate: true,
-  })
+  const tick = useNow(NOW_TICK_MS)
 
   const {
     updating: refreshing,

@@ -30,6 +30,7 @@ import { useDrawerCapHeight } from '@/hooks/use-drawer-cap-height'
 import { favoritesFirst, useFavorites } from '@/hooks/use-favorites'
 import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useNoServersStatus } from '@/hooks/use-no-servers-status'
+import { useNow } from '@/hooks/use-now'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
@@ -103,6 +104,19 @@ const WHEEL_LINE_PX = 16
 interface Props {
   open: boolean
   onClose: () => void
+}
+
+const MeasuredAgo = ({ at }: { at: number }) => {
+  const { t } = useTranslation()
+  const now = useNow(AGE_TICK_MS)
+  const minutes = Math.floor((now - at) / 60_000)
+  return (
+    <Typography variant="caption" color="text.secondary" noWrap>
+      {minutes < 1
+        ? t('home.components.serverSelect.measuredJustNow')
+        : t('home.components.serverSelect.measuredMinutesAgo', { minutes })}
+    </Typography>
+  )
 }
 
 export const ServerSelect = ({ open, onClose }: Props) => {
@@ -192,31 +206,13 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     enabled: nodes.length > VIRTUALIZE_FROM,
   })
 
-  const visible = useVisibility()
-
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!open || !visible) return
-    const first = window.setTimeout(() => setNow(Date.now()), 0)
-    const timer = window.setInterval(() => setNow(Date.now()), AGE_TICK_MS)
-    return () => {
-      window.clearTimeout(first)
-      window.clearInterval(timer)
-    }
-  }, [open, visible])
-
-  const measuredLabel = useMemo(() => {
-    if (!open || !group || nodes.length === 0) return undefined
-    const newest = nodes.reduce((latest, node) => {
+  const measuredAt = useMemo(() => {
+    if (!open || !group) return 0
+    return nodes.reduce((latest, node) => {
       const at = entryMeasuredAt(records, node.name, group.name)
       return at > latest ? at : latest
     }, 0)
-    if (!newest) return undefined
-    const minutes = Math.floor((now - newest) / 60_000)
-    return minutes < 1
-      ? t('home.components.serverSelect.measuredJustNow')
-      : t('home.components.serverSelect.measuredMinutesAgo', { minutes })
-  }, [open, group, nodes, records, now, t])
+  }, [open, group, nodes, records])
 
   const select = useLockFn(async (nodeName: string) => {
     if (!group || !canSelect) return
@@ -421,11 +417,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
             {t('home.components.serverSelect.title')}
           </Typography>
 
-          {measuredLabel ? (
-            <Typography variant="caption" color="text.secondary" noWrap>
-              {measuredLabel}
-            </Typography>
-          ) : null}
+          {measuredAt ? <MeasuredAgo at={measuredAt} /> : null}
 
           <Box sx={{ flex: 1 }} />
 
