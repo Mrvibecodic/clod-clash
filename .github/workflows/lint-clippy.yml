@@ -109,9 +109,20 @@ jobs:
 
       - name: Install dependencies (ubuntu only)
         if: steps.decide.outputs.run == 'true' && matrix.os == 'ubuntu-22.04'
+        timeout-minutes: 15
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+          apt="sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30"
+          for attempt in 1 2 3; do
+            if $apt update && $apt install -y \
+              libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf; then
+              exit 0
+            fi
+            echo "attempt $attempt failed, next one in 30 s"
+            sleep 30
+          done
+          exit 1
 
       - name: Run Clippy
         if: steps.decide.outputs.run == 'true'
