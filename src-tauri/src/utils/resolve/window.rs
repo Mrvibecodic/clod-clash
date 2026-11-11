@@ -591,3 +591,34 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod policy_tests {
+    /// Окно берёт содержимое только у самого приложения. Стили интерфейс
+    /// добавляет на ходу: метка, которую сборка ставит в правило стилей,
+    /// отменила бы их разрешение, и окно осталось бы без оформления.
+    #[test]
+    fn the_window_policy_lets_in_only_the_app_and_keeps_its_own_styles() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../../../tauri.conf.json")).unwrap_or_default();
+        let security = &conf["app"]["security"];
+        let directive = |name: &str| security["csp"][name].as_str().unwrap_or_default().to_owned();
+
+        assert_eq!(directive("default-src"), "'self'");
+        assert_eq!(directive("script-src"), "'self'");
+        assert_eq!(directive("style-src"), "'self' 'unsafe-inline'");
+        assert_eq!(
+            security["dangerousDisableAssetCspModification"],
+            serde_json::json!(["style-src"])
+        );
+        assert_eq!(directive("connect-src"), "'self' ipc: http://ipc.localhost");
+        assert_eq!(directive("img-src"), "'self' data: blob: asset: http://asset.localhost");
+        for closed in ["frame-src", "object-src", "form-action"] {
+            assert_eq!(directive(closed), "'none'", "{closed}");
+        }
+        let everything = security["csp"].to_string();
+        for loose in ["unsafe-eval", "https:", "http://*", "ws:", "*"] {
+            assert!(!everything.contains(loose), "{loose}: {everything}");
+        }
+    }
+}
