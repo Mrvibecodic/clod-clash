@@ -78,6 +78,9 @@ struct Run {
 }
 /// Копии идут по одной: каждая читает и дописывает файл запуска.
 static SAVING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// Уборка в этом сеансе программы уже была: убирается только записанное до
+/// сеанса, и что из этого лишнее, дальше меняет лишь файл нового запуска.
+static PRUNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Сохранить журнал текущего запуска ядра службы; `true` — файл записан.
 /// Служба не ответила или журнал пуст — ничего.
@@ -207,6 +210,7 @@ async fn save_locked(deadline: Instant) -> Option<Saved> {
         out.push_str(&clean);
         out.push('\n');
     }
+    let new_run_file = !chunk.is_empty() && !tokio::fs::try_exists(&path).await.unwrap_or(false);
     let written = if chunk.is_empty() {
         Ok(())
     } else {
@@ -227,8 +231,14 @@ async fn save_locked(deadline: Instant) -> Option<Saved> {
     if let Some(run) = RUN.lock().as_mut().filter(|run| run.name == name) {
         run.seen = last_raw_lines(&text);
     }
-    prune(&dir).await;
+    if prune_is_due(new_run_file, PRUNED.swap(true, std::sync::atomic::Ordering::AcqRel)) {
+        prune(&dir).await;
+    }
     Some(Saved { gap, fresh })
+}
+
+const fn prune_is_due(new_run_file: bool, pruned_before: bool) -> bool {
+    new_run_file || !pruned_before
 }
 
 fn known_run() -> Option<(String, Vec<String>)> {
@@ -570,8 +580,16 @@ mod tests {
     use super::{
         BUSY_BYTES, GAP_LINE, KEEP, SAVE_BUSY, SAVE_EVERY, Saved, connections_are_due, connections_path, file_name,
         for_disk, for_disk_line, is_run_copy, new_lines, newest_run_copy, next_wait, older_connections_path,
-        run_continued_by, run_of_connections, surplus, tail_lines,
+        prune_is_due, run_continued_by, run_of_connections, surplus, tail_lines,
     };
+
+    #[test]
+    fn the_copies_are_pruned_once_a_session_and_with_every_new_run_file() {
+        assert!(prune_is_due(false, false));
+        assert!(prune_is_due(true, false));
+        assert!(prune_is_due(true, true));
+        assert!(!prune_is_due(false, true));
+    }
 
     /// Разовая уборка старых копий держит замок копий по файлу: копия перед
     /// новым запуском ядра ждёт замок лишь [`super::ANSWER_WAIT`].
