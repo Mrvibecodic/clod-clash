@@ -1180,7 +1180,19 @@ async fn probe_the_tunnel(occasion: Occasion) {
     }
     let tun = tun_config_for_the_check().await;
     let traffic = traffic_through_the_tunnel(tun.as_ref()).await;
-    note_the_verdict(traffic, route_checked(tun.as_ref()));
+    let route_known = route_checked(tun.as_ref());
+    note_the_verdict(traffic, route_known);
+    logging!(
+        debug,
+        Type::Core,
+        "the TUN check: {}; the route to the internet {}",
+        what_is_wrong(traffic),
+        if route_known {
+            "was checked"
+        } else {
+            "could not be checked"
+        }
+    );
     if occasion == Occasion::Revival {
         *REVIVED_AT.lock() = None;
     }
@@ -1219,17 +1231,65 @@ async fn read_tun_config() -> Option<TunConfig> {
     ask_tun_config().await.ok()
 }
 
-async fn ask_tun_config() -> Result<TunConfig, std::string::String> {
+/// Почему настройки туннеля у ядра не получены.
+enum NoTunSettings {
+    /// Ядро ответило, но ответ не разобрать: повтор даст то же самое.
+    Unreadable(std::string::String),
+    Silent(std::string::String),
+}
+
+async fn ask_tun_config() -> Result<TunConfig, NoTunSettings> {
     let core = crate::core::handle::Handle::mihomo();
     match tokio::time::timeout(TUN_READ_TIMEOUT, core.get_base_config()).await {
         Ok(Ok(config)) => Ok(config.tun),
-        Ok(Err(e)) => Err(e.to_string()),
-        Err(_) => Err(format!("no answer in {}s", TUN_READ_TIMEOUT.as_secs())),
+        Ok(Err(e)) => {
+            let unreadable = matches!(&e, tauri_plugin_mihomo::Error::Reqwest(answer) if answer.is_decode());
+            let why = format!("{:#}", anyhow::Error::new(e));
+            Err(if unreadable {
+                NoTunSettings::Unreadable(why)
+            } else {
+                NoTunSettings::Silent(why)
+            })
+        }
+        Err(_) => Err(NoTunSettings::Silent(format!(
+            "no answer in {}s",
+            TUN_READ_TIMEOUT.as_secs()
+        ))),
     }
 }
 
+/// Настройки туннеля из принятого конфига — того, на котором работает ядро.
+async fn accepted_tun() -> Option<TunConfig> {
+    let accepted = Config::runtime().await.data_arc();
+    tun_by_the_config(accepted.config.as_ref()?)
+}
+
+const CORE_FAKE_IP_RANGE: &str = "198.18.0.1/16";
+
+/// Как эти настройки прочтёт ядро: пустой ключ — незаданный, адрес туннеля —
+/// начало `fake-ip-range`.
+fn tun_by_the_config(config: &serde_yaml_ng::Mapping) -> Option<TunConfig> {
+    let set: serde_yaml_ng::Mapping = config
+        .get("tun")?
+        .as_mapping()?
+        .iter()
+        .filter(|(_, value)| !value.is_null())
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    let mut tun: TunConfig = serde_yaml_ng::from_value(serde_yaml_ng::Value::Mapping(set)).ok()?;
+    let range = config
+        .get("dns")
+        .and_then(|dns| dns.get("fake-ip-range"))
+        .and_then(serde_yaml_ng::Value::as_str)
+        .unwrap_or(CORE_FAKE_IP_RANGE);
+    let address = range.split('/').next().unwrap_or(range);
+    tun.inet4_address = Some(vec![format!("{address}/30")]);
+    Some(tun)
+}
+
 /// Сразу после старта ядро несколько секунд не отдаёт свои настройки, а без
-/// них путь мимо туннеля не проверить.
+/// них путь мимо туннеля не проверить. Ответ, который не разобрать, повтором
+/// не лечится: тогда настройки берутся из принятого конфига.
 async fn tun_config_for_the_check() -> Option<TunConfig> {
     let mut why = std::string::String::new();
     for attempt in 0..TUN_READ_ATTEMPTS {
@@ -1238,7 +1298,22 @@ async fn tun_config_for_the_check() -> Option<TunConfig> {
         }
         match ask_tun_config().await {
             Ok(tun) => return Some(tun),
-            Err(e) => why = e,
+            Err(NoTunSettings::Unreadable(cause)) => {
+                let accepted = accepted_tun().await;
+                logging!(
+                    warn,
+                    Type::Core,
+                    "the TUN settings the core reported could not be read ({}); {}",
+                    cause,
+                    if accepted.is_some() {
+                        "judging by the accepted config"
+                    } else {
+                        "the route to the internet is not checked"
+                    }
+                );
+                return accepted;
+            }
+            Err(NoTunSettings::Silent(cause)) => why = cause,
         }
     }
     logging!(
@@ -1959,6 +2034,55 @@ mod tests {
         };
         edit(&mut tun);
         tun
+    }
+
+    #[test]
+    fn an_unreadable_answer_of_the_core_leaves_the_route_checked() {
+        let config = |text: &str| serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(text).unwrap_or_default();
+        let whole = "tun: {enable: true, stack: gvisor, auto-route: true, dns-hijack: ~, mtu: 1500}";
+        let tun = tun_by_the_config(&config(whole));
+        assert_eq!(
+            tun.as_ref().and_then(|tun| tun.inet4_address.clone()),
+            Some(vec![std::string::String::from("198.18.0.1/30")])
+        );
+        assert!(tun.as_ref().is_some_and(|tun| tun.enable && route_check_applies(tun)));
+        assert_eq!(stack_of(tun.as_ref()), Some(String::from("gvisor")));
+        let addresses = tun.and_then(|tun| tun.inet4_address).unwrap_or_default();
+        for (source, expected) in [("192.168.1.10", Route::Bypass), ("198.18.0.1", Route::Tunnel)] {
+            let source = source.parse::<std::net::IpAddr>().ok();
+            assert_eq!(
+                source.map(|source| route_by_source(source, &addresses)),
+                Some(expected),
+                "{source:?}"
+            );
+        }
+
+        let moved = "{dns: {fake-ip-range: 28.0.0.1/8}, tun: {enable: true, auto-route: true}}";
+        assert_eq!(
+            tun_by_the_config(&config(moved)).and_then(|tun| tun.inet4_address),
+            Some(vec![std::string::String::from("28.0.0.1/30")])
+        );
+        let narrowed = "tun: {enable: true, auto-route: true, route-address: [10.0.0.0/8]}";
+        assert!(tun_by_the_config(&config(narrowed)).is_some_and(|tun| !route_check_applies(&tun)));
+        for unknown in ["mode: rule", "tun: off", "tun: {enable: true, auto-route: maybe}"] {
+            assert!(tun_by_the_config(&config(unknown)).is_none(), "{unknown}");
+        }
+
+        let tun = crate::utils::source_scan::production_code(include_str!("tun.rs"));
+        let body = |name: &str| crate::utils::source_scan::fn_body(tun, name).unwrap_or_default();
+        assert!(body("async fn ask_tun_config(").contains("is_decode()"));
+        let check = body("async fn tun_config_for_the_check(");
+        let unreadable = check.find("NoTunSettings::Unreadable(").unwrap_or(usize::MAX);
+        let silent = check.find("NoTunSettings::Silent(").unwrap_or_default();
+        assert!(
+            check.contains("return accepted;") && unreadable < silent,
+            "ответ, который не разобрать, не ждёт повторов и не бросает проверку: {check}"
+        );
+        assert_eq!(
+            tun.matches("accepted_tun().await").count(),
+            1,
+            "молчащее ядро — как раньше"
+        );
     }
 
     #[test]
