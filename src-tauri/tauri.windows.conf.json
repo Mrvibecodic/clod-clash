@@ -19,11 +19,5 @@
         "template": "./packages/windows/installer.nsi"
       }
     }
-  },
-  "app": {
-    "windows": [],
-    "security": {
-      "capabilities": ["desktop-capability", "migrated"]
-    }
   }
 }
