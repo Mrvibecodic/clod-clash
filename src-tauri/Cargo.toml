@@ -71,6 +71,9 @@ tauri-plugin-shell = "2.3.5"
 tauri-plugin-dialog = "2.7.1"
 tauri-plugin-deep-link = "2.4.9"
 tauri-plugin-window-state = "2.4.1"
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-global-shortcut = "2.3.2"
+tauri-plugin-updater = "2.14.1"
 zip = "9.0.5"
 flate2 = "1.1"
 # Путь файла провайдера узлов у ядра: `proxies/<md5 адреса>`.
@@ -140,11 +143,6 @@ objc2-app-kit = { version = "0.3.2", features = [
 deelevate = { workspace = true }
 runas = "=1.2.0"
 winreg = "0.56.0"
-
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-autostart = "2.5.1"
-tauri-plugin-global-shortcut = "2.3.2"
-tauri-plugin-updater = "2.14.1"
 
 [lints]
 workspace = true

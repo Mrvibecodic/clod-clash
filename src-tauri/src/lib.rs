@@ -85,7 +85,7 @@ mod app_init {
             });
         });
 
-        #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+        #[cfg(not(target_os = "macos"))]
         if let Ok(Some(urls)) = app.deep_link().get_current() {
             let urls: Vec<String> = urls.iter().map(|url| url.to_string()).collect();
             AsyncHandler::spawn(move || async move {
