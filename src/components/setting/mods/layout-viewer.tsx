@@ -1,7 +1,7 @@
 import { alpha, Box, Button, MenuItem, Select } from '@mui/material'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { forwardRef, useImperativeHandle, useState } from 'react'
+import { type Ref, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -45,7 +45,7 @@ const TRAY_ICONS = [
 
 const SELECT_SX = { width: 180, fontSize: 14 } as const
 
-export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
+export function LayoutViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
   const { verge, patchVerge, mutateVerge, patchVergeOrRevert } = useVerge()
 
@@ -308,4 +308,4 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
       })}
     </BaseDialog>
   )
-})
+}

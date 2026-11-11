@@ -6,7 +6,7 @@ import {
 import { alpha, Box, IconButton } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import {
-  forwardRef,
+  type Ref,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -36,7 +36,7 @@ const syncModel = (editor: MonacoEditorInstance | null, value: string) => {
   if (model && model.getValue() !== value) model.setValue(value)
 }
 
-export const ConfigViewer = forwardRef<DialogRef>((_, ref) => {
+export function ConfigViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
   const { current } = useProfiles()
   const uid = current?.uid
@@ -248,4 +248,4 @@ export const ConfigViewer = forwardRef<DialogRef>((_, ref) => {
       </Box>
     </BaseDialog>
   )
-})
+}

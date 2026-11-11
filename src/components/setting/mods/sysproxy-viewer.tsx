@@ -8,7 +8,7 @@ import {
   TextField,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
+import { type Ref, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -80,7 +80,7 @@ const splitBypass = (value?: string) =>
     .map((item) => item.trim())
     .filter(Boolean)
 
-export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
+export function SysproxyViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
   const systemName = getSystem()
   const isWindows = systemName === 'windows'
@@ -614,4 +614,4 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       )}
     </BaseDialog>
   )
-})
+}

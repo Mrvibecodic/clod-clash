@@ -9,7 +9,7 @@ import {
   Typography,
 } from '@mui/material'
 import {
-  forwardRef,
+  type Ref,
   type ReactNode,
   useImperativeHandle,
   useMemo,
@@ -98,7 +98,7 @@ const Pending = ({ value, hint }: { value: string; hint: string }) =>
     </Box>
   )
 
-export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
+export function TunnelsViewer({ ref }: { ref?: Ref<TunnelsViewerRef> }) {
   const { t } = useTranslation()
   const { runtime, ladder, patchClash } = useClash()
   const { refreshProxy } = useAppRefreshers()
@@ -520,4 +520,4 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       </Button>
     </BaseDialog>
   )
-})
+}

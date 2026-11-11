@@ -1,6 +1,6 @@
 import { Box } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
+import { type Ref, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -47,7 +47,7 @@ const HOTKEY_FUNC_LABELS: Record<(typeof HOTKEY_FUNC)[number], string> = {
   reactivate_profiles: 'settings.modals.hotkey.functions.reactivateProfiles',
 }
 
-export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
+export function HotkeyViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
@@ -188,4 +188,4 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
       ))}
     </BaseDialog>
   )
-})
+}

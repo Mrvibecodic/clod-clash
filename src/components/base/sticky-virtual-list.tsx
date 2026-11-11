@@ -1,6 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
-  forwardRef,
   type ReactNode,
   useCallback,
   useImperativeHandle,
@@ -52,13 +51,13 @@ export interface StickyVirtualListProps<TItem> {
   style?: React.CSSProperties
 }
 
-export const StickyVirtualList = forwardRef(function StickyVirtualListInner<
-  TItem,
->(
-  props: StickyVirtualListProps<TItem>,
-  ref: React.ForwardedRef<StickyVirtualListHandle>,
+export function StickyVirtualList<TItem>(
+  props: StickyVirtualListProps<TItem> & {
+    ref?: React.Ref<StickyVirtualListHandle>
+  },
 ) {
   const {
+    ref,
     items,
     isGroupItem,
     getItemKey,
@@ -281,8 +280,4 @@ export const StickyVirtualList = forwardRef(function StickyVirtualListInner<
       </div>
     </div>
   )
-}) as <TItem>(
-  props: StickyVirtualListProps<TItem> & {
-    ref?: React.Ref<StickyVirtualListHandle>
-  },
-) => React.ReactElement
+}

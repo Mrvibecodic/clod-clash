@@ -1,6 +1,6 @@
 import { InputAdornment, MenuItem, Select, TextField } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { forwardRef, useImperativeHandle, useState } from 'react'
+import { type Ref, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -59,7 +59,7 @@ const withUnit = (unit: string) => ({
 
 type LogClean = NonNullable<IVergeConfig['auto_log_clean']>
 
-export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
+export function MiscViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
   const { verge, patchVerge } = useVerge()
 
@@ -398,4 +398,4 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
       </FormRow>
     </BaseDialog>
   )
-})
+}

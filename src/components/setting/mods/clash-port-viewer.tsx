@@ -7,7 +7,7 @@ import {
   TextField,
 } from '@mui/material'
 import { useLockFn, useRequest } from 'ahooks'
-import { forwardRef, useImperativeHandle, useState } from 'react'
+import { type Ref, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, FormRow, Switch } from '@/components/base'
@@ -57,7 +57,7 @@ const parsePort = (text: string) => +text.replace(/\D+/g, '').slice(0, 5)
 const generateRandomPort = () =>
   Math.floor(Math.random() * (65535 - 1025 + 1)) + 1025
 
-export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
+export function ClashPortViewer({ ref }: { ref?: Ref<ClashPortViewerRef> }) {
   const { t } = useTranslation()
   const { clashInfo, patchInfo } = useClashInfo()
   const { ladder } = useClash()
@@ -434,4 +434,4 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
         })}
     </BaseDialog>
   )
-})
+}

@@ -1,6 +1,6 @@
 import { Box } from '@mui/material'
 import { useLockFn, useRequest } from 'ahooks'
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { type Ref, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -52,171 +52,168 @@ interface AllowOriginItem {
   value: string
 }
 
-export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
-  (props, ref) => {
-    const { t } = useTranslation()
-    const { runtime, patchClash } = useClash()
-    const [open, setOpen] = useState(false)
+export function HeaderConfiguration({
+  ref,
+}: {
+  ref?: Ref<ClashHeaderConfigingRef>
+}) {
+  const { t } = useTranslation()
+  const { runtime, patchClash } = useClash()
+  const [open, setOpen] = useState(false)
 
-    const lastKeyRef = useRef(0) // Для генерации уникального key
+  const lastKeyRef = useRef(0) // Для генерации уникального key
 
-    // Управление состоянием конфига CORS
-    const [corsConfig, setCorsConfig] = useState<{
-      allowPrivateNetwork: boolean
-      allowOrigins: AllowOriginItem[]
-    }>(() => {
+  // Управление состоянием конфига CORS
+  const [corsConfig, setCorsConfig] = useState<{
+    allowPrivateNetwork: boolean
+    allowOrigins: AllowOriginItem[]
+  }>(() => {
+    const cors = runtime?.['external-controller-cors']
+    const origins = cors?.['allow-origins'] ?? []
+    return {
+      allowPrivateNetwork: cors?.['allow-private-network'] ?? true,
+      allowOrigins: filterBaseOriginsForUI(origins).map((origin) => {
+        lastKeyRef.current += 1
+        return { key: lastKeyRef.current, value: origin }
+      }),
+    }
+  })
+
+  const [draft, setDraft] = useState('')
+  const [initial, setInitial] = useState(() => toComparable(corsConfig))
+  const current = toComparable(corsConfig, draft)
+  const changes = useChangeCount(initial, current)
+
+  // Обработка изменения конфига CORS
+  const handleCorsConfigChange = (
+    key: 'allowPrivateNetwork' | 'allowOrigins',
+    value: boolean | AllowOriginItem[],
+  ) => {
+    setCorsConfig((prev) => ({
+      ...prev,
+      [key]: value,
+    }))
+  }
+
+  // Добавить новый разрешённый источник
+  const handleAddOrigin = () => {
+    const value = draft.trim()
+    if (!value) return
+    lastKeyRef.current += 1
+    handleCorsConfigChange('allowOrigins', [
+      ...corsConfig.allowOrigins,
+      { key: lastKeyRef.current, value },
+    ])
+    setDraft('')
+  }
+
+  // Удалить один элемент из списка разрешённых источников
+  const handleDeleteOrigin = (index: number) => {
+    const newOrigins = [...corsConfig.allowOrigins]
+    newOrigins.splice(index, 1)
+    handleCorsConfigChange('allowOrigins', newOrigins)
+  }
+
+  // Запрос на сохранение конфига
+  const { loading, run: saveConfig } = useRequest(
+    async () => {
+      await patchClash({
+        'external-controller-cors': {
+          'allow-private-network': current.allowPrivateNetwork,
+          'allow-origins': originsToSave(current.allowOrigins),
+        },
+      })
+    },
+    {
+      manual: true,
+      onSuccess: () => {
+        setOpen(false)
+        showNotice.success('shared.feedback.notifications.common.saveSuccess')
+      },
+      onError: (err) => {
+        showNotice.error('shared.feedback.notifications.common.saveFailed', err)
+      },
+    },
+  )
+
+  useImperativeHandle(ref, () => ({
+    open: () => {
       const cors = runtime?.['external-controller-cors']
       const origins = cors?.['allow-origins'] ?? []
-      return {
+      lastKeyRef.current = 0
+      const opened = {
         allowPrivateNetwork: cors?.['allow-private-network'] ?? true,
         allowOrigins: filterBaseOriginsForUI(origins).map((origin) => {
           lastKeyRef.current += 1
           return { key: lastKeyRef.current, value: origin }
         }),
       }
-    })
-
-    const [draft, setDraft] = useState('')
-    const [initial, setInitial] = useState(() => toComparable(corsConfig))
-    const current = toComparable(corsConfig, draft)
-    const changes = useChangeCount(initial, current)
-
-    // Обработка изменения конфига CORS
-    const handleCorsConfigChange = (
-      key: 'allowPrivateNetwork' | 'allowOrigins',
-      value: boolean | AllowOriginItem[],
-    ) => {
-      setCorsConfig((prev) => ({
-        ...prev,
-        [key]: value,
-      }))
-    }
-
-    // Добавить новый разрешённый источник
-    const handleAddOrigin = () => {
-      const value = draft.trim()
-      if (!value) return
-      lastKeyRef.current += 1
-      handleCorsConfigChange('allowOrigins', [
-        ...corsConfig.allowOrigins,
-        { key: lastKeyRef.current, value },
-      ])
+      setCorsConfig(opened)
+      setInitial(toComparable(opened))
       setDraft('')
-    }
+      setOpen(true)
+    },
+    close: () => setOpen(false),
+  }))
 
-    // Удалить один элемент из списка разрешённых источников
-    const handleDeleteOrigin = (index: number) => {
-      const newOrigins = [...corsConfig.allowOrigins]
-      newOrigins.splice(index, 1)
-      handleCorsConfigChange('allowOrigins', newOrigins)
-    }
+  const handleSave = useLockFn(async () => {
+    await saveConfig()
+  })
 
-    // Запрос на сохранение конфига
-    const { loading, run: saveConfig } = useRequest(
-      async () => {
-        await patchClash({
-          'external-controller-cors': {
-            'allow-private-network': current.allowPrivateNetwork,
-            'allow-origins': originsToSave(current.allowOrigins),
-          },
-        })
-      },
-      {
-        manual: true,
-        onSuccess: () => {
-          setOpen(false)
-          showNotice.success('shared.feedback.notifications.common.saveSuccess')
-        },
-        onError: (err) => {
-          showNotice.error(
-            'shared.feedback.notifications.common.saveFailed',
-            err,
-          )
-        },
-      },
-    )
-
-    useImperativeHandle(ref, () => ({
-      open: () => {
-        const cors = runtime?.['external-controller-cors']
-        const origins = cors?.['allow-origins'] ?? []
+  return (
+    <BaseDialog
+      open={open}
+      title={t('settings.sections.externalCors.title')}
+      dividers
+      changes={changes}
+      onReset={() => {
         lastKeyRef.current = 0
-        const opened = {
-          allowPrivateNetwork: cors?.['allow-private-network'] ?? true,
-          allowOrigins: filterBaseOriginsForUI(origins).map((origin) => {
+        setCorsConfig({
+          allowPrivateNetwork: initial.allowPrivateNetwork,
+          allowOrigins: initial.allowOrigins.map((value) => {
             lastKeyRef.current += 1
-            return { key: lastKeyRef.current, value: origin }
+            return { key: lastKeyRef.current, value }
           }),
-        }
-        setCorsConfig(opened)
-        setInitial(toComparable(opened))
+        })
         setDraft('')
-        setOpen(true)
-      },
-      close: () => setOpen(false),
-    }))
-
-    const handleSave = useLockFn(async () => {
-      await saveConfig()
-    })
-
-    return (
-      <BaseDialog
-        open={open}
-        title={t('settings.sections.externalCors.title')}
-        dividers
-        changes={changes}
-        onReset={() => {
-          lastKeyRef.current = 0
-          setCorsConfig({
-            allowPrivateNetwork: initial.allowPrivateNetwork,
-            allowOrigins: initial.allowOrigins.map((value) => {
-              lastKeyRef.current += 1
-              return { key: lastKeyRef.current, value }
-            }),
-          })
-          setDraft('')
-        }}
-        contentSx={{ width: 452 }}
-        okBtn={loading ? t('shared.statuses.saving') : t('shared.actions.save')}
-        cancelBtn={t('shared.actions.cancel')}
-        onClose={() => setOpen(false)}
-        onCancel={() => setOpen(false)}
-        onOk={handleSave}
+      }}
+      contentSx={{ width: 452 }}
+      okBtn={loading ? t('shared.statuses.saving') : t('shared.actions.save')}
+      cancelBtn={t('shared.actions.cancel')}
+      onClose={() => setOpen(false)}
+      onCancel={() => setOpen(false)}
+      onOk={handleSave}
+    >
+      <FormHint sx={{ mb: 0.75 }}>
+        {t('settings.sections.externalCors.messages.onlyForPanels')}
+      </FormHint>
+      <FormRow
+        label={t('settings.sections.externalCors.fields.allowPrivateNetwork')}
       >
-        <FormHint sx={{ mb: 0.75 }}>
-          {t('settings.sections.externalCors.messages.onlyForPanels')}
-        </FormHint>
-        <FormRow
-          label={t('settings.sections.externalCors.fields.allowPrivateNetwork')}
-        >
-          <Switch
-            edge="end"
-            checked={corsConfig.allowPrivateNetwork}
-            onChange={(e) =>
-              handleCorsConfigChange('allowPrivateNetwork', e.target.checked)
-            }
-          />
-        </FormRow>
-
-        <FormSection
-          title={t('settings.sections.externalCors.fields.allowedOrigins')}
-          count={corsConfig.allowOrigins.length}
+        <Switch
+          edge="end"
+          checked={corsConfig.allowPrivateNetwork}
+          onChange={(e) =>
+            handleCorsConfigChange('allowPrivateNetwork', e.target.checked)
+          }
         />
-        <Box sx={{ pb: 0.5 }}>
-          <BaseListTiles
-            items={corsConfig.allowOrigins}
-            onRemove={handleDeleteOrigin}
-            draft={draft}
-            onDraftChange={setDraft}
-            onAdd={handleAddOrigin}
-            placeholder={t(
-              'settings.sections.externalCors.placeholders.origin',
-            )}
-            addLabel={t('settings.sections.externalCors.actions.add')}
-          />
-        </Box>
-      </BaseDialog>
-    )
-  },
-)
+      </FormRow>
+
+      <FormSection
+        title={t('settings.sections.externalCors.fields.allowedOrigins')}
+        count={corsConfig.allowOrigins.length}
+      />
+      <Box sx={{ pb: 0.5 }}>
+        <BaseListTiles
+          items={corsConfig.allowOrigins}
+          onRemove={handleDeleteOrigin}
+          draft={draft}
+          onDraftChange={setDraft}
+          onAdd={handleAddOrigin}
+          placeholder={t('settings.sections.externalCors.placeholders.origin')}
+          addLabel={t('settings.sections.externalCors.actions.add')}
+        />
+      </Box>
+    </BaseDialog>
+  )
+}
