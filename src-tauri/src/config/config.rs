@@ -657,6 +657,13 @@ fn sanitize_tunnels_proxy(config: &mut Mapping) {
         }
 
         if !valid.contains(proxy_name) {
+            logging!(
+                warn,
+                Type::Config,
+                "tunnel to {}: proxy {} is not among the nodes and groups; the binding is dropped, the tunnel follows the rules",
+                tunnel.get("target").and_then(Value::as_str).unwrap_or("?"),
+                proxy_name
+            );
             tunnel.remove("proxy");
         }
     }
