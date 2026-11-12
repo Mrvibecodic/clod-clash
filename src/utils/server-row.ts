@@ -17,6 +17,12 @@ export const serverRowNames = (
   leaf: leaf === undefined ? undefined : serverName(leaf, direct),
 })
 
+export const serverRowSubject = (
+  names: { via?: string; leaf?: string },
+  description: string | undefined,
+  via: (group: string) => string,
+) => (names.via ? via(names.via) : (description ?? names.leaf))
+
 export interface DrawerRow {
   selected: boolean
   group: boolean

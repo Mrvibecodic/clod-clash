@@ -5,6 +5,7 @@ import {
   clashMode,
   drawerRowCaption,
   serverRowNames,
+  serverRowSubject,
   trafficGroups,
 } from './server-row.ts'
 
@@ -48,6 +49,29 @@ describe('serverRowNames', () => {
       'Напрямую',
     )
     assert.deepEqual(names, { name: 'Berlin', via: 'Proxy', leaf: 'Berlin' })
+  })
+})
+
+describe('serverRowSubject', () => {
+  const via = (group: string) => `через ${group}`
+
+  it('puts the path through a group above the description of the server', () => {
+    assert.equal(
+      serverRowSubject({ via: 'Auto', leaf: 'Berlin' }, 'Быстрый', via),
+      'через Auto',
+    )
+  })
+
+  it('shows the description of a server that was picked by hand', () => {
+    assert.equal(serverRowSubject({}, 'Быстрый', via), 'Быстрый')
+  })
+
+  it('falls back to the end of the path, or to nothing', () => {
+    assert.equal(
+      serverRowSubject({ leaf: 'Balance' }, undefined, via),
+      'Balance',
+    )
+    assert.equal(serverRowSubject({}, undefined, via), undefined)
   })
 })
 

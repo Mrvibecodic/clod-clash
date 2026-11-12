@@ -49,17 +49,15 @@ describe('окно не перечитывает лишнего', () => {
       assert.match(text, /useServerDescriptions\(\)/, path)
       assert.match(text, /useFreezeMarks\(\)/, path)
     }
-    // Описание сервера от панели — в шторке серверов, но не в строке Главной:
-    // под именем там всегда путь («через <группа>» · пинг), как на Android
+    // Строка Главной берёт описание только выбранного сервера, не конечного
+    // узла группы: что показать под именем, решает serverRowSubject
     const home = source('../../components/home/server-select.tsx')
     const rowFrom = home.indexOf('export const ServerSelectRow')
     assert.ok(rowFrom > 0, 'ServerSelectRow не найден — тест ослеп')
     assert.match(home.slice(0, rowFrom), /useServerDescriptions\(\)/)
-    assert.doesNotMatch(
-      home.slice(rowFrom),
-      /descriptions|useServerDescriptions/,
-    )
-    assert.match(home.slice(rowFrom), /const subject = names\?\.via/)
+    assert.doesNotMatch(home.slice(rowFrom), /descriptions\[leaf\]/)
+    assert.match(home.slice(rowFrom), /descriptions\[current\]/)
+    assert.match(home.slice(rowFrom), /serverRowSubject\(names, description,/)
   })
 
   it('после команд, которые сами шлют обновление конфига, ручных перечитываний нет', () => {

@@ -80,7 +80,12 @@ import {
 } from '@/utils/proxy-groups'
 import { hidesType, serverName, typeText } from '@/utils/proxy-label'
 import { serverBehind } from '@/utils/server-behind'
-import { clashMode, drawerRowCaption, serverRowNames } from '@/utils/server-row'
+import {
+  clashMode,
+  drawerRowCaption,
+  serverRowNames,
+  serverRowSubject,
+} from '@/utils/server-row'
 import { noServersSeverity } from '@/utils/subscription-status'
 
 const VIRTUALIZE_FROM = 50
@@ -672,6 +677,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
   const { current: currentProfile } = useProfiles()
+  const descriptions = useServerDescriptions()
   const freezeMarks = useFreezeMarks()
   const visible = useVisibility()
   // clod: сама Главная пингует, только пока окно на экране И подключение
@@ -893,9 +899,12 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const names = current
     ? serverRowNames(current, behind, leaf, t('shared.labels.direct'))
     : undefined
-  const subject = names?.via
-    ? t('home.components.serverSelect.via', { group: names.via })
-    : names?.leaf
+  const description = current ? descriptions[current] : undefined
+  const subject = names
+    ? serverRowSubject(names, description, (group) =>
+        t('home.components.serverSelect.via', { group }),
+      )
+    : undefined
   // clod:freeze — значок того узла, через который сейчас идёт трафик.
   const frozen =
     (!!leaf && freezeMarks.has(leaf)) || (!!current && freezeMarks.has(current))
@@ -967,6 +976,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
           noWrap
           sx={{ fontSize: 12, display: 'block' }}
           color={statusRow ? statusColor : 'text.secondary'}
+          title={statusRow || names?.via ? undefined : description}
         >
           {statusCaption ?? caption}
         </Typography>
