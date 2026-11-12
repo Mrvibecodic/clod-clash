@@ -938,7 +938,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             <Box sx={{ mt: 1, mb: 1 }}>
               <Button
                 size="small"
-                sx={{ px: 0 }}
+                sx={{ ml: -1.25 }}
                 onClick={() => {
                   setValue('type', isLocal ? 'remote' : 'local')
                   setFormError(undefined)

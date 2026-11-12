@@ -101,7 +101,7 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
             <Button
               size="small"
               endIcon={<ExpandMoreRoundedIcon />}
-              sx={{ mt: 0.25, ml: -0.5 }}
+              sx={{ mt: 0.25, ml: -1.25 }}
               onClick={(event) => {
                 event.stopPropagation()
                 setDialogBanner('promo')
@@ -137,7 +137,7 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
             <Button
               size="small"
               endIcon={<ExpandMoreRoundedIcon />}
-              sx={{ mt: 0.25, ml: -0.5 }}
+              sx={{ mt: 0.25, ml: -1.25 }}
               onClick={(event) => {
                 event.stopPropagation()
                 setDialogBanner('announce')

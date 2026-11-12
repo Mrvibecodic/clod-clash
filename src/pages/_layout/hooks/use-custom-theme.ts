@@ -179,6 +179,12 @@ export const useCustomTheme = () => {
               textTransform: 'none',
               borderRadius: 999,
               fontWeight: 600,
+              variants: [
+                {
+                  props: { variant: 'text', size: 'small' },
+                  style: { paddingInline: 10 },
+                },
+              ],
             },
           },
         },
