@@ -82,8 +82,67 @@ async fn mode_owner() -> Option<(String, bool)> {
 
 static MODE_CHANGE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 const CORE_MODE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+const CORE_MODE_WAIT_STEP: std::time::Duration = std::time::Duration::from_secs(1);
+const CORE_MODE_WAITS: u32 = 10;
 
 async fn runtime_mode_is(mode: &str) -> bool {
+    accepted_mode().await.as_deref() == Some(mode)
+}
+
+/// Что ядро ответило о своём режиме.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CoreMode {
+    Same,
+    Other,
+    /// Ответ не разобрать — так отвечает и ядро, которое ещё поднимает туннель.
+    Unreadable,
+    Silent,
+}
+
+async fn core_mode(mode: &str) -> CoreMode {
+    let config = tokio::time::timeout(CORE_MODE_READ_TIMEOUT, handle::Handle::mihomo().get_base_config()).await;
+    match config {
+        Ok(Ok(config)) if config.mode.to_string() == mode => CoreMode::Same,
+        Ok(Ok(_)) => CoreMode::Other,
+        Ok(Err(tauri_plugin_mihomo::Error::Reqwest(answer))) if answer.is_decode() => CoreMode::Unreadable,
+        _ => CoreMode::Silent,
+    }
+}
+
+async fn core_mode_is(mode: &str) -> bool {
+    core_mode(mode).await == CoreMode::Same
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ModeReturn {
+    Keep,
+    Wait,
+    Bring,
+}
+
+/// Режим возвращаем ядру, которое назвало другой. Пока ответ не разобрать,
+/// ждём: настройки, изменённые у ядра посреди подъёма туннеля, закрывают
+/// туннель. Ответ так и не разобрать — ставим режим, как раньше; ядру, которое
+/// молчит, ставить нечего.
+const fn mode_return(core: CoreMode, unreadable_left: u32, silent_left: u32) -> ModeReturn {
+    match (core, unreadable_left, silent_left) {
+        (CoreMode::Same, _, _) | (CoreMode::Silent, _, 0) => ModeReturn::Keep,
+        (CoreMode::Other, _, _) | (CoreMode::Unreadable, 0, _) => ModeReturn::Bring,
+        (CoreMode::Unreadable | CoreMode::Silent, _, _) => ModeReturn::Wait,
+    }
+}
+
+/// Запас ожидания после ещё одного ответа без режима. Нечитаемые ответы
+/// считаются подряд: молчание начинает их счёт заново.
+const fn waits_after(core: CoreMode, unreadable_left: u32, silent_left: u32) -> (u32, u32) {
+    match core {
+        CoreMode::Silent => (CORE_MODE_WAITS, silent_left.saturating_sub(1)),
+        CoreMode::Unreadable => (unreadable_left.saturating_sub(1), silent_left),
+        CoreMode::Same | CoreMode::Other => (unreadable_left, silent_left),
+    }
+}
+
+async fn accepted_mode() -> Option<std::string::String> {
     Config::runtime()
         .await
         .data_arc()
@@ -91,49 +150,60 @@ async fn runtime_mode_is(mode: &str) -> bool {
         .as_ref()
         .and_then(|config| config.get("mode"))
         .and_then(Value::as_str)
-        == Some(mode)
-}
-
-async fn core_mode_is(mode: &str) -> bool {
-    let config = tokio::time::timeout(CORE_MODE_READ_TIMEOUT, handle::Handle::mihomo().get_base_config()).await;
-    matches!(config, Ok(Ok(config)) if config.mode.to_string() == mode)
+        .map(str::to_owned)
 }
 
 /// Смена режима живёт в ядре и в принятом слоте, а не в сборке, из которой
 /// служба поднимает ядро сама (после падения, после обновления ядра): поднятое
 /// заново ядро возвращается к принятому режиму.
 pub async fn bring_the_accepted_mode_back() {
-    let Some(_turn) = CoreManager::global().queue_for_config_update().await else {
-        return;
-    };
-    let accepted = Config::runtime()
-        .await
-        .data_arc()
-        .config
-        .as_ref()
-        .and_then(|config| config.get("mode"))
-        .and_then(Value::as_str)
-        .map(str::to_owned);
-    let Some(mode) = accepted else {
-        return;
-    };
-    if handle::Handle::global().is_exiting() || core_mode_is(&mode).await {
-        return;
-    }
-    logging!(
-        info,
-        Type::Core,
-        "the core came up in another mode, bringing back {mode}"
-    );
-    match handle::Handle::mihomo()
-        .patch_base_config(&serde_json::json!({ "mode": mode }))
-        .await
-    {
-        Ok(()) => {
-            handle::Handle::refresh_clash();
-            tray::Tray::global().update_menu_and_icon().await;
+    let (mut unreadable_left, mut silent_left) = (CORE_MODE_WAITS, CORE_MODE_WAITS);
+    loop {
+        let Some(turn) = CoreManager::global().queue_for_config_update().await else {
+            return;
+        };
+        let Some(mode) = accepted_mode().await else {
+            return;
+        };
+        if handle::Handle::global().is_exiting() {
+            return;
         }
-        Err(err) => logging!(warn, Type::Core, "the mode was not brought back: {err}"),
+        let core = core_mode(&mode).await;
+        match mode_return(core, unreadable_left, silent_left) {
+            ModeReturn::Keep => {
+                if core == CoreMode::Silent {
+                    logging!(warn, Type::Core, "the core does not answer; its mode is left as it is");
+                }
+                return;
+            }
+            ModeReturn::Wait => {
+                drop(turn);
+                (unreadable_left, silent_left) = waits_after(core, unreadable_left, silent_left);
+                tokio::time::sleep(CORE_MODE_WAIT_STEP).await;
+            }
+            ModeReturn::Bring => {
+                if core == CoreMode::Other {
+                    logging!(
+                        info,
+                        Type::Core,
+                        "the core came up in another mode, bringing back {mode}"
+                    );
+                } else {
+                    logging!(warn, Type::Core, "the core's answer cannot be read, setting {mode}");
+                }
+                match handle::Handle::mihomo()
+                    .patch_base_config(&serde_json::json!({ "mode": mode }))
+                    .await
+                {
+                    Ok(()) => {
+                        handle::Handle::refresh_clash();
+                        tray::Tray::global().update_menu_and_icon().await;
+                    }
+                    Err(err) => logging!(warn, Type::Core, "the mode was not brought back: {err}"),
+                }
+                return;
+            }
+        }
     }
 }
 
@@ -467,6 +537,95 @@ mod tests {
         let listing = read(Ok("{}"), &[]).parsed();
         assert!(listing.is_some_and(|listing| listing.entries().next().is_none() && listing.failed == 0));
         assert!(read(Err(anyhow::anyhow!("down")), &[]).parsed().is_none());
+    }
+
+    #[test]
+    fn the_mode_is_brought_back_only_to_a_core_that_named_another() {
+        use super::{CoreMode, ModeReturn, mode_return};
+        for (unreadable_left, silent_left) in [(10, 10), (0, 10), (10, 0), (0, 0)] {
+            assert_eq!(
+                mode_return(CoreMode::Same, unreadable_left, silent_left),
+                ModeReturn::Keep
+            );
+            assert_eq!(
+                mode_return(CoreMode::Other, unreadable_left, silent_left),
+                ModeReturn::Bring
+            );
+        }
+        for silent_left in [10, 0] {
+            assert_eq!(mode_return(CoreMode::Unreadable, 10, silent_left), ModeReturn::Wait);
+            assert_eq!(mode_return(CoreMode::Unreadable, 1, silent_left), ModeReturn::Wait);
+            assert_eq!(mode_return(CoreMode::Unreadable, 0, silent_left), ModeReturn::Bring);
+        }
+        for unreadable_left in [10, 0] {
+            assert_eq!(mode_return(CoreMode::Silent, unreadable_left, 10), ModeReturn::Wait);
+            assert_eq!(mode_return(CoreMode::Silent, unreadable_left, 1), ModeReturn::Wait);
+            assert_eq!(mode_return(CoreMode::Silent, unreadable_left, 0), ModeReturn::Keep);
+        }
+    }
+
+    fn waited_out(answers: impl Iterator<Item = super::CoreMode>) -> (super::ModeReturn, u32) {
+        use super::{CORE_MODE_WAITS, ModeReturn, mode_return, waits_after};
+        let (mut unreadable_left, mut silent_left) = (CORE_MODE_WAITS, CORE_MODE_WAITS);
+        let mut waits = 0;
+        for core in answers {
+            match mode_return(core, unreadable_left, silent_left) {
+                ModeReturn::Wait => {
+                    (unreadable_left, silent_left) = waits_after(core, unreadable_left, silent_left);
+                    waits += 1;
+                }
+                decided => return (decided, waits),
+            }
+        }
+        (ModeReturn::Wait, waits)
+    }
+
+    #[test]
+    fn the_wait_for_the_core_mode_always_ends() {
+        use super::{CORE_MODE_WAITS, CoreMode, ModeReturn, waits_after};
+        use std::iter::repeat_n;
+
+        assert_eq!(waits_after(CoreMode::Unreadable, 3, 7), (2, 7));
+        assert_eq!(waits_after(CoreMode::Unreadable, 0, 7), (0, 7));
+        assert_eq!(waits_after(CoreMode::Silent, 3, 7), (CORE_MODE_WAITS, 6));
+        assert_eq!(waits_after(CoreMode::Silent, 3, 0), (CORE_MODE_WAITS, 0));
+        assert_eq!(waits_after(CoreMode::Same, 3, 7), (3, 7));
+        assert_eq!(waits_after(CoreMode::Other, 3, 7), (3, 7));
+
+        let endless = |answer| repeat_n(answer, 1000);
+        assert_eq!(
+            waited_out(endless(CoreMode::Unreadable)),
+            (ModeReturn::Bring, CORE_MODE_WAITS)
+        );
+        assert_eq!(
+            waited_out(endless(CoreMode::Silent)),
+            (ModeReturn::Keep, CORE_MODE_WAITS)
+        );
+
+        // Девять нечитаемых ответов и молчание, по кругу: до десяти подряд не
+        // доходит, вслепую режим не ставится, и ожидание всё равно кончается.
+        let almost: Vec<CoreMode> = repeat_n(CoreMode::Unreadable, 9).chain([CoreMode::Silent]).collect();
+        let (decided, waits) = waited_out(almost.iter().copied().cycle().take(1000));
+        assert_eq!(decided, ModeReturn::Keep);
+        assert_eq!(waits, CORE_MODE_WAITS * 10 + 9);
+
+        // Ядро поднимается: молчит, потом поднимает туннель, потом отвечает.
+        let rising = |answer| {
+            repeat_n(CoreMode::Silent, 4)
+                .chain(repeat_n(CoreMode::Unreadable, 2))
+                .chain([answer])
+        };
+        assert_eq!(waited_out(rising(CoreMode::Same)), (ModeReturn::Keep, 6));
+        assert_eq!(waited_out(rising(CoreMode::Other)), (ModeReturn::Bring, 6));
+    }
+
+    #[test]
+    fn a_core_still_raising_its_tunnel_gives_an_answer_that_cannot_be_read() {
+        let early = r#"{"mixed-port":7897,"tun":{"enable":false,"device":"","stack":"gVisor","dns-mode":"","dns-hijack":null,"auto-route":false,"auto-detect-interface":false},"mode":"rule"}"#;
+        assert!(serde_json::from_str::<tauri_plugin_mihomo::models::BaseConfig>(early).is_err());
+        let settled = early.replace("null", r#"["any:53"]"#);
+        let settled = serde_json::from_str::<tauri_plugin_mihomo::models::BaseConfig>(&settled);
+        assert!(settled.is_ok_and(|config| config.mode.to_string() == "rule"));
     }
 
     #[test]
