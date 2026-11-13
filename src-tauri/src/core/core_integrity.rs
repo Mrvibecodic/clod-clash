@@ -8,7 +8,10 @@ use clash_verge_logging::{Type, logging};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 
-use crate::utils::{dirs, help};
+use crate::{
+    process::AsyncHandler,
+    utils::{dirs, help},
+};
 
 const PINS_FILE: &str = "core-pins.yaml";
 
@@ -108,9 +111,17 @@ pub enum PinCheck {
 }
 
 pub async fn check_binary(path: &Path) -> Result<PinCheck> {
-    let actual = digest_of(path).await?;
-
+    // Файл читается под тем же замком, что и запись отпечатка: иначе сверка,
+    // начатая до замены ядра, вернула бы в запись отпечаток прежнего файла.
     let _guard = PINS_LOCK.lock().await;
+    let started = std::time::Instant::now();
+    let actual = digest_of(path).await?;
+    logging!(
+        debug,
+        Type::Core,
+        "core digest of {path:?} read in {} ms",
+        started.elapsed().as_millis()
+    );
     let mut pins = load_pins().await;
     let key = pin_key(path);
 
@@ -249,7 +260,22 @@ pub fn is_core_binary_changed(err: &anyhow::Error) -> bool {
     err.chain().any(|cause| cause.is::<CoreBinaryChanged>())
 }
 
+/// Запуск ждёт сверку только там, где файл ядра может заменить обычный
+/// пользователь. В папке администратора изменение принимается при любом
+/// исходе, и сверка идёт уже после запуска.
 pub async fn ensure_elevated_binary_is_known(path: &Path) -> Result<()> {
+    let access = directory_write_access(path);
+    if access == WriteAccess::AdminOnly {
+        let path = path.to_path_buf();
+        AsyncHandler::spawn(move || async move {
+            let _ = compare_with_the_pin(&path, access).await;
+        });
+        return Ok(());
+    }
+    compare_with_the_pin(path, access).await
+}
+
+async fn compare_with_the_pin(path: &Path, access: WriteAccess) -> Result<()> {
     match check_binary(path).await {
         Ok(PinCheck::Match) => Ok(()),
         Ok(PinCheck::Recorded) => {
@@ -257,7 +283,7 @@ pub async fn ensure_elevated_binary_is_known(path: &Path) -> Result<()> {
             Ok(())
         }
         Ok(PinCheck::Changed { expected, actual }) => {
-            if directory_write_access(path) == WriteAccess::AdminOnly {
+            if access == WriteAccess::AdminOnly {
                 logging!(
                     warn,
                     Type::Core,
@@ -326,6 +352,31 @@ mod tests {
         .context("failed to start the core through the service");
         assert!(is_core_binary_changed(&err));
         assert!(!is_core_binary_changed(&anyhow::anyhow!("service is not running")));
+    }
+
+    #[test]
+    fn a_folder_only_an_administrator_writes_does_not_hold_the_start_for_the_digest() {
+        let source = include_str!("core_integrity.rs");
+        let body = crate::utils::source_scan::fn_body(source, "pub async fn ensure_elevated_binary_is_known(")
+            .unwrap_or_default();
+        let (closed_folder, open_folder) = body.split_once("return Ok(());").unwrap_or_default();
+        assert!(
+            closed_folder.contains("== WriteAccess::AdminOnly") && closed_folder.contains("AsyncHandler::spawn"),
+            "{body}"
+        );
+        assert!(
+            open_folder.contains("compare_with_the_pin(path, access).await"),
+            "{body}"
+        );
+    }
+
+    #[test]
+    fn the_file_is_read_under_the_lock_its_pin_is_written_under() {
+        let source = include_str!("core_integrity.rs");
+        let body = crate::utils::source_scan::fn_body(source, "pub async fn check_binary(").unwrap_or_default();
+        let locked = body.find("PINS_LOCK.lock()").unwrap_or(usize::MAX);
+        let read = body.find("digest_of(path)").unwrap_or_default();
+        assert!(locked < read, "{body}");
     }
 
     #[tokio::test]

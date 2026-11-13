@@ -1107,6 +1107,7 @@ pub(super) async fn start_with_existing_service(config: &serde_yaml_ng::Mapping,
 
     let credentials = current_owner_credentials()?;
     let runtime = collect_service_runtime_bundle(config).await?;
+    logging!(debug, Type::Service, "the runtime bundle for the service is ready");
     // Новое ядро служба начнёт писать в новый файл — журнал прошлого запуска
     // сохраняется до этого.
     crate::module::core_log_archive::before_new_run().await;
