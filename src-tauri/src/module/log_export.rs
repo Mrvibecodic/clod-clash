@@ -214,6 +214,22 @@ fn connections_of(path: &Path, files: &[PathBuf]) -> Vec<PathBuf> {
     connections.split_off(connections.len().saturating_sub(2))
 }
 
+/// Из чего читается сам файл журнала: у запуска под службой — из прошлой
+/// части, если она есть, и текущей; у остальных он один.
+fn parts_of(path: &Path) -> Vec<PathBuf> {
+    let older = crate::module::core_log_archive::older_run_path(path);
+    if is_run_copy(path) && older.exists() {
+        return vec![older, path.to_path_buf()];
+    }
+    vec![path.to_path_buf()]
+}
+
+/// Прошлая часть запуска идёт началом его записи в архиве; своя запись у неё —
+/// только если текущей части нет.
+fn goes_with_its_run(path: &Path, files: &[PathBuf]) -> bool {
+    crate::module::core_log_archive::run_of_older_part(path).is_some_and(|run| files.contains(&run))
+}
+
 fn archive_name(root: &Path, path: &Path) -> String {
     path.strip_prefix(root)
         .unwrap_or(path)
@@ -252,17 +268,19 @@ pub async fn write_archive(target: PathBuf) -> Result<usize> {
 
         let mut count = 0usize;
         for path in &files {
-            if is_connections_file(path) {
+            if is_connections_file(path) || goes_with_its_run(path, &files) {
                 continue;
             }
+            let parts = parts_of(path);
             let connections = connections_of(path, &files);
-            if !std::iter::once(path)
+            if !parts
+                .iter()
                 .chain(&connections)
                 .any(|part| written_since(part, started))
             {
                 continue;
             }
-            let Some(main) = open_chain(std::slice::from_ref(path)) else {
+            let Some(main) = open_chain(&parts) else {
                 continue;
             };
             let mut readers = vec![main];
@@ -378,6 +396,75 @@ mod tests {
         assert_eq!(
             names,
             vec!["latest.log", "service/core_1.log", "sidecar/sidecar_latest.log"]
+        );
+    }
+
+    /// Запуск под службой лежит двумя частями, а в архиве он один: прошлая
+    /// часть идёт началом записи, продолжение строки на стыке не теряется.
+    #[test]
+    fn both_parts_of_a_run_make_one_entry() {
+        let dir = std::env::temp_dir().join(format!("clod-export-parts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let path = |name: &str| dir.join(name);
+        let _ = std::fs::write(
+            path("core_2026-11-08_09-00-00.1.log"),
+            "[2026-11-08 09:00:00.000] Start\n[2026-11-08 09:30:00.000] warning\n",
+        );
+        let _ = std::fs::write(
+            path("core_2026-11-08_09-00-00.log"),
+            "its continuation\n[2026-11-08 10:00:00.000] TUN started\n",
+        );
+        let _ = std::fs::write(
+            path("core_2026-11-07_09-00-00.1.log"),
+            "[2026-11-07 09:00:00.000] Start\n",
+        );
+        let _ = std::fs::write(
+            path("core_2026-11-06_09-00-00.log"),
+            "[2026-11-06 09:00:00.000] Start\n",
+        );
+        let mut files = Vec::new();
+        collect_logs(&dir, &mut files);
+        files.sort();
+        let entries: Vec<(String, Vec<PathBuf>)> = files
+            .iter()
+            .filter(|file| !goes_with_its_run(file, &files))
+            .map(|file| (file_name(file).to_owned(), parts_of(file)))
+            .collect();
+        let started = line_stamp("[2026-11-08 09:10:00]").unwrap_or_default();
+        let mut text = Vec::new();
+        let written = open_chain(&parts_of(&path("core_2026-11-08_09-00-00.log"))).map(|run| {
+            export_merged(vec![run], || SessionWindow::new(started), None, true, &mut text)
+                .ok()
+                .unwrap_or_default()
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert_eq!(
+            entries,
+            vec![
+                (
+                    "core_2026-11-06_09-00-00.log".to_owned(),
+                    vec![path("core_2026-11-06_09-00-00.log")]
+                ),
+                // Текущей части нет — прошлая идёт своей записью
+                (
+                    "core_2026-11-07_09-00-00.1.log".to_owned(),
+                    vec![path("core_2026-11-07_09-00-00.1.log")]
+                ),
+                (
+                    "core_2026-11-08_09-00-00.log".to_owned(),
+                    vec![
+                        path("core_2026-11-08_09-00-00.1.log"),
+                        path("core_2026-11-08_09-00-00.log")
+                    ]
+                ),
+            ]
+        );
+        assert_eq!(written, Some(3));
+        assert_eq!(
+            String::from_utf8_lossy(&text),
+            "[2026-11-08 09:30:00.000] warning\nits continuation\n[2026-11-08 10:00:00.000] TUN started\n"
         );
     }
 

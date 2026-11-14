@@ -20,8 +20,10 @@
 //!
 //! Строки ложатся на диск отредактированными, как у нашего логгера: без
 //! секретов, адресов и домашнего каталога. Копия дописывает в файл запуска
-//! только новые строки, запуск хранится целиком — кроме строк о соединениях
-//! и DNS (девять десятых журнала): они идут в соседний файл, который
+//! только новые строки. Файл, доросший до [`RUN_PART`], становится прошлой
+//! частью запуска (`….1.log`), прежняя прошлая уходит: на диске конец запуска,
+//! около [`CORE_LOG_CAP`]. Строки о соединениях
+//! и DNS (девять десятых журнала) идут в соседний файл, который
 //! меняется раз в [`CONNECTIONS_SPAN`], и на диске лежат последние один-два
 //! таких промежутка — для разбора проблемы этого хватает. Хранится [`KEEP`] последних
 //! запусков, кроме запусков текущего сеанса программы, файлы соединений — у
@@ -38,7 +40,7 @@ use parking_lot::Mutex;
 use tokio::time::Instant;
 
 use crate::{
-    core::{CoreManager, handle, manager::RunningMode},
+    core::{CoreManager, handle, logger::CORE_LOG_CAP, manager::RunningMode},
     process::AsyncHandler,
     utils::{dirs, help::write_atomic, redact},
 };
@@ -53,6 +55,9 @@ const TAIL_READ: u64 = 64 * 1024;
 const TAIL_LINES: usize = 8;
 const CONNECTIONS_SPAN: chrono::TimeDelta = chrono::TimeDelta::hours(1);
 const CONNECTIONS_CAP: u64 = 32 * 1024 * 1024;
+/// Запуск лежит двумя частями — текущей и прошлой, вместе около [`CORE_LOG_CAP`].
+const RUN_PART: u64 = CORE_LOG_CAP / 2;
+const OLDER_PART: &str = ".1.log";
 const GAP_LINE: &str = "[clod] the service no longer had part of this core run's log; lines are missing here";
 /// Дольше копия ответа службы не ждёт (её IPC повторяет запрос до 20 раз):
 /// ни запуск ядра, ни отчёт не держатся за неотвечающую службу.
@@ -214,7 +219,7 @@ async fn save_locked(deadline: Instant) -> Option<Saved> {
     let written = if chunk.is_empty() {
         Ok(())
     } else {
-        append(&path, chunk.as_bytes()).await
+        append_to_the_run(&path, chunk.as_bytes(), RUN_PART).await
     };
     if let Err(error) = match written {
         Ok(()) => append_connections(&path, &connections).await,
@@ -275,9 +280,33 @@ async fn newest_run_copy(dir: &Path) -> Option<String> {
     newest
 }
 
-/// Копия запуска ядра — не файл соединений и не что-то другое из каталога.
+/// Копия запуска ядра, её текущая часть — не прошлая часть, не файл
+/// соединений и не что-то другое из каталога.
 pub(crate) fn is_run_copy(name: &str) -> bool {
-    name.starts_with(PREFIX) && name.ends_with(".log") && !name.contains(".conn")
+    name.starts_with(PREFIX) && name.ends_with(".log") && !name.contains(".conn") && !name.ends_with(OLDER_PART)
+}
+
+/// Прошлая часть запуска: `core_<запуск>.1.log`.
+pub(crate) fn older_run_path(run: &Path) -> PathBuf {
+    run.with_extension("1.log")
+}
+
+/// Файл запуска, чья это прошлая часть; у остальных файлов — `None`.
+pub(crate) fn run_of_older_part(part: &Path) -> Option<PathBuf> {
+    let run = part.file_name()?.to_str()?.strip_suffix(OLDER_PART)?;
+    (run.starts_with(PREFIX) && !run.contains(".conn")).then(|| part.with_file_name(format!("{run}.log")))
+}
+
+/// Строки — в файл запуска; доросший до `part` файл перед этим становится
+/// прошлой частью. Это переименование, а не чтение и запись: копии перед
+/// остановкой ядра и перед новым запуском оно не задерживает.
+async fn append_to_the_run(run: &Path, bytes: &[u8], part: u64) -> std::io::Result<()> {
+    if tokio::fs::metadata(run).await.is_ok_and(|meta| meta.len() >= part) {
+        // Не вышло (файл держит открытым другая программа) — строки идут в
+        // него же, смена — с одной из следующих копий.
+        let _ = tokio::fs::rename(run, older_run_path(run)).await;
+    }
+    append(run, bytes).await
 }
 
 /// Запуск, которому принадлежит файл соединений: `core_<запуск>.conn.1.log` → `core_<запуск>`.
@@ -541,7 +570,8 @@ async fn prune(dir: &Path) {
 }
 
 /// Копии сверх [`KEEP`], самые старые (имя — момент запуска, порядок по нему),
-/// кроме запусков, которые писались за этот сеанс программы; файлы соединений
+/// кроме запусков, которые писались за этот сеанс программы; прошлые части
+/// запусков, которые уходят сами или которых уже нет; файлы соединений
 /// всех запусков, кроме [`CONNECTIONS_RUNS`] последних и запусков этого сеанса
 /// (перезапуск программы не отнимает час-два соединений у идущего запуска);
 /// недописанные файлы копий.
@@ -550,7 +580,9 @@ fn surplus(names: Vec<(String, std::time::SystemTime)>, session_started: std::ti
     let (copies, others): (Vec<_>, Vec<_>) = names
         .into_iter()
         .partition(|(name, _)| name.starts_with(PREFIX) && name.ends_with(".log"));
-    let (connections, mut copies): (Vec<_>, Vec<_>) = copies.into_iter().partition(|(name, _)| name.contains(".conn"));
+    let (connections, copies): (Vec<_>, Vec<_>) = copies.into_iter().partition(|(name, _)| name.contains(".conn"));
+    let (older_parts, mut copies): (Vec<_>, Vec<_>) =
+        copies.into_iter().partition(|(name, _)| name.ends_with(OLDER_PART));
     copies.sort();
     let recent_runs: Vec<String> = copies
         .iter()
@@ -561,9 +593,21 @@ fn surplus(names: Vec<(String, std::time::SystemTime)>, session_started: std::ti
     let connections = connections
         .into_iter()
         .filter(|(name, _)| !recent_runs.iter().any(|run| run == run_of_connections(name)));
-    copies.truncate(copies.len().saturating_sub(KEEP));
+    let kept = copies.split_off(copies.len().saturating_sub(KEEP));
+    // Прошлая часть остаётся, пока остаётся её запуск: он среди последних или
+    // писался за этот сеанс.
+    let staying: Vec<&str> = kept
+        .iter()
+        .chain(copies.iter().filter(|(_, modified)| *modified >= session_started))
+        .filter_map(|(name, _)| name.strip_suffix(".log"))
+        .collect();
+    let older_parts: Vec<_> = older_parts
+        .into_iter()
+        .filter(|(name, _)| !staying.iter().any(|run| name.strip_suffix(OLDER_PART) == Some(*run)))
+        .collect();
     copies
         .into_iter()
+        .chain(older_parts)
         .chain(connections)
         .filter(|(_, modified)| *modified < session_started)
         .chain(
@@ -578,9 +622,10 @@ fn surplus(names: Vec<(String, std::time::SystemTime)>, session_started: std::ti
 #[cfg(test)]
 mod tests {
     use super::{
-        BUSY_BYTES, GAP_LINE, KEEP, SAVE_BUSY, SAVE_EVERY, Saved, connections_are_due, connections_path, file_name,
-        for_disk, for_disk_line, is_run_copy, new_lines, newest_run_copy, next_wait, older_connections_path,
-        prune_is_due, run_continued_by, run_of_connections, surplus, tail_lines,
+        BUSY_BYTES, GAP_LINE, KEEP, SAVE_BUSY, SAVE_EVERY, Saved, append_to_the_run, connections_are_due,
+        connections_path, file_name, for_disk, for_disk_line, is_run_copy, new_lines, newest_run_copy, next_wait,
+        older_connections_path, older_run_path, prune_is_due, run_continued_by, run_of_connections, run_of_older_part,
+        surplus, tail_lines,
     };
 
     #[test]
@@ -750,6 +795,19 @@ mod tests {
         );
         assert!(is_run_copy("core_2026-11-02_00-00-00.log"));
         assert!(!is_run_copy("core_2026-11-02_00-00-00.conn.log"));
+        assert!(!is_run_copy("core_2026-11-02_00-00-00.1.log"));
+        let dir = std::path::Path::new("service");
+        assert_eq!(
+            run_of_older_part(&older_run_path(&dir.join("core_2026-11-02_00-00-00.log"))),
+            Some(dir.join("core_2026-11-02_00-00-00.log"))
+        );
+        for name in [
+            "core_2026-11-02_00-00-00.log",
+            "core_2026-11-02_00-00-00.conn.1.log",
+            "service_latest.1.log",
+        ] {
+            assert_eq!(run_of_older_part(&dir.join(name)), None, "{name}");
+        }
         assert!(!is_run_copy("service_latest.log"));
     }
 
@@ -767,6 +825,12 @@ mod tests {
         let _ = std::fs::write(
             dir.join("core_2026-11-07_09-00-00.log"),
             "[2026-11-07 09:00:00.000] Start\n",
+        );
+        // Прошлая часть запуска — не запуск: её имя новее по алфавиту, но
+        // копии продолжают текущую часть.
+        let _ = std::fs::write(
+            dir.join("core_2026-11-08_09-00-00.1.log"),
+            "[2026-11-08 08:59:00.000] an earlier part\n",
         );
         let continued = "[2026-11-08 09:00:01.000] TUN started\n\
                          [2026-11-08 12:00:00.000] [TCP] a --> b match Rule using X\n\
@@ -792,6 +856,41 @@ mod tests {
             ])
         );
         assert_eq!(fresh, ("core_2026-11-08_13-00-00.log".to_owned(), Vec::new()));
+    }
+
+    /// Запуск на диске — конец журнала двумя частями: доросший файл уходит в
+    /// прошлую часть целиком, прежняя прошлая пропадает, строки не рвутся.
+    #[test]
+    fn a_run_file_that_reached_its_size_becomes_the_older_part() {
+        let dir = std::env::temp_dir().join(format!("clod-run-parts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+        let run = dir.join("core_2026-11-14_20-00-00.log");
+        let older = older_run_path(&run);
+        let read = |path: &std::path::Path| std::fs::read_to_string(path).ok();
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build();
+        let steps = runtime.map(|runtime| {
+            let mut steps = Vec::new();
+            for line in ["first\n", "second\n", "third is long\n", "fourth\n", "fifth\n"] {
+                let written = runtime.block_on(append_to_the_run(&run, line.as_bytes(), 12)).is_ok();
+                steps.push((written, read(&run), read(&older)));
+            }
+            steps
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let step = |current: &str, older: Option<&str>| (true, Some(current.to_owned()), older.map(str::to_owned));
+        assert_eq!(
+            steps.ok(),
+            Some(vec![
+                step("first\n", None),
+                step("first\nsecond\n", None),
+                step("third is long\n", Some("first\nsecond\n")),
+                step("fourth\n", Some("third is long\n")),
+                step("fourth\nfifth\n", Some("third is long\n")),
+            ])
+        );
+        assert_eq!(older, std::path::Path::new(&dir).join("core_2026-11-14_20-00-00.1.log"));
     }
 
     #[test]
@@ -842,6 +941,37 @@ mod tests {
         assert_eq!(
             surplus(dated(&names, started), started),
             vec![".core_2026-10-12_00-00-00.log.Ab3dEf9h.tmp".to_owned()]
+        );
+    }
+
+    /// Прошлая часть живёт столько же, сколько её запуск, и за запуск не
+    /// считается: десять запусков — это десять запусков, а не пять.
+    #[test]
+    fn the_older_part_of_a_run_stays_and_goes_with_its_run() {
+        let run = |day: usize| format!("core_2026-10-{day:02}_00-00-00.log");
+        let part = |day: usize| format!("core_2026-10-{day:02}_00-00-00.1.log");
+        let old = std::time::UNIX_EPOCH;
+        let started = old + std::time::Duration::from_secs(10);
+        let mut names: Vec<(String, std::time::SystemTime)> = (1..=KEEP + 1).map(|day| (run(day), old)).collect();
+        names.extend([1, 2, KEEP + 1].map(|day| (part(day), old)));
+        // Копии этого запуска уже нет: его прошлая часть — ничья.
+        names.push(("core_2026-09-01_00-00-00.1.log".to_owned(), old));
+        // Записанное за этот сеанс программы остаётся и без копии рядом.
+        names.push(("core_2026-09-02_00-00-00.1.log".to_owned(), started));
+        assert_eq!(
+            surplus(names.clone(), started),
+            vec![run(1), part(1), "core_2026-09-01_00-00-00.1.log".to_owned()]
+        );
+        // Запуск сверх предела, но писавшийся за этот сеанс, остаётся — и его
+        // прошлая часть с ним, когда бы её ни записали.
+        for (name, modified) in &mut names {
+            if *name == run(1) {
+                *modified = started;
+            }
+        }
+        assert_eq!(
+            surplus(names, started),
+            vec!["core_2026-09-01_00-00-00.1.log".to_owned()]
         );
     }
 }

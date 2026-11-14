@@ -125,19 +125,39 @@ pub(crate) fn line_stamp(line: &str) -> Option<chrono::NaiveDateTime> {
     chrono::NaiveDateTime::parse_from_str(stamp, "%Y-%m-%d %H:%M:%S").ok()
 }
 
-fn redacted_file_writer(file_spec: FileSpec, format: FileFormat, log_max_size: u64) -> FileLogWriterBuilder {
+fn redacted_file_writer(
+    file_spec: FileSpec,
+    format: FileFormat,
+    log_max_size: u64,
+    cleanup: Cleanup,
+) -> FileLogWriterBuilder {
     FileLogWriter::builder(file_spec).format(format.redacted()).rotate(
         Criterion::Size(log_max_size * 1024),
         flexi_logger::Naming::TimestampsCustomFormat {
             current_infix: Some("latest"),
             format: "%Y-%m-%d_%H-%M-%S",
         },
-        Cleanup::Never,
+        cleanup,
     )
 }
 
+/// Сколько журнала ядра лежит на диске: одного запуска под службой, всех
+/// файлов журнала — без неё. С уровнем debug журнал растёт на десятки мегабайт
+/// в сутки; сверх предела остаётся его конец.
+pub(crate) const CORE_LOG_CAP: u64 = 100 * 1024 * 1024;
+
+/// Сколько прошлых файлов по `log_max_size` КБ умещается в [`CORE_LOG_CAP`]
+/// вместе с текущим; один прошлый остаётся при любом размере файла.
+fn files_within_the_cap(log_max_size: u64) -> usize {
+    usize::try_from(CORE_LOG_CAP / log_max_size.max(1).saturating_mul(1024))
+        .unwrap_or(usize::MAX)
+        .saturating_sub(1)
+        .max(1)
+}
+
 /// Журнал ядра без службы: строки о соединениях и DNS — в свой файл, который
-/// меняется раз в час, и на диске их последние час-два; остальное — целиком.
+/// меняется раз в час, и на диске их последние час-два; остальное — файлами
+/// общим размером до [`CORE_LOG_CAP`].
 struct SidecarWriters {
     main: FileLogWriter,
     connections: FileLogWriter,
@@ -272,6 +292,7 @@ impl Logger {
             FileSpec::default().directory(log_dir).basename(""),
             FileFormat::WithLevel,
             log_max_size,
+            Cleanup::Never,
         ))
     }
 
@@ -314,6 +335,7 @@ impl Logger {
                 .suppress_timestamp(),
             FileFormat::WithoutLevel,
             log_max_size,
+            Cleanup::KeepLogFiles(files_within_the_cap(log_max_size)),
         )
         .try_build()?;
         let connections = FileLogWriter::builder(
@@ -355,7 +377,7 @@ impl Logger {
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 #[cfg(test)]
 mod tests {
-    use super::{FileFormat, Logger, PLUMBING_MODULES, redacted_file_writer};
+    use super::{CORE_LOG_CAP, FileFormat, Logger, PLUMBING_MODULES, files_within_the_cap, redacted_file_writer};
     use flexi_logger::{DeferredNow, FileSpec, writers::LogWriter as _};
     use log::{Level, LevelFilter, Record};
 
@@ -381,6 +403,20 @@ mod tests {
     }
 
     #[test]
+    fn the_core_log_without_the_service_keeps_as_many_files_as_fit_the_cap() {
+        assert_eq!(files_within_the_cap(1024), 99);
+        assert_eq!(files_within_the_cap(128), 799);
+        // Прошлые файлы и текущий, который пишется сейчас
+        for size in [1, 128, 1024, 4096, 51_200] {
+            let on_disk = (files_within_the_cap(size) as u64 + 1) * size * 1024;
+            assert!(on_disk <= CORE_LOG_CAP, "{size}: {on_disk}");
+        }
+        assert_eq!(files_within_the_cap(102_400), 1);
+        assert_eq!(files_within_the_cap(0), files_within_the_cap(1));
+        assert_eq!(files_within_the_cap(u64::MAX), 1);
+    }
+
+    #[test]
     fn a_rebuilt_file_writer_still_masks_secrets() {
         let dir = std::env::temp_dir().join(format!("clod-logger-rebuild-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -393,6 +429,7 @@ mod tests {
                 .suppress_timestamp(),
             FileFormat::WithLevel,
             128,
+            flexi_logger::Cleanup::Never,
         )
         .try_build()
         .expect("cannot build the file log writer");
