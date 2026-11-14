@@ -307,14 +307,17 @@ pub fn home_prefix() -> Option<std::string::String> {
     (trimmed.len() > 3).then(|| trimmed.to_owned())
 }
 
-/// Заменить домашний каталог на `~` — в обоих начертаниях разделителя.
+/// Заменить домашний каталог на `~` — как бы ни был записан разделитель:
+/// как есть, прямой чертой или удвоенным, каким путь печатается в кавычках.
 pub fn scrub_home(line: &str, home: Option<&str>) -> std::string::String {
     let Some(home) = home else {
         return line.to_owned();
     };
     let replaced = line.replace(home, "~");
     if home.contains('\\') {
-        replaced.replace(&home.replace('\\', "/"), "~")
+        replaced
+            .replace(&home.replace('\\', "/"), "~")
+            .replace(&home.replace('\\', r"\\"), "~")
     } else {
         replaced
     }
@@ -704,6 +707,15 @@ mod tests {
         let scrubbed = scrub_home(line, Some(r"C:\Users\Ivan Petrov"));
         assert!(!scrubbed.contains("Ivan Petrov"), "{scrubbed}");
         assert!(scrubbed.contains("profiles.yaml"), "{scrubbed}");
+    }
+
+    #[test]
+    fn a_quoted_path_gives_the_home_directory_away_no_more_than_a_plain_one() {
+        let home = r"C:\Users\Ivan Petrov";
+        let quoted = format!("Removed file: {:?}", r"C:\Users\Ivan Petrov\AppData\old.log");
+        let scrubbed = scrub_home(&quoted, Some(home));
+        assert!(!scrubbed.contains("Ivan Petrov"), "{scrubbed}");
+        assert!(scrubbed.contains("old.log"), "{scrubbed}");
     }
 
     #[test]
