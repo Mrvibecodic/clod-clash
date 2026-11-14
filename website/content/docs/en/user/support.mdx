@@ -39,7 +39,8 @@ error text are left.
 
 Masking is also applied in the log itself: log files on disk are already written without tokens
 and subscription addresses, and connection lines go to a separate file that keeps only
-the last hour or two.
+the last hour or two. The rest of the log of one core run takes about 100 MB on disk:
+once it grows that large, only its end is kept.
 
 ## Device identifier
 
