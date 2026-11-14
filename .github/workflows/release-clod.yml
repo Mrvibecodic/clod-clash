@@ -12,8 +12,6 @@ env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
   HUSKY: 0
-  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
-  CARGO_PROFILE_RELEASE_DEBUG: 0
 
 concurrency:
   group: '${{ github.workflow }} - ${{ github.head_ref || github.ref }}'
