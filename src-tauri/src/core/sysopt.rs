@@ -29,6 +29,9 @@ const GUARD_STAND_DOWN_BUDGET: Duration = Duration::from_secs(2);
 
 static OBSERVER_RUNNING: AtomicBool = AtomicBool::new(false);
 
+/// Адрес, порт и PAC, которые система могла получить от нас.
+type OursInTheSystem = (std::string::String, u16, std::string::String);
+
 #[derive(Clone, PartialEq, Eq)]
 struct ObservedProxy {
     sys_enable: bool,
@@ -706,6 +709,18 @@ impl Sysopt {
     }
 
     async fn system_proxy_ownership(&self) -> Option<SystemProxyOwnership> {
+        let observed = tokio::task::spawn_blocking(ObservedProxy::read).await.ok()??;
+        let ours = self.what_might_be_ours().await;
+        let ours: Vec<(&str, u16, &str)> = ours
+            .iter()
+            .map(|(host, port, pac_url)| (host.as_str(), *port, pac_url.as_str()))
+            .collect();
+        Some(how_the_system_proxy_stands(&observed, &ours))
+    }
+
+    /// Адреса, порты и PAC, которые система могла получить от нас: нынешние,
+    /// прежняя цель и отправленное последней записью.
+    async fn what_might_be_ours(&self) -> Vec<OursInTheSystem> {
         let verge = Config::verge().await.latest_arc();
         let configured = verge.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST).to_owned();
         drop(verge);
@@ -713,8 +728,6 @@ impl Sysopt {
         let pac_port = IVerge::get_singleton_port();
         let pac_url = pac_url_for(LOOPBACK_PROXY_HOST, pac_port);
         let configured_pac_url = pac_url_for(&configured, pac_port);
-
-        let observed = tokio::task::spawn_blocking(ObservedProxy::read).await.ok()??;
 
         let previous = self.applied_target.read().as_ref().map(|target| {
             (
@@ -734,7 +747,9 @@ impl Sysopt {
         );
         ours.push((configured.as_str(), port, configured_pac_url.as_str()));
 
-        Some(how_the_system_proxy_stands(&observed, &ours))
+        ours.into_iter()
+            .map(|(host, port, pac_url)| (host.to_owned(), port, pac_url.to_owned()))
+            .collect()
     }
 
     async fn our_proxy_may_be_cleared_now(&self) -> bool {
