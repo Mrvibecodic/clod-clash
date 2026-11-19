@@ -64,18 +64,82 @@ static OVERRIDE_LOCK: Mutex<()> = Mutex::const_new(());
 static TICKETS: AtomicU64 = AtomicU64::new(0);
 static APPLIED_TICKET: AtomicU64 = AtomicU64::new(0);
 
-/// Подтверждено ли, что подмена реально применена.
+/// Подтверждено ли, что подмена реально применена, — и для какой сети.
 ///
 /// clod:dns-half — файла состояния для этого мало: скрипт записывает прежние
 /// адреса ДО того, как подменит их, и убитый по таймауту оставляет след при
 /// нетронутом системном DNS. Без этого признака приложение считало бы дело
 /// сделанным и больше никогда подмену не поставило.
-static OVERRIDE_CONFIRMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+///
+/// Подмена стоит на той сетевой службе, что была первичной при постановке.
+/// Первичной стала другая (Wi-Fi → кабель) — у неё свои адреса DNS, и запросы
+/// имён идут на них мимо туннеля; на той ли службе стоит подмена, знает только
+/// скрипт. Поэтому подтверждение привязано к номеру сети: скрипт подтверждает
+/// ту сеть, которую застал перед запуском, и начатый до смены сети новую не
+/// подтвердит, сколько бы он ни шёл.
+static OVERRIDE_CONFIRMED: Confirmation = Confirmation::new();
 
-/// Чего от подмены хотят по последнему собранному конфигу.
-static DESIRE: parking_lot::Mutex<Option<Desire>> = parking_lot::Mutex::new(None);
+struct Confirmation {
+    network: AtomicU64,
+    confirmed_for: AtomicU64,
+}
 
-#[derive(Clone, Copy)]
+impl Confirmation {
+    const fn new() -> Self {
+        Self {
+            network: AtomicU64::new(1),
+            confirmed_for: AtomicU64::new(0),
+        }
+    }
+
+    fn the_network_changed(&self) {
+        self.network.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn network(&self) -> u64 {
+        self.network.load(Ordering::SeqCst)
+    }
+
+    fn set(&self, network_before_the_script: u64, done: bool) {
+        self.confirmed_for
+            .store(if done { network_before_the_script } else { 0 }, Ordering::SeqCst);
+    }
+
+    fn withdraw(&self) {
+        self.confirmed_for.store(0, Ordering::SeqCst);
+    }
+
+    fn stands(&self) -> bool {
+        self.confirmed_for.load(Ordering::SeqCst) == self.network()
+    }
+}
+
+/// Чего от подмены хотят. `built` — заявка конфига в принятом слоте: её пишут
+/// и перед перезапуском ядра, раньше, чем оно конфиг приняло, а при отказе
+/// возвращают прежнюю. `applied` — заявка, с которой ядро работает: `built` на
+/// тот миг, когда ядро конфиг подтвердило. Смена сети повторяет только её.
+/// Новый процесс ядра её не наследует: до его ответа неизвестно, с чем он встал.
+static DESIRE: parking_lot::Mutex<Desires> = parking_lot::Mutex::new(Desires {
+    built: None,
+    applied: None,
+});
+
+struct Desires {
+    built: Option<Desire>,
+    applied: Option<Desire>,
+}
+
+impl Desires {
+    /// Ядро приняло собранный конфиг.
+    const fn apply_the_built(&mut self) -> Option<Desire> {
+        if self.built.is_some() {
+            self.applied = self.built;
+        }
+        self.built
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Desire {
     want_base: bool,
     shaped_fake_ip: bool,
@@ -87,7 +151,7 @@ struct Desire {
 /// раньше она делалась прямо при сборке, и отвергнутый ядром конфиг оставлял
 /// весь резолв машины на чужом сервере без туннеля.
 pub fn remember_desire(want_base: bool, shaped_fake_ip: bool) {
-    *DESIRE.lock() = Some(Desire {
+    DESIRE.lock().built = Some(Desire {
         want_base,
         shaped_fake_ip,
     });
@@ -99,7 +163,7 @@ pub fn remember_desire(want_base: bool, shaped_fake_ip: bool) {
 /// конфига дожило бы до ближайшего удачного старта ядра и применилось бы к
 /// совсем другому конфигу.
 pub fn forget_desire() {
-    *DESIRE.lock() = None;
+    DESIRE.lock().built = None;
 }
 
 /// Применить запомненное — после того, как ядро приняло конфиг.
@@ -110,8 +174,37 @@ pub fn apply_remembered_desire() {
     // Номер выдаётся под тем же замком, что и чтение заявки: иначе вытесненный
     // между этими шагами поток унёс бы свежий номер со старым желанием.
     let taken = {
+        let mut desire = DESIRE.lock();
+        desire
+            .apply_the_built()
+            .map(|desire| (desire, take_the_newest_ticket()))
+    };
+    let Some((desire, ticket)) = taken else {
+        return;
+    };
+    crate::process::AsyncHandler::spawn(move || async move {
+        sync_override(ticket, desire.want_base, desire.shaped_fake_ip).await;
+    });
+}
+
+/// Поднят новый процесс ядра: что он принял, скажет `apply_remembered_desire`.
+pub fn a_new_core_is_starting() {
+    DESIRE.lock().applied = None;
+}
+
+/// Сеть сменилась: подмена остаётся без подтверждения, и при живом ядре
+/// скрипт сверяет, на той ли она службе. Без живого ядра сверка достаётся его
+/// подъёму.
+pub fn the_network_changed(the_core_runs: bool) {
+    OVERRIDE_CONFIRMED.the_network_changed();
+    if !the_core_runs || crate::core::handle::Handle::global().is_exiting() {
+        return;
+    }
+    // Заявка и номер — под одним замком: снятая следом (`the_tunnel_is_gone`,
+    // выключатель) получит номер старше и перебьёт эту.
+    let taken = {
         let desire = DESIRE.lock();
-        (*desire).map(|desire| (desire, take_the_newest_ticket()))
+        desire.applied.map(|desire| (desire, take_the_newest_ticket()))
     };
     let Some((desire, ticket)) = taken else {
         return;
@@ -125,6 +218,7 @@ pub fn apply_remembered_desire() {
 /// уводит все имена машины мимо туннеля — снимается; ставит её снова, как и
 /// при старте, следующий удачный подъём ядра.
 pub fn the_tunnel_is_gone() {
+    DESIRE.lock().applied = None;
     let ticket = take_the_newest_ticket();
     crate::process::AsyncHandler::spawn(move || async move {
         sync_override(ticket, false, false).await;
@@ -172,7 +266,7 @@ async fn sync_override(ticket: u64, want_base: bool, shaped_fake_ip: bool) {
     let overridden = has_pending_restore();
     let wanted = want_base && (shaped_fake_ip || overridden);
     if wanted {
-        if !overridden || !OVERRIDE_CONFIRMED.load(Ordering::SeqCst) {
+        if !overridden || !OVERRIDE_CONFIRMED.stands() {
             set_public_dns_locked(OVERRIDE_SERVER.to_owned()).await;
         }
     } else if overridden {
@@ -181,6 +275,9 @@ async fn sync_override(ticket: u64, want_base: bool, shaped_fake_ip: bool) {
 }
 
 pub async fn restore_public_dns() -> bool {
+    // Подмену выключил человек: применённой заявки больше нет, и смене сети
+    // повторять нечего.
+    DESIRE.lock().applied = None;
     let ticket = take_the_newest_ticket();
     let _serialized = OVERRIDE_LOCK.lock().await;
     APPLIED_TICKET.fetch_max(ticket, Ordering::SeqCst);
@@ -329,6 +426,7 @@ async fn set_public_dns_locked(dns_server: String) -> bool {
     // Файл состояния не трогаем даже при отказе: в нём записаны прежние адреса,
     // и потерять их хуже, чем повторить попытку. Скрипт применяет подмену
     // повторно без вреда, а `OVERRIDE_CONFIRMED` не даст счесть дело сделанным.
+    let network = OVERRIDE_CONFIRMED.network();
     let done = run_dns_script(
         "set_dns.sh",
         vec![dns_server, state_arg(), EARLIER_OVERRIDE_SERVER.to_owned()],
@@ -336,7 +434,7 @@ async fn set_public_dns_locked(dns_server: String) -> bool {
         SCRIPT_TIMEOUT,
     )
     .await;
-    OVERRIDE_CONFIRMED.store(done, Ordering::SeqCst);
+    OVERRIDE_CONFIRMED.set(network, done);
     done
 }
 
@@ -353,16 +451,150 @@ async fn restore_public_dns_locked(limit: Duration) -> bool {
     )
     .await;
     if done {
-        OVERRIDE_CONFIRMED.store(false, Ordering::SeqCst);
+        OVERRIDE_CONFIRMED.withdraw();
     }
     done
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SCRIPT_NEEDS_AT_LEAST, SCRIPT_TIMEOUT, exit_lock_wait, exit_script_time};
+    use super::{
+        Confirmation, Desire, Desires, SCRIPT_NEEDS_AT_LEAST, SCRIPT_TIMEOUT, exit_lock_wait, exit_script_time,
+    };
     use crate::feat::ExitPace;
     use std::time::Duration;
+
+    #[test]
+    fn an_override_is_confirmed_only_for_the_network_its_script_started_in() {
+        let confirmation = Confirmation::new();
+        assert!(!confirmation.stands(), "nothing was set yet");
+
+        let seen = confirmation.network();
+        confirmation.set(seen, true);
+        assert!(confirmation.stands());
+
+        confirmation.the_network_changed();
+        assert!(!confirmation.stands(), "the service may be another one now");
+
+        // Скрипт начат до смены сети, закончил после: новую сеть не подтверждает.
+        let before_the_change = confirmation.network();
+        confirmation.the_network_changed();
+        confirmation.set(before_the_change, true);
+        assert!(!confirmation.stands());
+
+        let seen = confirmation.network();
+        confirmation.set(seen, false);
+        assert!(!confirmation.stands(), "a script that failed confirms nothing");
+        confirmation.set(seen, true);
+        assert!(confirmation.stands());
+        confirmation.withdraw();
+        assert!(!confirmation.stands());
+    }
+
+    #[test]
+    fn a_built_desire_counts_as_applied_only_once_the_core_took_it() {
+        let wanted = Desire {
+            want_base: true,
+            shaped_fake_ip: true,
+        };
+        let unwanted = Desire {
+            want_base: false,
+            shaped_fake_ip: false,
+        };
+        let mut desires = Desires {
+            built: None,
+            applied: None,
+        };
+        assert_eq!(desires.apply_the_built(), None);
+        assert_eq!(desires.applied, None);
+
+        desires.built = Some(wanted);
+        assert_eq!(desires.applied, None, "built, not yet taken by the core");
+        assert_eq!(desires.apply_the_built(), Some(wanted));
+        assert_eq!(desires.applied, Some(wanted));
+
+        // Следующий конфиг собран, ядро его ещё не приняло — или отвергло.
+        desires.built = Some(unwanted);
+        assert_eq!(desires.applied, Some(wanted));
+        desires.built = None;
+        assert_eq!(desires.apply_the_built(), None);
+        assert_eq!(desires.applied, Some(wanted), "the core still runs the config it took");
+    }
+
+    /// Смена сети снимает подтверждение при любом исходе; повторяет она только
+    /// применённую заявку и только при живом ядре. Туннель ушёл или подмену
+    /// выключили — применённой заявки нет, и снята она раньше выдачи номера.
+    #[test]
+    fn a_changed_network_repeats_only_what_was_applied_and_only_to_a_core_that_runs() {
+        let own = crate::utils::source_scan::production_code(include_str!("dns.rs"));
+        let body = |signature: &str| crate::utils::source_scan::fn_body(own, signature).unwrap_or_default();
+
+        let changed = body("pub fn the_network_changed(");
+        let doubted = changed
+            .find("OVERRIDE_CONFIRMED.the_network_changed()")
+            .unwrap_or(usize::MAX);
+        let asked = changed.find("if !the_core_runs || ").unwrap_or(usize::MAX);
+        let numbered = changed
+            .find("desire.applied.map(|desire| (desire, take_the_newest_ticket()))")
+            .unwrap_or(usize::MAX);
+        let applied = changed.find("sync_override(ticket").unwrap_or_default();
+        assert!(doubted < asked && asked < numbered && numbered < applied, "{changed}");
+        assert!(!changed.contains(".built"), "{changed}");
+
+        for gone in ["pub fn the_tunnel_is_gone(", "pub async fn restore_public_dns("] {
+            let gone = body(gone);
+            let forgotten = gone.find("DESIRE.lock().applied = None;").unwrap_or(usize::MAX);
+            let numbered = gone.find("take_the_newest_ticket()").unwrap_or_default();
+            assert!(forgotten < numbered, "{gone}");
+        }
+        assert!(
+            body("pub fn a_new_core_is_starting(").contains("DESIRE.lock().applied = None;"),
+            "{own}"
+        );
+        let manager = crate::utils::source_scan::production_code(include_str!("../../core/manager/mod.rs"));
+        let spawned = crate::utils::source_scan::fn_body(manager, "fn note_core_is_up(").unwrap_or_default();
+        let forgotten = spawned.find("dns::a_new_core_is_starting()").unwrap_or(usize::MAX);
+        let alive = spawned.find("Liveness::Up as u8").unwrap_or_default();
+        assert!(forgotten < alive, "{spawned}");
+
+        let set = body("async fn set_public_dns_locked(");
+        let seen = set
+            .find("let network = OVERRIDE_CONFIRMED.network()")
+            .unwrap_or(usize::MAX);
+        let ran = set.find("run_dns_script(").unwrap_or(usize::MAX);
+        let confirmed = set.find("OVERRIDE_CONFIRMED.set(network, done)").unwrap_or_default();
+        assert!(seen < ran && ran < confirmed, "{set}");
+
+        let watchdog = crate::utils::source_scan::without_test_modules(include_str!("../../feat/environment.rs"));
+        let reconcile = crate::utils::source_scan::fn_body(watchdog, "async fn reconcile(").unwrap_or_default();
+        let asked = reconcile
+            .split_once("dns::the_network_changed(")
+            .and_then(|(_, rest)| rest.split_once(");"))
+            .map_or("", |(asked, _)| asked);
+        assert!(
+            asked.contains("network_carries_traffic") && asked.contains("RunningMode::NotRunning"),
+            "{reconcile}"
+        );
+    }
+
+    /// Скрипт подмены: без маршрута по умолчанию службу не ищет, а подмену,
+    /// уже стоящую на первичной службе, не снимает и не ставит заново.
+    #[test]
+    fn the_script_moves_the_override_only_when_it_is_not_where_the_network_is() {
+        let script = include_str!("../../../../scripts/set_dns.sh");
+        let at = |piece: &str| script.find(piece).unwrap_or(usize::MAX);
+        let routeless = at(r#"[ -z "$nic" ] && echo "no default route" && exit 1"#);
+        let resolved = at("hardware_port=$(networksetup -listnetworkserviceorder");
+        let in_place = at(r#"[ "$(head -n 1 "$state_file")" == "$hardware_port" ]"#);
+        let stands =
+            at(r#"networksetup -getdnsservers "$hardware_port" 2>/dev/null | tr -d '[:space:]')" == "$1" ]; then"#);
+        let returned = at(r#"unset_dns.sh" "$state_file""#);
+        assert!(
+            routeless < resolved && resolved < in_place && in_place < stands && stands < returned,
+            "{script}"
+        );
+        assert!(returned < usize::MAX, "{script}");
+    }
 
     /// Потолки обычного выхода — с отменой и без неё.
     const fn calm() -> [Duration; 2] {

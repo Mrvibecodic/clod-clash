@@ -32,12 +32,20 @@ function is_valid_ip() {
 state_file="${2:-.original_dns.txt}"
 
 nic=$(route -n get default | grep "interface" | awk '{print $2}')
+# Без имени интерфейса под сравнение попала бы служба без устройства (VPN).
+[ -z "$nic" ] && echo "no default route" && exit 1
 hardware_port=$(networksetup -listnetworkserviceorder | awk -v dev="$nic" '
     /^\([0-9]+\) /{port=$0; sub(/^\([0-9]+\) /, "", port)}
     /\(Hardware Port:/{interface=$NF;sub(/\)/, "", interface); if (interface == dev) {print port; exit}}
 ')
 
 [ -z "$hardware_port" ] && echo "cannot resolve the network service for $nic" && exit 1
+
+# Подмена уже стоит на этой самой службе — ни возвращать, ни ставить нечего.
+if [ -f "$state_file" ] && [ "$(head -n 1 "$state_file")" == "$hardware_port" ] &&
+    [ "$(networksetup -getdnsservers "$hardware_port" 2>/dev/null | tr -d '[:space:]')" == "$1" ]; then
+    exit 0
+fi
 
 # Запись описывает ровно ту службу, на которой стоит подмена. Старая запись
 # (прошлый запуск не вернул DNS, или прошлая попытка оборвалась) сперва

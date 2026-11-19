@@ -221,6 +221,10 @@ impl CoreManager {
 
     pub(super) fn note_core_is_up(&self, backend: Backend) {
         self.backend.store(backend as u8, Ordering::Release);
+        // Раньше, чем ядро числится живым: смена сети не застанет у нового
+        // процесса заявку прежнего.
+        #[cfg(target_os = "macos")]
+        crate::utils::resolve::dns::a_new_core_is_starting();
         self.liveness.store(Liveness::Up as u8, Ordering::Release);
     }
 

@@ -470,6 +470,14 @@ async fn reconcile(
     if wants_sysproxy {
         CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
     }
+    #[cfg(target_os = "macos")]
+    crate::utils::resolve::dns::the_network_changed(
+        network_carries_traffic
+            && !matches!(
+                *CoreManager::global().get_running_mode(),
+                crate::core::manager::RunningMode::NotRunning
+            ),
+    );
 
     if !may_close_connections {
         if verbose {
