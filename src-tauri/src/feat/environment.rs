@@ -754,12 +754,17 @@ pub fn ensure_environment_watchdog() {
         let mut last_network = first_fingerprint().await;
         let mut ticks: u32 = 0;
         let mut pokes_seen = NETWORK_POKES.load(Ordering::Acquire);
+        // Толчок, который круг не смог отработать (идёт выход, интерфейсы не
+        // читаются), остаётся за сторожем до следующего круга.
+        let mut a_poke_is_owed = false;
 
         loop {
-            let poked = tick_or_poke(&mut pokes_seen).await;
+            let poked = tick_or_poke(&mut pokes_seen).await || a_poke_is_owed;
+            a_poke_is_owed = false;
             ticks = ticks.wrapping_add(1);
             // На выходе сторож молчит, а не уходит: отменённый выход застаёт его живым.
             if handle::Handle::global().is_exiting() {
+                a_poke_is_owed = poked;
                 continue;
             }
 
@@ -822,6 +827,7 @@ pub fn ensure_environment_watchdog() {
                     crate::core::Timer::global().rearm_after_wake();
                     reconcile("woke up", true, false, false, false).await;
                 }
+                a_poke_is_owed = poked;
                 continue;
             };
             LISTING_FAILED.store(false, Ordering::Release);
@@ -1378,6 +1384,29 @@ mod tests {
                 "{file}"
             );
         }
+    }
+
+    /// Толчок не теряется: круг, вышедший раньше сверки, оставляет его следующему.
+    #[test]
+    fn a_poke_the_round_could_not_act_on_is_kept_for_the_next_round() {
+        use crate::utils::source_scan::{fn_body, without_test_modules};
+        let environment = without_test_modules(include_str!("environment.rs"));
+        let ensure = fn_body(environment, "pub fn ensure_environment_watchdog()").unwrap_or_default();
+        let the_loop = fn_body(ensure, "loop {").unwrap_or_default();
+        assert!(
+            the_loop.contains("tick_or_poke(&mut pokes_seen).await || a_poke_is_owed;"),
+            "{the_loop}"
+        );
+        let before_the_changes_are_read = the_loop
+            .split_once("let (fingerprint_changed, path_is_gone)")
+            .map_or("", |(before, _)| before);
+        let early_exits = before_the_changes_are_read.matches("continue;").count();
+        assert_eq!(early_exits, 2, "{before_the_changes_are_read}");
+        assert_eq!(
+            before_the_changes_are_read.matches("a_poke_is_owed = poked;").count(),
+            early_exits,
+            "{before_the_changes_are_read}"
+        );
     }
 
     /// Значок на Linux о наведении мыши не сообщает: трей сверяется с системой
