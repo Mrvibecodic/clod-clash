@@ -26,11 +26,18 @@ const RESET_LOCK_BUDGET: Duration = Duration::from_millis(400);
 /// проверить, не легла ли она поверх.
 const LATE_WRITE_WAIT: Duration = Duration::from_millis(1500);
 const GUARD_STAND_DOWN_BUDGET: Duration = Duration::from_secs(2);
+#[cfg(target_os = "macos")]
+const OTHER_SERVICES_BUDGET: Duration = Duration::from_secs(3);
 
 static OBSERVER_RUNNING: AtomicBool = AtomicBool::new(false);
 
 /// Адрес, порт и PAC, которые система могла получить от нас.
 type OursInTheSystem = (std::string::String, u16, std::string::String);
+
+/// Заказ на обход остальных сетевых служб: что на них искать и сколько раз
+/// прокси начинали включать к тому мгновению, когда его решили снять.
+#[cfg(target_os = "macos")]
+type SweepOrder = (Vec<OursInTheSystem>, u64);
 
 #[derive(Clone, PartialEq, Eq)]
 struct ObservedProxy {
@@ -588,6 +595,11 @@ pub struct Sysopt {
     ever_applied: AtomicBool,
     host_choice: parking_lot::Mutex<Option<JudgedHostChoice>>,
     guard: Arc<RwLock<GuardMonitor>>,
+    /// Сколько раз прокси начинали включать; только растёт.
+    #[cfg(any(target_os = "macos", test))]
+    switch_ons: std::sync::atomic::AtomicU64,
+    #[cfg(target_os = "macos")]
+    other_services_sweep: parking_lot::Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
 }
 
 impl Default for Sysopt {
@@ -604,6 +616,10 @@ impl Default for Sysopt {
             ever_applied: AtomicBool::new(false),
             host_choice: parking_lot::Mutex::new(None),
             guard: Arc::new(RwLock::new(GuardMonitor::new(GuardType::None, Duration::from_secs(30)))),
+            #[cfg(any(target_os = "macos", test))]
+            switch_ons: std::sync::atomic::AtomicU64::new(0),
+            #[cfg(target_os = "macos")]
+            other_services_sweep: parking_lot::Mutex::new(None),
         }
     }
 }
@@ -752,6 +768,101 @@ impl Sysopt {
             .collect()
     }
 
+    /// Удержать свои записи прокси, пока обход остальных служб выключает наш
+    /// прокси у одной из них; `None` — после заказа обхода прокси начали
+    /// включать, и обходу пора остановиться.
+    ///
+    /// Запись, включающая прокси, идёт только под `update_lock` и отмечается в
+    /// `switch_ons` раньше, чем пишет. Поэтому под замком и при прежнем счёте
+    /// приложение прокси не включает: запись, шедшая при заказе, закончилась,
+    /// а новая не начиналась и не начнётся.
+    ///
+    /// Сторож получает цель лишь от такой записи и пишет одну первичную
+    /// службу. Круг, шедший при снятии, может записать её ещё раз; выключит
+    /// это обход — вернуть будет некому: цели у сторожа уже нет. Сторож,
+    /// оставленный с целью пропущенным снятием, выключенное вернёт следующим
+    /// кругом, как вернул бы и без обхода.
+    #[cfg(any(target_os = "macos", test))]
+    fn hold_our_writes_off(&self, switch_ons_seen: u64) -> Option<tokio::sync::MutexGuard<'_, ()>> {
+        let held = self.update_lock.blocking_lock();
+        (self.switch_ons.load(Ordering::SeqCst) == switch_ons_seen).then_some(held)
+    }
+
+    /// Счёт включений, пока запись прокси не идёт; `None` — она идёт, и что
+    /// она включит, ещё неизвестно.
+    #[cfg(any(target_os = "macos", test))]
+    fn switch_ons_while_idle(&self) -> Option<u64> {
+        self.update_lock
+            .try_lock()
+            .ok()
+            .map(|_idle| self.switch_ons.load(Ordering::SeqCst))
+    }
+
+    /// Заказ берётся там, где снятие решено: счёт включений — раньше всего
+    /// остального, адреса — пока снятие их не забыло.
+    #[cfg(target_os = "macos")]
+    async fn order_a_sweep(&self) -> SweepOrder {
+        let switch_ons_seen = self.switch_ons.load(Ordering::SeqCst);
+        (self.what_might_be_ours().await, switch_ons_seen)
+    }
+
+    /// Снять наш прокси с остальных сетевых служб — своей задачей: ни исход
+    /// снятия у первичной службы, ни окно с треем её не ждут.
+    #[cfg(target_os = "macos")]
+    fn clear_the_other_services(&self, (ours, switch_ons_seen): SweepOrder) {
+        let sweep = AsyncHandler::spawn(move || async move {
+            let deadline = Instant::now() + OTHER_SERVICES_BUDGET;
+            let swept = AsyncHandler::spawn_blocking(move || {
+                other_services::switch_ours_off(
+                    &ours,
+                    other_services::networksetup,
+                    || Self::global().hold_our_writes_off(switch_ons_seen),
+                    || Instant::now() >= deadline,
+                )
+            })
+            .await
+            .unwrap_or_default();
+            for (service, switch) in swept.switched_off {
+                logging!(
+                    info,
+                    Type::Core,
+                    "[clod] our proxy was still switched on for the network service {service} ({switch}); switched off"
+                );
+            }
+            for (service, switch) in swept.refused {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "[clod] our proxy is still switched on for the network service {service} ({switch}): the system refused to switch it off"
+                );
+            }
+            for service in swept.left_alone {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "[clod] our proxy is still switched on for the network service {service}: another switch there is someone else's or could not be read"
+                );
+            }
+            if let Some(service) = swept.out_of_time_at {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "[clod] ran out of time looking for our proxy on the other network services; stopped at {service}"
+                );
+            }
+        });
+        *self.other_services_sweep.lock() = Some(sweep);
+    }
+
+    /// Дать обходу остальных служб закончиться — на выходе, пока процесс жив.
+    #[cfg(target_os = "macos")]
+    pub async fn let_the_other_services_finish(&self, limit: Duration) {
+        let sweep = self.other_services_sweep.lock().take();
+        if let Some(sweep) = sweep {
+            let _ = tokio::time::timeout(limit.min(OTHER_SERVICES_BUDGET), sweep).await;
+        }
+    }
+
     async fn our_proxy_may_be_cleared_now(&self) -> bool {
         let was_ever_applied = self.ever_applied.load(Ordering::SeqCst);
         self.system_proxy_ownership()
@@ -780,6 +891,10 @@ impl Sysopt {
             return Ok(SysproxyTakeDown::Cleared);
         }
 
+        // Счёт — раньше чтения системы: прокси, включённый после него, чтение
+        // могло не застать, и обход выключил бы его у первичной службы.
+        #[cfg(target_os = "macos")]
+        let switch_ons_seen = self.switch_ons_while_idle();
         let skipped = self
             .system_proxy_ownership()
             .await
@@ -797,6 +912,10 @@ impl Sysopt {
                     Type::Core,
                     "системный прокси в системе поставлен не нами — не трогаем"
                 ),
+            }
+            #[cfg(target_os = "macos")]
+            if let Some(switch_ons_seen) = switch_ons_seen {
+                self.clear_the_other_services((self.what_might_be_ours().await, switch_ons_seen));
             }
             return Ok(outcome);
         }
@@ -979,7 +1098,13 @@ impl Sysopt {
             );
             self.remember_what_the_system_did(ProxyPass::LeftForeignSettingsAlone);
             self.aim_guard(guard_type);
+            #[cfg(target_os = "macos")]
+            self.clear_the_other_services(self.order_a_sweep().await);
             return Ok(());
+        }
+        #[cfg(any(target_os = "macos", test))]
+        if wants_to_enable {
+            self.switch_ons.fetch_add(1, Ordering::SeqCst);
         }
         self.ever_applied.store(true, Ordering::SeqCst);
 
@@ -1075,6 +1200,11 @@ impl Sysopt {
             }
             None => {
                 let owns_the_state = target.sys.enable || target.auto.enable;
+                // Раньше, чем забыто отправленное: обход ищет прокси по нему.
+                #[cfg(target_os = "macos")]
+                if !owns_the_state {
+                    self.clear_the_other_services(self.order_a_sweep().await);
+                }
                 self.ever_applied.store(owns_the_state, Ordering::SeqCst);
                 self.remember_what_the_system_took(handed_over, owns_the_state);
                 *self.applied_target.write() = Some(target);
@@ -1165,6 +1295,8 @@ impl Sysopt {
             auto.enable = false;
             (sys.clone(), auto.clone())
         };
+        #[cfg(target_os = "macos")]
+        let sweep = self.order_a_sweep().await;
         *self.applied_target.write() = None;
         *self.host_choice.lock() = None;
 
@@ -1188,6 +1320,8 @@ impl Sysopt {
         if outcome.is_none() {
             self.ever_applied.store(false, Ordering::SeqCst);
             *self.sent_to_the_system.write() = SentProxies::default();
+            #[cfg(target_os = "macos")]
+            self.clear_the_other_services(sweep);
         }
         outcome.map_or(Ok(()), Err)
     }
@@ -1229,8 +1363,141 @@ fn with_system_call_retry(mut apply: impl FnMut() -> sysproxy::Result<()>) -> sy
     apply()
 }
 
+#[cfg(any(target_os = "macos", test))]
+mod other_services;
+
 #[cfg(test)]
 mod tests {
+    /// Обход остальных служб ждёт идущую запись прокси и уступает, если с тех
+    /// пор, как его попросили, прокси начали включать.
+    #[test]
+    fn the_sweep_waits_for_a_proxy_write_and_yields_once_the_proxy_is_being_switched_on() {
+        use std::sync::atomic::Ordering;
+
+        let sysopt = super::Sysopt::default();
+        let seen = sysopt.switch_ons.load(Ordering::SeqCst);
+        assert!(
+            sysopt.hold_our_writes_off(seen).is_some(),
+            "nobody switches the proxy on"
+        );
+
+        for the_write_switches_the_proxy_on in [false, true] {
+            let seen = sysopt.switch_ons.load(Ordering::SeqCst);
+            let writing = sysopt.update_lock.blocking_lock();
+            std::thread::scope(|scope| {
+                let step = scope.spawn(|| sysopt.hold_our_writes_off(seen).is_some());
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                assert!(!step.is_finished(), "the sweep went ahead beside a write in flight");
+                if the_write_switches_the_proxy_on {
+                    sysopt.switch_ons.fetch_add(1, Ordering::SeqCst);
+                }
+                drop(writing);
+                assert_eq!(step.join().ok(), Some(!the_write_switches_the_proxy_on));
+            });
+        }
+        assert!(
+            sysopt.hold_our_writes_off(seen).is_none(),
+            "the proxy was switched on since, whatever became of that write"
+        );
+
+        assert_eq!(sysopt.switch_ons_while_idle(), Some(seen + 1));
+        let writing = sysopt.update_lock.blocking_lock();
+        assert_eq!(
+            sysopt.switch_ons_while_idle(),
+            None,
+            "what the write in flight switches on is not known yet"
+        );
+        drop(writing);
+    }
+
+    /// Каждое снятие прокси, которое не кончилось отказом, зовёт обход остальных
+    /// служб; включение отмечается раньше записи; выход решает исход снятия
+    /// раньше, чем ждёт обход.
+    #[test]
+    fn a_take_down_also_clears_the_other_network_services() {
+        let own = crate::utils::source_scan::production_code(include_str!("sysopt.rs"));
+        let body = |signature: &str| crate::utils::source_scan::fn_body(own, signature).unwrap_or_default();
+        let asked_before = |body: &str, sweep: &str, then: &str| {
+            let swept = body.find(sweep).unwrap_or(usize::MAX);
+            let after = body.find(then).unwrap_or_default();
+            assert!(swept < after, "`{sweep}` before `{then}`: {body}");
+        };
+
+        let update = body("pub async fn update_sysproxy(");
+        let left_alone = update
+            .split_once("ProxyPass::LeftForeignSettingsAlone")
+            .map_or("", |(_, rest)| rest);
+        asked_before(
+            left_alone,
+            "self.clear_the_other_services(self.order_a_sweep().await);",
+            "return Ok(());",
+        );
+        let marked = update.find("self.switch_ons.fetch_add(1, Ordering::SeqCst);");
+        let written = update.find("apply_once(");
+        assert!(marked.is_some() && marked < written, "{update}");
+        // Обход — только когда прокси выключили, и заказан раньше, чем забыто
+        // отправленное.
+        let switched_off = crate::utils::source_scan::fn_body(update, "if !owns_the_state {").unwrap_or_default();
+        assert!(
+            switched_off.contains("self.clear_the_other_services(self.order_a_sweep().await);"),
+            "{update}"
+        );
+        asked_before(update, "if !owns_the_state {", "self.remember_what_the_system_took(");
+
+        assert_eq!(update.matches("self.clear_the_other_services(").count(), 2, "{update}");
+
+        // Пропущенное снятие: счёт включений — до чтения системы, обход —
+        // только если запись прокси в тот миг не шла.
+        let take_down = body("pub async fn reset_sysproxy_if_ours(");
+        asked_before(
+            take_down,
+            "let switch_ons_seen = self.switch_ons_while_idle();",
+            ".system_proxy_ownership()",
+        );
+        let skipped =
+            crate::utils::source_scan::fn_body(take_down, "if let Some(outcome) = skipped {").unwrap_or_default();
+        let counted = crate::utils::source_scan::fn_body(skipped, "if let Some(switch_ons_seen) = switch_ons_seen {")
+            .unwrap_or_default();
+        assert!(
+            counted.contains("self.clear_the_other_services((self.what_might_be_ours().await, switch_ons_seen));"),
+            "{take_down}"
+        );
+        assert_eq!(
+            take_down.matches("self.clear_the_other_services(").count(),
+            1,
+            "{take_down}"
+        );
+
+        // Заказ — после попытки взять замок и до того, как снятие забыло
+        // прежнюю цель; обход — только после удачного снятия.
+        let reset = body("async fn reset_sysproxy(");
+        let locked = reset.find("self.update_lock.lock()").unwrap_or(usize::MAX);
+        let ordered = reset
+            .find("let sweep = self.order_a_sweep().await;")
+            .unwrap_or(usize::MAX);
+        let forgotten = reset.find("*self.applied_target.write() = None;").unwrap_or_default();
+        assert!(locked < ordered && ordered < forgotten, "{reset}");
+        let succeeded = crate::utils::source_scan::fn_body(reset, "if outcome.is_none() {").unwrap_or_default();
+        assert!(succeeded.contains("self.clear_the_other_services(sweep);"), "{reset}");
+        assert_eq!(reset.matches("self.clear_the_other_services(").count(), 1, "{reset}");
+
+        let order = body("async fn order_a_sweep(");
+        asked_before(
+            order,
+            "let switch_ons_seen = self.switch_ons.load(Ordering::SeqCst);",
+            "self.what_might_be_ours().await",
+        );
+        let sweep = body("fn clear_the_other_services(");
+        assert!(
+            sweep.contains("|| Self::global().hold_our_writes_off(switch_ons_seen)"),
+            "{sweep}"
+        );
+
+        let exit = crate::utils::source_scan::production_code(include_str!("../feat/window.rs"));
+        let task = crate::utils::source_scan::fn_body(exit, "fn spawn_proxy_task(").unwrap_or_default();
+        asked_before(task, "let outcome = match timeout(", ".let_the_other_services_finish(");
+    }
+
     /// Выключенный PAC на Windows оставляет адрес в реестре: включённость —
     /// только по флагу соединения, а запись, которую не разобрать, не решает.
     #[test]

@@ -506,7 +506,9 @@ fn spawn_save_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
 fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<ProxyAtExit> {
     tokio::task::spawn(async move {
         logging!(info, Type::Window, "сброс системного прокси...");
-        match timeout(
+        #[cfg(target_os = "macos")]
+        let started = std::time::Instant::now();
+        let outcome = match timeout(
             pace.sysproxy_budget(),
             sysopt::Sysopt::global().reset_sysproxy_if_ours(),
         )
@@ -544,7 +546,13 @@ fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<ProxyAtExit> {
                 );
                 ProxyAtExit::Refused
             }
-        }
+        };
+        // Исход уже решён; остальным сетевым службам достаётся остаток срока.
+        #[cfg(target_os = "macos")]
+        sysopt::Sysopt::global()
+            .let_the_other_services_finish(pace.sysproxy_budget().saturating_sub(started.elapsed()))
+            .await;
+        outcome
     })
 }
 
