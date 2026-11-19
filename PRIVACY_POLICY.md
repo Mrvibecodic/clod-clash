@@ -86,7 +86,7 @@ described below covers the requests this app makes itself.
 *   **DNS.** Name resolution goes wherever your configuration says; the app adds no resolvers
     of its own. In TUN mode it turns DNS on in fake-ip mode. On macOS, while TUN mode is on in
     fake-ip mode and "Override system DNS" is enabled, the app sets the system DNS server to
-    `114.114.114.114`; queries addressed to it go into the tunnel, and the previous
+    `94.140.14.140`; queries addressed to it go into the tunnel, and the previous
     setting is restored when TUN mode is turned off or the app exits.
 *   **To the update and routing-data endpoints.** Checking for an app update and downloading
     it (GitHub, `Mrvibecodic/clod-clash`; at start and every 24 hours while automatic checks

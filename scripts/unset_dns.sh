@@ -1,7 +1,10 @@
 #!/bin/bash
 
 state_file="${1:-.original_dns.txt}"
-placeholder="${2:-}"
+placeholders=()
+for placeholder in "${@:2}"; do
+    [ -n "$placeholder" ] && placeholders+=("$placeholder")
+done
 
 [ ! -f "$state_file" ] && exit 0
 
@@ -30,14 +33,23 @@ fi
 # программа) или она так и не встала. Выбор остаётся как есть, а записанные
 # адреса больше ничего не описывают. Прочитать не вышло — возвращаем, как и
 # прежде.
-if [ -n "$placeholder" ] && current=$(networksetup -getdnsservers "$hardware_port" 2>&1) &&
+if [ "${#placeholders[@]}" -gt 0 ] && current=$(networksetup -getdnsservers "$hardware_port" 2>&1) &&
     [ -n "$current" ] && [[ "$current" != *"** Error"* ]]; then
-    if [ "$(tr -d '[:space:]' <<<"$current")" != "$placeholder" ]; then
+    current=$(tr -d '[:space:]' <<<"$current")
+    ours=false
+    for placeholder in "${placeholders[@]}"; do
+        [ "$current" == "$placeholder" ] && ours=true
+    done
+    if [ "$ours" = false ]; then
         echo "DNS of $hardware_port is not the override any more; leaving it as it is"
         rm -f "$state_file"
         exit 0
     fi
 fi
+
+for placeholder in "${@:3}"; do
+    [ "$(tr -d '[:space:]' <<<"$original_dns")" == "$placeholder" ] && original_dns="empty"
+done
 
 # networksetup умеет сообщить об отказе строкой «** Error» и выйти с нулём.
 out=$(networksetup -setdnsservers "$hardware_port" $original_dns 2>&1)

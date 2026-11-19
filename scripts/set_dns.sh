@@ -26,7 +26,7 @@ function is_valid_ip() {
     is_valid_ipv4 "$1" || is_valid_ipv6 "$1"
 }
 
-[ $# -lt 1 ] && echo "Usage: $0 <IP address> [state file]" && exit 1
+[ $# -lt 1 ] && echo "Usage: $0 <IP address> [state file] [earlier override...]" && exit 1
 ! is_valid_ip "$1" && echo "$1 is not a valid IP address." && exit 1
 
 state_file="${2:-.original_dns.txt}"
@@ -43,9 +43,13 @@ hardware_port=$(networksetup -listnetworkserviceorder | awk -v dev="$nic" '
 # (прошлый запуск не вернул DNS, или прошлая попытка оборвалась) сперва
 # возвращается на свою службу: иначе подмена легла бы на текущую без записи,
 # и её прежние адреса не вернул бы уже никто.
-bash "$(dirname "$0")/unset_dns.sh" "$state_file" "$1" || exit $?
+bash "$(dirname "$0")/unset_dns.sh" "$state_file" "$1" "${@:3}" || exit $?
 
 original_dns=$(networksetup -getdnsservers "$hardware_port")
+
+for placeholder in "${@:3}"; do
+    [ "$(tr -d '[:space:]' <<<"$original_dns")" == "$placeholder" ] && original_dns=""
+done
 
 is_valid_dns=false
 for ip in $original_dns; do

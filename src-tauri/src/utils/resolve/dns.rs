@@ -49,7 +49,10 @@ const fn exit_script_time(ceiling: Duration, waited: Duration) -> Option<Duratio
     }
 }
 
-pub const OVERRIDE_SERVER: &str = "114.114.114.114";
+pub const OVERRIDE_SERVER: &str = "94.140.14.140";
+
+/// Адрес подмены прежних версий: оставленный ими след возвращается так же, как свой.
+const EARLIER_OVERRIDE_SERVER: &str = "114.114.114.114";
 
 static OVERRIDE_LOCK: Mutex<()> = Mutex::const_new(());
 
@@ -328,7 +331,7 @@ async fn set_public_dns_locked(dns_server: String) -> bool {
     // повторно без вреда, а `OVERRIDE_CONFIRMED` не даст счесть дело сделанным.
     let done = run_dns_script(
         "set_dns.sh",
-        vec![dns_server, state_arg()],
+        vec![dns_server, state_arg(), EARLIER_OVERRIDE_SERVER.to_owned()],
         "set system dns",
         SCRIPT_TIMEOUT,
     )
@@ -340,7 +343,11 @@ async fn set_public_dns_locked(dns_server: String) -> bool {
 async fn restore_public_dns_locked(limit: Duration) -> bool {
     let done = run_dns_script(
         "unset_dns.sh",
-        vec![state_arg(), OVERRIDE_SERVER.to_owned()],
+        vec![
+            state_arg(),
+            OVERRIDE_SERVER.to_owned(),
+            EARLIER_OVERRIDE_SERVER.to_owned(),
+        ],
         "unset system dns",
         limit,
     )
