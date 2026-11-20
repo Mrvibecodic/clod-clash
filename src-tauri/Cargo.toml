@@ -62,7 +62,7 @@ dirs = "6.0.0"
 boa_engine = "0.21.1"
 percent-encoding = "2.3.2"
 reqwest = { version = "0.13.4", features = ["json", "gzip", "rustls"] }
-sysproxy = { git = "https://github.com/clash-verge-rev/sysproxy-rs", branch = "main", features = [
+sysproxy = { git = "https://github.com/clash-verge-rev/sysproxy-rs", rev = "89ad876a0942c049ae72e1472f9fc3ed62023c5e", features = [
   "guard",
 ] }
 network-interface = { version = "2.0.5", features = ["serde"] }
