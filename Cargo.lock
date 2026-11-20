@@ -996,7 +996,7 @@ dependencies = [
 
 [[package]]
 name = "clash-verge"
-version = "0.1.15"
+version = "0.1.16-alpha.1"
 dependencies = [
  "anyhow",
  "arc-swap",
