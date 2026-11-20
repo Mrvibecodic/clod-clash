@@ -1351,7 +1351,7 @@ mod failure_visibility_tests {
         let shown = public_failure_text(raw);
         assert_eq!(
             shown,
-            "error sending request for url (https://panel.example.com/*** secret: ***"
+            "error sending request for url (https://panel.example.com/***) secret: ***"
         );
         // Окно получает уже вычищенный текст: вторая чистка его не меняет.
         assert_eq!(public_failure_text(&shown), shown);

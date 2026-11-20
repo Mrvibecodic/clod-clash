@@ -4,7 +4,7 @@ use crate::{
     enhance,
     utils::{
         dirs, hwid,
-        redact::{home_prefix, redact, redact_for_support, scrub_home},
+        redact::{home_prefix, redact_for_support, scrub_home},
     },
 };
 use anyhow::Result;
@@ -265,6 +265,19 @@ fn wish_and_fact(wish: bool, fact: bool, why_not: Option<&str>) -> std::string::
     line
 }
 
+fn own_bypass(bypass: Option<&str>) -> std::string::String {
+    match bypass {
+        Some(bypass) if !bypass.is_empty() => bypass
+            .split_inclusive([';', ','])
+            .map(|entry| {
+                let (entry, separator) = entry.split_at(entry.trim_end_matches([';', ',']).len());
+                redact_for_support(entry) + separator
+            })
+            .collect(),
+        _ => "—".to_owned(),
+    }
+}
+
 fn pinned_port_note(pinned: Option<u16>) -> std::string::String {
     match pinned {
         Some(port) => format!("закреплён в настройках: {port}"),
@@ -291,10 +304,10 @@ fn panel_text(value: &str) -> std::string::String {
         .map(|c| if c.is_control() { ' ' } else { c })
         .filter(|c| *c != '`' && !is_invisible_format(*c))
         .collect();
-    let trimmed = cleaned.trim();
-    match trimmed.char_indices().nth(PANEL_TEXT_MAX) {
-        Some((at, _)) => format!("{}…", &trimmed[..at]),
-        None => trimmed.to_owned(),
+    let redacted = redact_for_support(cleaned.trim());
+    match redacted.char_indices().nth(PANEL_TEXT_MAX) {
+        Some((at, _)) => format!("{}…", &redacted[..at]),
+        None => redacted,
     }
 }
 
@@ -372,7 +385,7 @@ async fn settings_section(out: &mut std::string::String) {
             crate::core::sysopt::Sysopt::global().our_proxy_is_on().await,
             None
         ),
-        Config::our_proxy_host(&data).await,
+        redact_for_support(&Config::our_proxy_host(&data).await),
         yes_no(data.proxy_auto_config.unwrap_or(false))
     );
     let lan_held = Config::runtime().await.data_arc().unreadable_lan_list;
@@ -402,10 +415,7 @@ async fn settings_section(out: &mut std::string::String) {
         out,
         "- исключения прокси: встроенные {}, свои: {}",
         yes_no(data.use_default_bypass.unwrap_or(true)),
-        match data.system_proxy_bypass.as_deref() {
-            Some(bypass) if !bypass.is_empty() => bypass,
-            _ => "—",
-        }
+        own_bypass(data.system_proxy_bypass.as_deref())
     );
     let mode = Config::runtime()
         .await
@@ -456,6 +466,10 @@ fn subscription_name(item: &PrfItem) -> std::string::String {
     }
 }
 
+fn subscription_address(item: &PrfItem) -> std::string::String {
+    item.url.as_deref().map_or_else(|| "—".to_owned(), redact_for_support)
+}
+
 async fn subscription_section(out: &mut std::string::String) {
     let profiles = Config::profiles().await;
     let data = profiles.latest_arc();
@@ -471,11 +485,7 @@ async fn subscription_section(out: &mut std::string::String) {
     };
 
     let _ = writeln!(out, "- название: {}", subscription_name(item));
-    let _ = writeln!(
-        out,
-        "- адрес: {}",
-        item.url.as_deref().map(redact).unwrap_or_else(|| "—".into())
-    );
+    let _ = writeln!(out, "- адрес: {}", subscription_address(item));
     let _ = writeln!(out, "- обновлена: {}", item.updated.unwrap_or(0));
     if let Some(extra) = item.extra.as_ref() {
         let _ = writeln!(
@@ -626,10 +636,10 @@ pub async fn build() -> Result<std::string::String> {
     let _ = writeln!(out, "# Clod Clash — отчёт для поддержки");
     let _ = writeln!(
         out,
-        "Токены, пароли и пути подписок заменены на `***`; строки ядра о соединениях\n\
-         и DNS в отчёт не включены (в архиве логов они есть — без адресов, программ и\n\
-         содержимого правил), от ошибок соединений остались узел, порт и текст ошибки.\n\
-         Домен провайдера и версии остались — без них отчёт бесполезен.\n"
+        "В адресе подписки и в логах адреса, домены, токены и пароли заменены на `***`;\n\
+         строки ядра о соединениях и DNS в отчёт не включены (в архиве логов они есть —\n\
+         без адресов, программ и содержимого правил), от ошибок соединений остались\n\
+         узел, порт и текст ошибки.\n"
     );
 
     app_section(&mut out);
@@ -807,6 +817,44 @@ mod tests {
         );
         assert_eq!(wish_and_fact(false, true, None), "в настройках нет, на деле да");
         assert_eq!(wish_and_fact(false, false, None), "в настройках нет, на деле нет");
+    }
+
+    #[test]
+    fn own_bypass_sites_do_not_reach_the_report() {
+        for (bypass, expected) in [
+            (
+                "localhost;127.*;*.local;10.0.0.0/8;mail.example.com;*.example.org",
+                "localhost;127.*;*.local;10.0.0.0/8;***;****",
+            ),
+            (
+                "localhost, 192.168.0.0/16, shop.example.net",
+                "localhost, 192.168.0.0/16, ***",
+            ),
+            ("http://proxy.example.com:3128;localhost", "http://***:3128;localhost"),
+            ("192.168.100.100-192.168.100.200;*.lan", "***;*.lan"),
+        ] {
+            assert_eq!(super::own_bypass(Some(bypass)), expected, "{bypass}");
+        }
+        assert_eq!(super::own_bypass(Some("")), "—");
+        assert_eq!(super::own_bypass(None), "—");
+    }
+
+    #[test]
+    fn the_subscription_and_its_panel_texts_reach_the_report_without_a_domain() {
+        assert_eq!(super::subscription_address(&unnamed_again()), "https://***/***");
+
+        let named = crate::config::PrfItem {
+            name: Some("panel.example.com".into()),
+            name_from_panel: Some(true),
+            ..unnamed_again()
+        };
+        assert_eq!(super::subscription_name(&named), "***");
+        assert_eq!(
+            super::panel_text("Продлите на panel.example.com или xn--80aswg.xn--p1ai"),
+            "Продлите на *** или ***"
+        );
+        let cut = super::panel_text(&format!("{} mysuperpanel.com/sub", "я".repeat(190)));
+        assert!(!cut.contains("mysuper"), "{cut}");
     }
 
     #[test]

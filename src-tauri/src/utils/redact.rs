@@ -85,13 +85,14 @@ fn looks_like_token(word: &str) -> bool {
     has_digit || mixed_case
 }
 
-/// Оставить от любого URL только схему и хост.
+/// Оставить от любого URL только схему и хост, а в том, что уходит в поддержку, —
+/// только схему и порт.
 ///
 /// `help::mask_url` рассчитан на аккуратный адрес подписки и щадит короткие
 /// сегменты пути; здесь вход — произвольная строка лога, поэтому режем грубо:
 /// всё после хоста и весь `user:pass@` — под `***`. Работает для любой схемы,
 /// не только http (`vless://`, `ss://`, `clash://` несут секреты ничуть не хуже).
-fn mask_any_url(word: &str) -> Option<std::string::String> {
+fn mask_any_url(word: &str, bare_domains: bool) -> Option<std::string::String> {
     // Процент-кодированный адрес внутри deep-link разобрать по частям нельзя —
     // такое слово маскируется целиком, начиная со схемы.
     let lower = word.to_ascii_lowercase();
@@ -101,7 +102,13 @@ fn mask_any_url(word: &str) -> Option<std::string::String> {
     }
 
     let at = word.find("://")?;
-    let start = scheme_start(word, at);
+    let opened_bracket = word[..at].contains('[');
+    let (word, closing) = word.split_at(
+        word.trim_end_matches(|c| {
+            matches!(c, ')' | '}' | '"' | '\'' | ',' | ';' | '>' | '.') || (opened_bracket && c == ']')
+        })
+        .len(),
+    );
     let authority_at = at + 3;
     let rest = &word[authority_at..];
     let authority_len = rest.find(['/', '?', '#']).unwrap_or(rest.len());
@@ -113,11 +120,20 @@ fn mask_any_url(word: &str) -> Option<std::string::String> {
 
     let tail = if authority_len < rest.len() { "/***" } else { "" };
     let masked = if host.len() == authority.len() { "" } else { "***@" };
-    Some(format!(
-        "{}{}{masked}{host}{tail}",
-        &word[..start],
-        &word[start..at + 3]
-    ))
+    let scheme = &word[..at + 3];
+    if bare_domains {
+        return Some(format!("{scheme}***{}{tail}{closing}", port_of(host)));
+    }
+    Some(format!("{scheme}{masked}{host}{tail}{closing}"))
+}
+
+fn port_of(host: &str) -> &str {
+    let after_brackets = host.rfind(']').map_or(0, |at| at + 1);
+    host[after_brackets..]
+        .rfind(':')
+        .map(|at| &host[after_brackets + at..])
+        .filter(|port| port.len() > 1 && port[1..].bytes().all(|b| b.is_ascii_digit()))
+        .unwrap_or("")
 }
 
 /// Начало схемы слева от `://` (или от его процент-кодированной формы).
@@ -157,7 +173,7 @@ fn mask_after_secret_key(word: &str) -> Option<std::string::String> {
 
 /// Замаскировать одно «слово» лога.
 fn redact_word(word: &str, bare_domains: bool) -> std::string::String {
-    if let Some(masked) = mask_any_url(word) {
+    if let Some(masked) = mask_any_url(word, bare_domains) {
         return masked;
     }
 
@@ -219,7 +235,7 @@ fn mask_host_port(word: &str) -> Option<std::string::String> {
     }
 
     // `example.com:443`, но не `file.rs:12` и не `word:1` без точки.
-    let (head, last_label) = bare.rsplit_once('.')?;
+    let (head, last_label) = bare.strip_suffix('.').unwrap_or(bare).rsplit_once('.')?;
     if looks_like_domain(head, last_label) {
         return Some(format!("***:{port}{tail}"));
     }
@@ -244,8 +260,14 @@ fn looks_like_domain(head: &str, last_label: &str) -> bool {
         && head.bytes().any(|b| b.is_ascii_alphabetic())
         && last_label.len() >= 2
         && last_label.len() <= 24
-        && last_label.bytes().all(|b| b.is_ascii_alphabetic())
+        && (last_label.bytes().all(|b| b.is_ascii_alphabetic()) || is_punycode(last_label))
         && !is_file_suffix(last_label)
+}
+
+fn is_punycode(label: &str) -> bool {
+    label.len() > 4
+        && label.as_bytes()[..4].eq_ignore_ascii_case(b"xn--")
+        && label.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
 const fn is_host_char(ch: char) -> bool {
@@ -268,7 +290,7 @@ fn mask_bare_domain(word: &str) -> Option<std::string::String> {
             continue;
         }
         if let Some(start) = run.take() {
-            let end = start + word[start..at].trim_end_matches(['/', '\\']).len();
+            let end = start + word[start..at].trim_end_matches(['/', '\\', '.']).len();
             if is_bare_host(&word[start..end]) {
                 let buf = out.get_or_insert_with(|| std::string::String::with_capacity(word.len()));
                 buf.push_str(&word[copied..start]);
@@ -536,6 +558,51 @@ mod tests {
         let with_port = redact("dial panel.example.md:443 refused");
         assert!(!with_port.contains("panel.example.md"), "{with_port}");
         assert!(with_port.contains(":443"), "{with_port}");
+    }
+
+    #[test]
+    fn an_address_reaches_the_report_without_its_host() {
+        for (line, expected) in [
+            (
+                "fetch https://panel.example.com/sub/AbCd1234 failed",
+                "fetch https://***/*** failed",
+            ),
+            (
+                "spare https://alice:hunter2@spare.example.net:8443/sub?x=1",
+                "spare https://***:8443/***",
+            ),
+            (
+                "error sending request for url (https://panel.example.com/)",
+                "error sending request for url (https://***/***)",
+            ),
+            (
+                "node vless://6f1c4e5f@[2001:db8::1]:443?type=tcp",
+                "node vless://***:443/***",
+            ),
+            ("probe https://panel.example.com", "probe https://***"),
+            ("(https://panel.example.com)", "(https://***)"),
+            (
+                r#"{"url":"https://panel.example.com:8443/s"}"#,
+                r#"{"url":"https://***:8443/***"}"#,
+            ),
+            ("lookup xn--80aswg.xn--p1ai: no such host", "lookup ***: no such host"),
+            ("lookup panel.example.com.: no such host", "lookup ***.: no such host"),
+            ("dial panel.example.com.:443 failed", "dial ***:443 failed"),
+            (
+                r#"not valid for name "xn--80aswg.xn--p1ai""#,
+                r#"not valid for name "***""#,
+            ),
+            ("[https://panel.example.com/x]", "[https://***/***]"),
+            (r#"see "https://panel.example.com/sub/T"."#, r#"see "https://***/***"."#),
+            ("https://[2001:db8::1]", "https://***"),
+        ] {
+            let masked = redact_for_support(line);
+            assert_eq!(masked, expected, "{line}");
+            assert_eq!(redact_for_support(&masked), masked, "{line}");
+        }
+
+        let local = redact("fetch https://panel.example.com/sub/AbCd1234 failed");
+        assert_eq!(local, "fetch https://panel.example.com/*** failed");
     }
 
     #[test]
