@@ -156,5 +156,10 @@ jobs:
         working-directory: ./src-tauri
         shell: bash
         run: |
-          cargo install --git https://github.com/clash-verge-rev/clash-verge-logging-check.git --rev d4a8d9c950bbde6c79c27c4e9fc9e2a21ddc8201 --locked
-          clash-verge-logging-check
+          found=$(grep -rnaE --include='*.rs' --exclude-dir=target '\blog::(info|warn|debug|trace)\b' . || [ $? -eq 1 ])
+          found=$(printf '%s\n' "$found" | grep -v '^[^:]*src/utils/logging' || true)
+          if [ -n "$found" ]; then
+            echo "$found"
+            echo "::error::прямые вызовы log:: — нужен макрос logging!"
+            exit 1
+          fi
