@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "Verge Төп көйләүләр",
+        "title": "General",
         "actions": {
           "browse": "Карау"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "Verge Киңәйтелгән көйләүләр",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "Support local backup of configuration files",
           "openConfDir": "Әгәр программада хаталар чыкса, бу папкадагы файлларны саклап калыгыз да, аннары барысын да бетереп, программаны яңадан башлагыз",

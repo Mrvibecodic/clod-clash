@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "Ajustes básicos de Verge",
+        "title": "General",
         "actions": {
           "browse": "Examinar"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "Ajustes avanzados de Verge",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "Copia de seguridad local de los archivos de configuración",
           "openConfDir": "Si el software no funciona correctamente, !realice una copia de seguridad! y elimine todos los archivos de esta carpeta, luego reinicie el software.",

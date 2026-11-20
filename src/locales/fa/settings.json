@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "تنظیمات پایه Verge",
+        "title": "General",
         "actions": {
           "browse": "مرور کردن"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "تنظیمات پیشرفته Verge",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "Support local backup of configuration files",
           "openConfDir": "اگر نرم‌افزار به‌طور غیرعادی اجرا می‌شود، از تمام فایل‌های موجود در این پوشه نسخه پشتیبان تهیه و پاک کنید تا نرم‌افزار را مجدداً راه‌اندازی کنید",

@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "Verge基本設定",
+        "title": "General",
         "actions": {
           "browse": "参照"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "Verge詳細設定",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "設定ファイルのローカルバックアップをサポートします。",
           "openConfDir": "アプリケーションが正常に動作しない場合は、このフォルダ内のすべてのファイルを!バックアップ!して削除し、アプリケーションを再起動してください。",

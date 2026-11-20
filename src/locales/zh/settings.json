@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "Verge 基础设置",
+        "title": "General",
         "actions": {
           "browse": "浏览"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "Verge 高级设置",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "支持本地备份配置文件",
           "openConfDir": "如果软件运行异常，!备份!并删除此文件夹下的所有文件，重启软件",

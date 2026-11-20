@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "Verge 기본 설정",
+        "title": "General",
         "actions": {
           "browse": "찾아보기"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "Verge 고급 설정",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "설정 파일의 로컬 백업을 지원합니다",
           "openConfDir": "소프트웨어가 비정상 동작할 경우, 이 폴더의 파일을 백업 후 모두 삭제하고 재시작하세요",

@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "Verge 基礎設定",
+        "title": "General",
         "actions": {
           "browse": "瀏覽"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "Verge 進階設定",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "支援本機備份配置檔案",
           "openConfDir": "如果軟體執行異常，!備份!並刪除此資料夾下的所有檔案，重新啟動軟體",
@@ -251,11 +251,11 @@
           "receivePrereleases": "同時更新到 alpha 和 beta 版本。關閉後只會收到穩定版。"
         },
         "actions": {
-          "copyVersion": "複製Verge版本號"
+          "copyVersion": "複製 Clod 版本號"
         },
         "notifications": {
           "latestVersion": "目前已是最新版本",
-          "versionCopied": "Verge版本已複製到剪貼簿"
+          "versionCopied": "Clod 版本已複製到剪貼簿"
         },
         "messages": {
           "noProfileSelected": "No subscription selected",

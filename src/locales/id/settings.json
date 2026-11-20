@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "Pengaturan Dasar Verge",
+        "title": "General",
         "actions": {
           "browse": "Jelajahi"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "Pengaturan Lanjutan Verge",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "Mendukung pencadangan lokal file konfigurasi",
           "openConfDir": "Jika perangkat lunak berjalan tidak normal, CADANGKAN dan hapus semua file di folder ini lalu mulai ulang perangkat lunak",

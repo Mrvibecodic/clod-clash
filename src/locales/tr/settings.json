@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "Verge Temel Ayarı",
+        "title": "General",
         "actions": {
           "browse": "Gözat"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "Verge Gelişmiş Ayarı",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "Yapılandırma dosyalarının yerel yedeklenmesini destekler",
           "openConfDir": "Yazılım anormal çalışıyorsa, bu klasördeki tüm dosyaları YEDEKLEYİN ve silin, ardından yazılımı yeniden başlatın",

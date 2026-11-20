@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "Verge-Grundeinstellungen",
+        "title": "General",
         "actions": {
           "browse": "Durchsuchen"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "Verge-Erweiterte Einstellungen",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "Unterstützt die lokale Sicherung von Konfigurationsdateien",
           "openConfDir": "Wenn die Software fehlerhaft funktioniert, !sichern Sie! alle Dateien in diesem Verzeichnis, löschen Sie sie und starten Sie die Software neu.",

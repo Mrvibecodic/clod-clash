@@ -207,7 +207,7 @@
   "components": {
     "verge": {
       "basic": {
-        "title": "الإعدادات الأساسية  Verge",
+        "title": "General",
         "actions": {
           "browse": "استعراض"
         },
@@ -242,7 +242,7 @@
         }
       },
       "advanced": {
-        "title": "الإعدادات الأساسية  Verge",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "Support local backup of configuration files",
           "openConfDir": "إذا عمل البرنامج بشكل غير طبيعي، قم بالنسخ الاحتياطي ثم حذف جميع الملفات في هذا المجلد ثم أعد تشغيل البرنامج",
