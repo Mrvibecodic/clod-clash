@@ -1011,7 +1011,6 @@ dependencies = [
  "clash-verge-limiter",
  "clash-verge-logging",
  "clash-verge-signal",
- "clash_verge_logger",
  "clash_verge_service_ipc",
  "compact_str",
  "console-subscriber",
@@ -1103,8 +1102,12 @@ version = "0.1.0"
 name = "clash-verge-logging"
 version = "0.1.0"
 dependencies = [
+ "arraydeque",
+ "compact_str",
  "flexi_logger",
  "log",
+ "nu-ansi-term",
+ "tokio",
 ]
 
 [[package]]
@@ -1113,19 +1116,6 @@ version = "0.1.0"
 dependencies = [
  "clash-verge-logging",
  "log",
- "tokio",
-]
-
-[[package]]
-name = "clash_verge_logger"
-version = "0.2.2"
-source = "git+https://github.com/clash-verge-rev/clash-verge-logger?rev=45adad7ae6dd76baa7457e3b111a0f1927998e22#45adad7ae6dd76baa7457e3b111a0f1927998e22"
-dependencies = [
- "arraydeque",
- "compact_str",
- "flexi_logger",
- "log",
- "nu-ansi-term",
  "tokio",
 ]
 
@@ -1259,9 +1249,7 @@ dependencies = [
  "castaway",
  "cfg-if",
  "itoa",
- "rkyv",
  "serde",
- "smallvec",
  "static_assertions",
  "zmij",
 ]
@@ -3981,26 +3969,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "munge"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e17401f259eba956ca16491461b6e8f72913a0a114e39736ce404410f915a0c"
-dependencies = [
- "munge_macro",
-]
-
-[[package]]
-name = "munge_macro"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4568f25ccbd45ab5d5603dc34318c1ec56b117531781260002151b8530a9f931"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.118",
-]
-
-[[package]]
 name = "nanoid"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5143,26 +5111,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ptr_meta"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b9a0cf95a1196af61d4f1cbdab967179516d9a4a4312af1f31948f8f6224a79"
-dependencies = [
- "ptr_meta_derive",
-]
-
-[[package]]
-name = "ptr_meta_derive"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7347867d0a7e1208d93b46767be83e2b8f978c3dad35f775ac8d8847551d6fe1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.118",
-]
-
-[[package]]
 name = "pxfm"
 version = "0.1.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5260,15 +5208,6 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
-
-[[package]]
-name = "rancor"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daff8b7b3ccf5f7ba270b3e7a0a4d4c701c5797e38dec27c7e2c3dbb830fed1c"
-dependencies = [
- "ptr_meta",
-]
 
 [[package]]
 name = "rand"
@@ -5458,12 +5397,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rend"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "663ba70707f96e871406fe10d68128412e619b06d1d47cb91c3a4c6501176240"
-
-[[package]]
 name = "replace_with"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5560,30 +5493,6 @@ dependencies = [
  "crossbeam-utils",
  "portable-atomic",
  "portable-atomic-util",
-]
-
-[[package]]
-name = "rkyv"
-version = "0.8.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "815cc8a37159a463064825246cadb07961e25cd9885908606f6d08a98d8f8874"
-dependencies = [
- "munge",
- "ptr_meta",
- "rancor",
- "rend",
- "rkyv_derive",
-]
-
-[[package]]
-name = "rkyv_derive"
-version = "0.8.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0ed1a78a1b19d184b0daa629dd9a024573173ec7d485b287cb369fb3607cc1c"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.118",
 ]
 
 [[package]]

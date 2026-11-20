@@ -76,7 +76,7 @@ fn redacted_console_format(
     now: &mut DeferredNow,
     record: &Record<'_>,
 ) -> std::io::Result<()> {
-    redacted(clash_verge_logger::console_format, writer, now, record)
+    redacted(clash_verge_logging::console_format, writer, now, record)
 }
 
 fn redacted_file_format_with_level(
@@ -84,7 +84,7 @@ fn redacted_file_format_with_level(
     now: &mut DeferredNow,
     record: &Record<'_>,
 ) -> std::io::Result<()> {
-    redacted(clash_verge_logger::file_format_with_level, writer, now, record)
+    redacted(clash_verge_logging::file_format_with_level, writer, now, record)
 }
 
 fn redacted_file_format_without_level(
@@ -92,7 +92,7 @@ fn redacted_file_format_without_level(
     now: &mut DeferredNow,
     record: &Record<'_>,
 ) -> std::io::Result<()> {
-    redacted(clash_verge_logger::file_format_without_level, writer, now, record)
+    redacted(clash_verge_logging::file_format_without_level, writer, now, record)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

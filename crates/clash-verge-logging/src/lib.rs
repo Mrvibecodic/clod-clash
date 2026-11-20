@@ -3,6 +3,12 @@ use flexi_logger::filter::LogLineFilter;
 use log::Record;
 use std::fmt;
 
+mod format;
+mod ring;
+
+pub use format::{console_format, file_format_with_level, file_format_without_level};
+pub use ring::AsyncLogger;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Type {
     Cmd,

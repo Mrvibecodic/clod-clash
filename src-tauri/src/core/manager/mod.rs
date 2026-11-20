@@ -7,7 +7,7 @@ pub use lifecycle::ExitStop;
 
 use anyhow::Result;
 use arc_swap::ArcSwapOption;
-use clash_verge_logger::AsyncLogger;
+use clash_verge_logging::AsyncLogger;
 use std::{
     fmt,
     sync::{
