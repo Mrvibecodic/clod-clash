@@ -55,8 +55,8 @@ struct TrafficPayload {
     down: u64,
 }
 
-fn parse_traffic_event(data: &[u8]) -> Option<TrafficSpeedEvent> {
-    let payload = serde_json::from_slice::<TrafficPayload>(data).ok()?;
+fn parse_traffic_event(data: &str) -> Option<TrafficSpeedEvent> {
+    let payload = serde_json::from_str::<TrafficPayload>(data).ok()?;
     Some(TrafficSpeedEvent {
         up: payload.up,
         down: payload.down,
@@ -86,7 +86,7 @@ pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeed
         core.ws_traffic({
             let message_tx = message_tx.clone();
             move |message| {
-                if let Some(event) = parse_traffic_event(&message) {
+                if let Some(event) = parse_traffic_event(message) {
                     try_send_internal_event(&message_tx, event);
                 }
             }
@@ -182,7 +182,10 @@ pub async fn disconnect_connection(connection_id: WsConnectionId) {
 
 #[cfg(test)]
 mod tests {
-    use super::{MihomoWsEventStream, PAGE_STREAMS_CLOSED, StreamConsumeState, WsConnectionId};
+    use super::{
+        MihomoWsEventStream, PAGE_STREAMS_CLOSED, StreamConsumeState, TrafficSpeedEvent, WsConnectionId,
+        parse_traffic_event,
+    };
     use std::sync::atomic::Ordering;
     use std::time::Duration;
     use tokio::sync::mpsc;
@@ -213,5 +216,17 @@ mod tests {
             dropped_by_the_core.next_event(Duration::from_secs(5), || false).await,
             StreamConsumeState::Closed
         ));
+    }
+
+    #[test]
+    fn a_traffic_frame_gives_the_speed_and_anything_else_gives_nothing() {
+        let frame = r#"{"up":12,"down":34,"upTotal":56,"downTotal":78}"#;
+        assert!(matches!(
+            parse_traffic_event(frame),
+            Some(TrafficSpeedEvent { up: 12, down: 34 })
+        ));
+        for not_a_frame in [r#""Websocket error: connection reset""#, "", "ping", r#"{"up":12}"#] {
+            assert!(parse_traffic_event(not_a_frame).is_none(), "{not_a_frame}");
+        }
     }
 }
