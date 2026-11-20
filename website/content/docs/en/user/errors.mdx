@@ -39,6 +39,11 @@ subscription with the ↻ button. With a device limit, only the provider can fre
    at the same time — there's one system proxy and one TUN adapter for everyone.
 5. On Windows with TUN nothing opens at all, while without TUN everything works —
    see "TUN is on, but nothing opens at all (Windows)" below.
+6. On macOS the system proxy is on, but traffic goes directly. This happens if
+   the network was configured from the terminal with `sudo ipconfig set …` before
+   that: the command creates a temporary network connection, and on a network
+   without IPv6 the system proxy has no effect on it. Restart the Mac and turn
+   the proxy on again.
 
 ## "Port … is held by another application" notification
 
