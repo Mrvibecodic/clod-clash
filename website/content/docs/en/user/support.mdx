@@ -14,8 +14,9 @@ placeholder filter dropped last time, and the tails of the app and core logs.
 
 You can paste it into a support chat **without looking**:
 
-- of any address only the scheme and host remain — the path, query and `user:pass@`
-  are replaced with `***`;
+- of any address, the subscription address included, only the scheme and port remain —
+  the domain, path, query and `user:pass@` are replaced with `***`; so are domains
+  standing on their own;
 - values after `secret`, `token`, `password`, `uuid`, `authorization`,
   `x-hwid` and similar keys are masked, as is everything after `Bearer`/`Basic`;
 - long random strings and hex sequences are cut out;
@@ -23,8 +24,8 @@ You can paste it into a support chat **without looking**:
 - core lines about connections (where you went) don't make it into the report; of connection
   errors only the node, port and error text remain, without addresses.
 
-The provider's domain is deliberately kept — without it the report is useless — as are the
-subscription state figures.
+What stays are the subscription state figures and a note on whether the provider sent a
+backup address and whether the update went through it.
 
 ## Log archive
 
@@ -38,7 +39,8 @@ and rule contents are replaced with `***`. Of connection errors, the node, port 
 error text are left.
 
 Masking is also applied in the log itself: log files on disk are already written without tokens
-and subscription addresses, and connection lines go to a separate file that keeps only
+and subscription paths (the domain stays there — the log never leaves the computer, and it reaches
+the report and the archive without the domain), and connection lines go to a separate file that keeps only
 the last hour or two. The rest of the log of one core run takes about 100 MB on disk:
 once it grows that large, only its end is kept.
 
