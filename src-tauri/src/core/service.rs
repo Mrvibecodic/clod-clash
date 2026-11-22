@@ -155,6 +155,33 @@ fn service_core_path(clash_core: &str, bin_ext: &str) -> Result<PathBuf> {
     Ok(current_exe()?.with_file_name(format!("{clash_core}{bin_ext}")))
 }
 
+/// Установщик кладёт службе копии ядер. Пути и отпечатки передаются явно:
+/// копию получает и ядро из папки, куда пишет пользователь (портативная
+/// сборка, ~/Applications), — подлинность подтверждает отпечаток.
+fn core_install_arguments() -> Vec<String> {
+    let bin_ext = if cfg!(windows) { ".exe" } else { "" };
+    core_install_arguments_for(
+        crate::config::IVerge::VALID_CLASH_CORES
+            .iter()
+            .filter_map(|core| service_core_path(core, bin_ext).ok()),
+    )
+}
+
+fn core_install_arguments_for(cores: impl IntoIterator<Item = PathBuf>) -> Vec<String> {
+    use sha2::{Digest as _, Sha256};
+    let mut arguments = vec!["--install-service".to_owned()];
+    for path in cores {
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        arguments.push("--install-core".to_owned());
+        arguments.push(path.to_string_lossy().into_owned());
+        arguments.push("--sha256".to_owned());
+        arguments.push(format!("{:x}", Sha256::digest(&bytes)));
+    }
+    arguments
+}
+
 pub async fn bundled_core_path() -> Result<PathBuf> {
     let verge_config = Config::verge().await;
     let clash_core = verge_config.latest_arc().get_valid_clash_core();
@@ -303,6 +330,14 @@ fn shell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', r"'\''"))
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn quoted_core_install_arguments() -> String {
+    core_install_arguments()
+        .iter()
+        .map(|argument| format!(" {}", shell_single_quote(argument)))
+        .collect()
+}
+
 #[cfg(target_os = "windows")]
 fn uninstall_service() -> Result<()> {
     logging!(info, Type::Service, "uninstall service");
@@ -361,7 +396,10 @@ fn install_service() -> Result<()> {
     let level = token.privilege_level()?;
     let output = match level {
         PrivilegeLevel::NotPrivileged => {
-            let status = RunasCommand::new(&install_path).show(false).status()?;
+            let status = RunasCommand::new(&install_path)
+                .args(&core_install_arguments())
+                .show(false)
+                .status()?;
             Output {
                 status,
                 stdout: Vec::new(),
@@ -369,6 +407,7 @@ fn install_service() -> Result<()> {
             }
         }
         _ => StdCommand::new(&install_path)
+            .args(core_install_arguments())
             .creation_flags(CREATE_NO_WINDOW)
             .output()?,
     };
@@ -537,9 +576,10 @@ fn install_service() -> Result<()> {
     }
 
     let script = format!(
-        "{}{}{}",
+        "{}{}{}{}",
         selinux_install_prefix(),
         shell_single_quote(&install_path.to_string_lossy()),
+        quoted_core_install_arguments(),
         selinux_recovery_tail()
     );
 
@@ -635,8 +675,9 @@ fn install_service() -> Result<()> {
     let prompt = clash_verge_i18n::t!("service.adminInstallPrompt");
     let install_quoted = shell_single_quote(&install_shell);
     let shell = format!(
-        "{}; sudo CLOD_CLASH_SERVICE_GID={gid} {install_quoted}",
-        macos_retire_legacy_service_shell()
+        "{}; sudo CLOD_CLASH_SERVICE_GID={gid} {install_quoted}{}",
+        macos_retire_legacy_service_shell(),
+        quoted_core_install_arguments()
     );
     let shell = escape_osascript_double_quoted_string(&shell);
     let command = format!(r#"do shell script "{shell}" with administrator privileges with prompt "{prompt}""#);
@@ -903,12 +944,17 @@ fn reinstall_service() -> Result<()> {
         bail!(format!("installer not found: {install_path:?}"));
     }
 
-    let ps_quote = |path: &std::path::Path| format!("'{}'", path.display().to_string().replace('\'', "''"));
+    let ps_quote = |text: &str| format!("'{}'", text.replace('\'', "''"));
     let mut script = String::new();
     if uninstall_path.exists() {
-        script.push_str(&format!("& {}; ", ps_quote(&uninstall_path)));
+        script.push_str(&format!("& {}; ", ps_quote(&uninstall_path.display().to_string())));
     }
-    script.push_str(&format!("& {}; exit $LASTEXITCODE", ps_quote(&install_path)));
+    script.push_str(&format!("& {}", ps_quote(&install_path.display().to_string())));
+    for argument in core_install_arguments() {
+        script.push(' ');
+        script.push_str(&ps_quote(&argument));
+    }
+    script.push_str("; exit $LASTEXITCODE");
     let encoded: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
     let encoded = STANDARD.encode(encoded);
 
@@ -951,6 +997,7 @@ fn reinstall_service() -> Result<()> {
     }
     script.push_str(&selinux_install_prefix());
     script.push_str(&shell_single_quote(&install_path.to_string_lossy()));
+    script.push_str(&quoted_core_install_arguments());
     script.push_str(&selinux_recovery_tail());
 
     let status = if linux_running_as_root() {
@@ -1003,6 +1050,7 @@ fn reinstall_service() -> Result<()> {
     shell.push_str(&gid.to_string());
     shell.push(' ');
     shell.push_str(&shell_single_quote(&install_path.to_string_lossy()));
+    shell.push_str(&quoted_core_install_arguments());
 
     let shell = escape_osascript_double_quoted_string(&shell);
     let command = format!(r#"do shell script "{shell}" with administrator privileges with prompt "{prompt}""#);
@@ -1820,7 +1868,8 @@ mod ipc_probe_tests {
 #[cfg(test)]
 mod probe_service_tests {
     use super::{
-        ServiceProbe, ServiceReady, VersionReply, core_file_sha256, running_generation, session_is_gone, verdict,
+        ServiceProbe, ServiceReady, VersionReply, core_file_sha256, core_install_arguments_for, running_generation,
+        session_is_gone, verdict,
     };
     use crate::utils::source_scan::fn_body;
     use clod_service::{
@@ -1889,6 +1938,29 @@ mod probe_service_tests {
         assert!(session_is_gone(&status(true, Some(8)), 7));
         assert!(session_is_gone(&status(false, Some(7)), 7));
         assert!(session_is_gone(&status(true, None), 7));
+    }
+
+    #[test]
+    fn the_installer_gets_each_present_core_with_its_digest() -> anyhow::Result<()> {
+        let dir = std::env::temp_dir().join(format!("clod-core-install-args-{}", std::process::id()));
+        std::fs::create_dir_all(&dir)?;
+        let present = dir.join("verge-mihomo");
+        std::fs::write(&present, b"first")?;
+        let missing = dir.join("verge-mihomo-alpha");
+        let arguments = core_install_arguments_for([present.clone(), missing]);
+        std::fs::remove_dir_all(&dir)?;
+        assert_eq!(
+            arguments,
+            [
+                "--install-service".to_owned(),
+                "--install-core".to_owned(),
+                present.to_string_lossy().into_owned(),
+                "--sha256".to_owned(),
+                "a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e".to_owned(),
+            ]
+        );
+        assert_eq!(core_install_arguments_for([]), ["--install-service".to_owned()]);
+        Ok(())
     }
 
     #[test]
