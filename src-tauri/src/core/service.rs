@@ -1133,9 +1133,14 @@ pub(super) async fn start_with_existing_service(config: &serde_yaml_ng::Mapping,
         macos_proxy: None,
     };
 
-    let response = clod_service::start_clash(&credentials, &request)
-        .await
-        .context(clash_verge_i18n::t!("service.connectFailed"))?;
+    let response = match clod_service::start_clash(&credentials, &request).await {
+        Ok(response) => response,
+        Err(error) => {
+            let token = request.proposed_session_token.clone();
+            crate::process::AsyncHandler::spawn(move || async move { stop_an_unanswered_start(&token).await });
+            return Err(error.context(clash_verge_i18n::t!("service.connectFailed")));
+        }
+    };
 
     if response.code > 0 {
         let err_msg = response.message;
@@ -1235,15 +1240,71 @@ pub(super) async fn service_status() -> Result<ServiceStatusSnapshot> {
     response.data.context(clash_verge_i18n::t!("service.noStatusAnswer"))
 }
 
+/// Запуск мог дойти до службы, а ответ — потеряться: ядро, поднятое с нашим
+/// ключом сеанса, останавливается, иначе оно осталось бы лишним, пока
+/// приложение считает запуск неудавшимся.
+async fn stop_an_unanswered_start(token: &str) {
+    if ipc_path_present().await.is_err() {
+        return;
+    }
+    let Ok(status) = service_status().await else {
+        return;
+    };
+    let Some(generation) = running_generation(&status) else {
+        return;
+    };
+    let proof = OwnerSessionProof {
+        generation,
+        token: token.to_owned(),
+    };
+    let Ok(credentials) = current_owner_credentials() else {
+        return;
+    };
+    match clod_service::stop_clash(&credentials, &proof).await {
+        Ok(response) if response.code == 0 => {
+            logging!(warn, Type::Service, "stopped the core of a start that got no answer");
+        }
+        Ok(_) => {}
+        Err(error) => logging!(
+            warn,
+            Type::Service,
+            "could not stop the core of an unanswered start: {error:#}"
+        ),
+    }
+}
+
+fn running_generation(status: &ServiceStatusSnapshot) -> Option<u64> {
+    status.is_active.then_some(status.active_generation).flatten()
+}
+
+fn session_is_gone(status: &ServiceStatusSnapshot, generation: u64) -> bool {
+    running_generation(status) != Some(generation)
+}
+
 pub(super) async fn stop_core_by_service() -> Result<()> {
     logging!(info, Type::Service, "Остановка ядра через службу (IPC)");
 
     the_service_channel_is_there()?;
     let credentials = current_owner_credentials()?;
     let session = active_service_session()?;
-    let response = clod_service::stop_clash(&credentials, &session)
-        .await
-        .context(clash_verge_i18n::t!("service.connectFailed"))?;
+    let response = match clod_service::stop_clash(&credentials, &session).await {
+        Ok(response) => response,
+        Err(error) => {
+            if service_status()
+                .await
+                .is_ok_and(|status| session_is_gone(&status, session.generation))
+            {
+                logging!(
+                    warn,
+                    Type::Service,
+                    "the stop request got no answer, but the core is already down: {error:#}"
+                );
+                clear_active_service_session();
+                return Ok(());
+            }
+            return Err(error.context(clash_verge_i18n::t!("service.connectFailed")));
+        }
+    };
 
     if response.code > 0 {
         if response.code == ServiceErrorCode::NotActive as u16
@@ -1758,7 +1819,9 @@ mod ipc_probe_tests {
 
 #[cfg(test)]
 mod probe_service_tests {
-    use super::{ServiceProbe, ServiceReady, VersionReply, core_file_sha256, verdict};
+    use super::{
+        ServiceProbe, ServiceReady, VersionReply, core_file_sha256, running_generation, session_is_gone, verdict,
+    };
     use crate::utils::source_scan::fn_body;
     use clod_service::{
         MIN_REQUIRED_SERVICE_REVISION, PROTOCOL_EPOCH, PROTOCOL_REVISION, ProtocolInfo, ProtocolVersion,
@@ -1795,6 +1858,37 @@ mod probe_service_tests {
         );
         assert_eq!(core_file_sha256(&path).await, None);
         Ok(())
+    }
+
+    fn status(is_active: bool, active_generation: Option<u64>) -> clod_service::ServiceStatusSnapshot {
+        clod_service::ServiceStatusSnapshot {
+            is_active,
+            active_generation,
+            service_state: clod_service::ServiceLifecycleState::Running,
+            core_pid: None,
+            core_started_at: None,
+            last_core_exit_reason: None,
+            restart_count: 0,
+            last_recovery_at: None,
+            desired_core_should_be_running: is_active,
+            desired_generation: 0,
+            desired_updated_at: 0,
+        }
+    }
+
+    #[test]
+    fn only_a_running_session_is_stopped_after_an_unanswered_start() {
+        assert_eq!(running_generation(&status(true, Some(7))), Some(7));
+        assert_eq!(running_generation(&status(false, Some(7))), None);
+        assert_eq!(running_generation(&status(true, None)), None);
+    }
+
+    #[test]
+    fn an_unanswered_stop_counts_as_done_only_when_our_session_is_gone() {
+        assert!(!session_is_gone(&status(true, Some(7)), 7));
+        assert!(session_is_gone(&status(true, Some(8)), 7));
+        assert!(session_is_gone(&status(false, Some(7)), 7));
+        assert!(session_is_gone(&status(true, None), 7));
     }
 
     #[test]
