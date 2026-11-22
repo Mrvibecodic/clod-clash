@@ -219,14 +219,6 @@ async fn fetch_release(url: &str) -> Result<GhRelease> {
     .context("failed to reach the core release channel")
 }
 
-/// Ядро заменило свой файл само (`/upgrade` через службу): отпечаток встроенного
-/// ядра снимается заново с того, что оно себе скачало.
-async fn repin_core_binaries() {
-    if let Ok(path) = crate::core::service::bundled_core_path().await {
-        core_integrity::repin_binary(&path).await;
-    }
-}
-
 /// Какое ядро запущено сейчас. Ставит старт ядра, читает отчёт для поддержки: так
 /// подпись в отчёте — то, что реально запущено, а не то, что выбрано сейчас.
 #[derive(Clone)]
@@ -567,7 +559,7 @@ pub async fn update_bundled_core() -> Result<BundledCoreUpdate> {
     let swapped = match probed {
         Ok(probe) => {
             logging!(info, Type::Core, "новое ядро отвечает: {probe}");
-            swap_in(&target, &staged, &backup, &new_digest, old_digest.as_deref()).await
+            swap_in(&target, &staged, &backup).await
         }
         Err(err) => Err(err.context(clash_verge_i18n::t!("core.newCoreDoesNotRun"))),
     };
@@ -575,8 +567,8 @@ pub async fn update_bundled_core() -> Result<BundledCoreUpdate> {
     match (&swapped, old_digest) {
         // Ответ версии ещё не значит, что ядро работает: копия прежнего
         // остаётся, пока новое не проработает без падений.
-        (Ok(()), Some(old_digest)) => {
-            put_the_new_core_on_trial(chosen, target, backup, new_digest, old_digest).await;
+        (Ok(()), Some(_)) => {
+            put_the_new_core_on_trial(chosen, target, backup, new_digest).await;
         }
         (_, old_digest) => {
             // Копия прежнего ядра не нужна, только когда на месте стоит либо
@@ -599,13 +591,7 @@ pub async fn update_bundled_core() -> Result<BundledCoreUpdate> {
 /// возвращает прежнее с сообщением, иначе копия прежнего убирается. Отметка
 /// проверки лежит рядом с ядром: оборванную выходом проверку закончит
 /// следующее обновление (`keep_or_drop_a_leftover_backup`).
-async fn put_the_new_core_on_trial(
-    chosen: String,
-    target: PathBuf,
-    backup: PathBuf,
-    new_digest: String,
-    old_digest: String,
-) {
+async fn put_the_new_core_on_trial(chosen: String, target: PathBuf, backup: PathBuf, new_digest: String) {
     let Ok(trial) = beside(&target, "trial") else {
         let _ = tokio::fs::remove_file(&backup).await;
         return;
@@ -621,7 +607,7 @@ async fn put_the_new_core_on_trial(
                 return;
             }
             if CoreManager::global().fell_since(since.into_std()) {
-                give_the_old_core_back(&chosen, &target, &backup, &trial, &new_digest, &old_digest).await;
+                give_the_old_core_back(&chosen, &target, &backup, &trial, &new_digest).await;
                 return;
             }
             if since.elapsed() >= NEW_CORE_TRIAL {
@@ -639,14 +625,7 @@ async fn put_the_new_core_on_trial(
     });
 }
 
-async fn give_the_old_core_back(
-    chosen: &str,
-    target: &Path,
-    backup: &Path,
-    trial: &Path,
-    new_digest: &str,
-    old_digest: &str,
-) {
+async fn give_the_old_core_back(chosen: &str, target: &Path, backup: &Path, trial: &Path, new_digest: &str) {
     // Ядро сменили или обновляют снова — проверка этого файла кончилась.
     let Ok(_guard) = UpdateGuard::acquire() else {
         return;
@@ -671,7 +650,6 @@ async fn give_the_old_core_back(
                 tokio::fs::rename(backup, target)
                     .await
                     .context(clash_verge_i18n::t!("core.previousNotRestored"))?;
-                core_integrity::pin_known_binary(target, old_digest).await;
                 Ok(())
             },
             async || Ok(()),
@@ -781,11 +759,6 @@ pub async fn upgrade_through_core() -> Result<SelfUpgrade> {
         },
     )
     .await;
-    // Ядро подменяет файл до ответа на запрос, а служба в следующий раз
-    // поднимет то, что лежит на диске, — чем бы ядро ни ответило и успело ли
-    // оно ответить. Отпечаток снимается с этого файла: со старым отпечатком в
-    // папке, доступной на запись, служба ядро больше не запустит.
-    repin_core_binaries().await;
     Ok(match seen {
         Some(version) if !same_version(&version, &before) => SelfUpgrade::Updated { version },
         Some(version) => SelfUpgrade::StillOld { version },
@@ -797,15 +770,7 @@ pub async fn upgrade_through_core() -> Result<SelfUpgrade> {
 
 /// Остановить ядро, поставить новый файл на место прежнего переименованием и
 /// поднять ядро снова. Не поднялось — вернуть прежний файл и поднять его.
-/// Отпечаток ядра меняется вместе с файлом: служба не стартует ядро, чей файл
-/// разошёлся с записанным отпечатком.
-async fn swap_in(
-    target: &Path,
-    staged: &Path,
-    backup: &Path,
-    new_digest: &str,
-    old_digest: Option<&str>,
-) -> Result<()> {
+async fn swap_in(target: &Path, staged: &Path, backup: &Path) -> Result<()> {
     CoreManager::global()
         .restart_core_swapped(
             async || {
@@ -815,16 +780,12 @@ async fn swap_in(
                 tokio::fs::rename(staged, target)
                     .await
                     .context(clash_verge_i18n::t!("core.newNotPlaced"))?;
-                core_integrity::pin_known_binary(target, new_digest).await;
                 Ok(())
             },
             async || {
                 tokio::fs::rename(backup, target)
                     .await
                     .context(clash_verge_i18n::t!("core.previousNotRestored"))?;
-                if let Some(digest) = old_digest {
-                    core_integrity::pin_known_binary(target, digest).await;
-                }
                 Ok(())
             },
         )

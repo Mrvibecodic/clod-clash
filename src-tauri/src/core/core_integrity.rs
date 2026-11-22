@@ -1,43 +1,7 @@
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 
 use anyhow::{Context as _, Result};
-use clash_verge_logging::{Type, logging};
-use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
-
-use crate::{
-    process::AsyncHandler,
-    utils::{dirs, help},
-};
-
-const PINS_FILE: &str = "core-pins.yaml";
-
-const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-struct CorePins {
-    #[serde(default)]
-    app_version: String,
-    #[serde(default)]
-    cores: BTreeMap<String, String>,
-}
-
-static PINS_LOCK: std::sync::LazyLock<tokio::sync::Mutex<()>> =
-    std::sync::LazyLock::new(|| tokio::sync::Mutex::new(()));
-
-fn pins_path() -> Result<PathBuf> {
-    Ok(dirs::app_home_dir()?.join(PINS_FILE))
-}
-
-fn pin_key(path: &Path) -> String {
-    std::fs::canonicalize(path)
-        .unwrap_or_else(|_| path.to_path_buf())
-        .to_string_lossy()
-        .into_owned()
-}
 
 pub async fn digest_of(path: &Path) -> Result<String> {
     let path = path.to_path_buf();
@@ -55,93 +19,6 @@ pub fn digest_of_bytes(data: &[u8]) -> String {
     format!("{:x}", Sha256::digest(data))
 }
 
-async fn load_pins() -> CorePins {
-    let Ok(path) = pins_path() else {
-        return CorePins::default();
-    };
-    let mut pins: CorePins = help::read_yaml(&path).await.unwrap_or_default();
-
-    if pins.app_version != APP_VERSION {
-        pins = CorePins {
-            app_version: APP_VERSION.to_owned(),
-            cores: BTreeMap::new(),
-        };
-    }
-    pins
-}
-
-async fn store_pins(pins: &CorePins) -> Result<()> {
-    let path = pins_path()?;
-    help::save_yaml(
-        &path,
-        pins,
-        Some("# clod: отпечатки ядра, снятые этой версией приложения"),
-    )
-    .await
-}
-
-pub async fn pin_known_binary(path: &Path, digest: &str) {
-    let _guard = PINS_LOCK.lock().await;
-    let mut pins = load_pins().await;
-    pins.app_version = APP_VERSION.to_owned();
-    pins.cores.insert(pin_key(path), digest.to_owned());
-
-    if let Err(err) = store_pins(&pins).await {
-        logging!(warn, Type::Core, "failed to record core digest: {err:#}");
-    }
-}
-
-pub async fn repin_binary(path: &Path) {
-    match digest_of(path).await {
-        Ok(digest) => {
-            pin_known_binary(path, &digest).await;
-            logging!(info, Type::Core, "re-pinned core binary {path:?}");
-        }
-        Err(err) => {
-            logging!(warn, Type::Core, "failed to re-pin core binary {path:?}: {err:#}");
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum PinCheck {
-    Match,
-    Recorded,
-    Changed { expected: String, actual: String },
-}
-
-pub async fn check_binary(path: &Path) -> Result<PinCheck> {
-    // Файл читается под тем же замком, что и запись отпечатка: иначе сверка,
-    // начатая до замены ядра, вернула бы в запись отпечаток прежнего файла.
-    let _guard = PINS_LOCK.lock().await;
-    let started = std::time::Instant::now();
-    let actual = digest_of(path).await?;
-    logging!(
-        debug,
-        Type::Core,
-        "core digest of {path:?} read in {} ms",
-        started.elapsed().as_millis()
-    );
-    let mut pins = load_pins().await;
-    let key = pin_key(path);
-
-    match pins.cores.get(&key) {
-        Some(expected) if *expected == actual => Ok(PinCheck::Match),
-        Some(expected) => Ok(PinCheck::Changed {
-            expected: expected.clone(),
-            actual,
-        }),
-        None => {
-            pins.app_version = APP_VERSION.to_owned();
-            pins.cores.insert(key, actual);
-            if let Err(err) = store_pins(&pins).await {
-                logging!(warn, Type::Core, "failed to record core digest: {err:#}");
-            }
-            Ok(PinCheck::Recorded)
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum WriteAccess {
     AdminOnly,
@@ -156,7 +33,7 @@ fn comparable(path: &str) -> std::string::String {
 
 /// Корни, куда без прав администратора не пишут.
 ///
-/// clod:core-pin — на Windows берутся из окружения, а не из английских названий:
+/// На Windows берутся из окружения, а не из английских названий:
 /// папка Program Files может быть на другом диске и называться на языке системы.
 fn privileged_roots() -> Vec<std::string::String> {
     let mut roots: Vec<std::string::String> = Vec::new();
@@ -192,11 +69,9 @@ fn privileged_roots() -> Vec<std::string::String> {
     roots
 }
 
-/// clod:core-pin — сравнение идёт ПО НАЧАЛУ пути, а не по вхождению подстроки.
-/// С вхождением созданная пользователем папка `D:\Program Files\...`,
-/// `~/Library/...` или `~/opt/...` выдавала себя за системную, а вердикт
-/// «писать может только администратор» здесь означает «изменение бинарника
-/// принимаем и перепиннпиваем» — то есть подмена ядра прошла бы насквозь.
+/// Сравнение идёт ПО НАЧАЛУ пути, а не по вхождению подстроки: с вхождением
+/// созданная пользователем папка `D:\Program Files\...`, `~/Library/...` или
+/// `~/opt/...` выдавала бы себя за системную.
 fn under_a_privileged_root(dir: &Path, roots: &[std::string::String]) -> bool {
     let text = comparable(&dir.to_string_lossy());
     roots
@@ -238,87 +113,10 @@ fn directory_write_access(path: &Path) -> WriteAccess {
     write_access_of(dir, crate::feat::tun::is_app_elevated())
 }
 
-#[derive(Debug)]
-pub struct CoreBinaryChanged {
-    pub path: PathBuf,
-}
-
-impl std::fmt::Display for CoreBinaryChanged {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "core binary at {:?} changed since installation, refusing to start it with system privileges",
-            self.path
-        )
-    }
-}
-
-impl std::error::Error for CoreBinaryChanged {}
-
-#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-pub fn is_core_binary_changed(err: &anyhow::Error) -> bool {
-    err.chain().any(|cause| cause.is::<CoreBinaryChanged>())
-}
-
-/// Запуск ждёт сверку только там, где файл ядра может заменить обычный
-/// пользователь. В папке администратора изменение принимается при любом
-/// исходе, и сверка идёт уже после запуска.
-pub async fn ensure_elevated_binary_is_known(path: &Path) -> Result<()> {
-    let access = directory_write_access(path);
-    if access == WriteAccess::AdminOnly {
-        let path = path.to_path_buf();
-        AsyncHandler::spawn(move || async move {
-            let _ = compare_with_the_pin(&path, access).await;
-        });
-        return Ok(());
-    }
-    compare_with_the_pin(path, access).await
-}
-
-async fn compare_with_the_pin(path: &Path, access: WriteAccess) -> Result<()> {
-    match check_binary(path).await {
-        Ok(PinCheck::Match) => Ok(()),
-        Ok(PinCheck::Recorded) => {
-            logging!(info, Type::Core, "recorded core digest for {path:?}");
-            Ok(())
-        }
-        Ok(PinCheck::Changed { expected, actual }) => {
-            if access == WriteAccess::AdminOnly {
-                logging!(
-                    warn,
-                    Type::Core,
-                    "core binary at {path:?} changed (expected {expected}, got {actual}), \
-                     but only an administrator can write there — accepting it and re-pinning"
-                );
-                pin_known_binary(path, &actual).await;
-                return Ok(());
-            }
-
-            logging!(
-                error,
-                Type::Core,
-                "core binary at {path:?} changed since it was pinned and its directory is writable \
-                 without privileges: expected {expected}, got {actual}"
-            );
-            crate::core::handle::Handle::notice_message("core::binary_changed", path.to_string_lossy().into_owned());
-            Err(anyhow::Error::new(CoreBinaryChanged {
-                path: path.to_path_buf(),
-            }))
-        }
-        Err(err) => {
-            logging!(error, Type::Core, "failed to verify core binary {path:?}: {err:#}");
-            Err(err)
-        }
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{
-        CoreBinaryChanged, WriteAccess, digest_of, digest_of_bytes, is_core_binary_changed, under_a_privileged_root,
-        write_access_of,
-    };
+    use super::{WriteAccess, digest_of, digest_of_bytes, under_a_privileged_root, write_access_of};
 
     #[test]
     fn a_writable_directory_is_seen_as_writable_and_leaves_nothing_behind() {
@@ -342,41 +140,6 @@ mod tests {
     fn a_directory_that_does_not_exist_counts_as_closed() {
         let missing = std::env::temp_dir().join(format!("clod-core-probe-missing-{}", std::process::id()));
         assert_eq!(write_access_of(&missing, false), WriteAccess::AdminOnly);
-    }
-
-    #[test]
-    fn the_refusal_survives_being_wrapped_in_context() {
-        let err = anyhow::Error::new(CoreBinaryChanged {
-            path: std::path::PathBuf::from("/somewhere/verge-mihomo"),
-        })
-        .context("failed to start the core through the service");
-        assert!(is_core_binary_changed(&err));
-        assert!(!is_core_binary_changed(&anyhow::anyhow!("service is not running")));
-    }
-
-    #[test]
-    fn a_folder_only_an_administrator_writes_does_not_hold_the_start_for_the_digest() {
-        let source = include_str!("core_integrity.rs");
-        let body = crate::utils::source_scan::fn_body(source, "pub async fn ensure_elevated_binary_is_known(")
-            .unwrap_or_default();
-        let (closed_folder, open_folder) = body.split_once("return Ok(());").unwrap_or_default();
-        assert!(
-            closed_folder.contains("== WriteAccess::AdminOnly") && closed_folder.contains("AsyncHandler::spawn"),
-            "{body}"
-        );
-        assert!(
-            open_folder.contains("compare_with_the_pin(path, access).await"),
-            "{body}"
-        );
-    }
-
-    #[test]
-    fn the_file_is_read_under_the_lock_its_pin_is_written_under() {
-        let source = include_str!("core_integrity.rs");
-        let body = crate::utils::source_scan::fn_body(source, "pub async fn check_binary(").unwrap_or_default();
-        let locked = body.find("PINS_LOCK.lock()").unwrap_or(usize::MAX);
-        let read = body.find("digest_of(path)").unwrap_or_default();
-        assert!(locked < read, "{body}");
     }
 
     #[tokio::test]

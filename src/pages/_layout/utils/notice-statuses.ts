@@ -19,7 +19,6 @@ export const NOTICE_STATUSES = [
   'config_validate::script_syntax_error',
   'config_validate::yaml_read_error',
   'config_validate::yaml_syntax_error',
-  'core::binary_changed',
   'core::crashed',
   'core::handoff_failed',
   'core::not_ready',

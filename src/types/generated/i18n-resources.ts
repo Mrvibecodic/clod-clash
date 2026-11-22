@@ -1481,7 +1481,6 @@ export interface TranslationResources {
           }
           notifications: {
             core: {
-              binaryChanged: string
               crashed: string
               exitCancelled: string
               exitInProgress: string

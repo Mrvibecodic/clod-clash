@@ -551,7 +551,6 @@ export const translationKeys = [
   'settings.sections.system.notifications.tunMode.noTraffic',
   'settings.sections.system.notifications.tunMode.noTrafficWindows',
   'settings.sections.system.notifications.tunMode.bypassed',
-  'settings.sections.system.notifications.core.binaryChanged',
   'settings.sections.system.notifications.core.crashed',
   'settings.sections.system.notifications.core.exitCancelled',
   'settings.sections.system.notifications.core.exitInProgress',

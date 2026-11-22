@@ -1046,7 +1046,6 @@ async fn collect_service_runtime_bundle(config: &serde_yaml_ng::Mapping) -> Resu
 
     let bin_ext = if cfg!(windows) { ".exe" } else { "" };
     let bin_path = service_core_path(&clash_core, bin_ext)?;
-    crate::core::core_integrity::ensure_elevated_binary_is_known(&bin_path).await?;
     match collect_runtime_bundle(config, &crate::utils::dirs::app_home_dir()?, &bin_path) {
         Ok(bundle) => {
             forget_bundle_rejection();

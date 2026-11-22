@@ -861,9 +861,6 @@ impl CoreManager {
                             timing::SERVICE_START_RETRIES,
                             e
                         );
-                        if crate::core::core_integrity::is_core_binary_changed(&e) {
-                            return Err(e);
-                        }
                         last_err = Some(e);
                         tokio::time::sleep(timing::SERVICE_START_RETRY_DELAY).await;
                     }

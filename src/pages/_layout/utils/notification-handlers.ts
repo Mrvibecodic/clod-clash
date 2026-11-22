@@ -360,11 +360,6 @@ export const handleNoticeMessage = (
         'settings.sections.system.notifications.sysproxy.writeFailed',
         msg,
       ),
-    'core::binary_changed': () =>
-      showNotice.error(
-        'settings.sections.system.notifications.core.binaryChanged',
-        msg,
-      ),
     'config_core::change_success': () =>
       showNotice.success('settings.feedback.notifications.clash.changeSuccess'),
     'config_core::change_error': () =>
