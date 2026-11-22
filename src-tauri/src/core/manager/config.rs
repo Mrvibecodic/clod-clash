@@ -10,7 +10,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
-use clash_verge_service_ipc::StageRuntimeOutcome;
+use clod_service::StageRuntimeOutcome;
 use smartstring::alias::String;
 use std::sync::atomic::Ordering;
 use tauri_plugin_mihomo::Error as MihomoError;
@@ -1142,7 +1142,7 @@ mod tests {
         assert!(!manager.is_config_update_in_progress());
     }
     use crate::core::service::StageRequest;
-    use clash_verge_service_ipc::StageRuntimeOutcome;
+    use clod_service::StageRuntimeOutcome;
     use std::{
         sync::atomic::{AtomicUsize, Ordering},
         time::Duration,

@@ -513,9 +513,9 @@ const resolvePlugin = async () => {
 // Other resource resolvers (service, mmdb, geosite, geoip, enableLoopback)
 // =======================
 const SERVICE_URL_PREFIX =
-  'https://github.com/clash-verge-rev/clash-verge-service-ipc/releases/download'
+  'https://github.com/Mrvibecodic/clod-service/releases/download'
 // ЗАПИНЕНО НАМЕРЕННО — должно совпадать с тегом клиентского крейта
-// `clash_verge_service_ipc` в src-tauri/Cargo.toml (и Cargo.lock).
+// `clod_service` в src-tauri/Cargo.toml (и Cargo.lock).
 //
 // Раньше здесь бралась «latest», и в ресурсы приложения попадала служба
 // НОВЕЕ клиентской библиотеки, вкомпилированной в бинарь. Клиент сверяет
@@ -523,15 +523,15 @@ const SERVICE_URL_PREFIX =
 // «фоновая служба устарела» — а переустановка ставила ту же несовместимую
 // версию и ничего не лечила. Служба и клиент обновляются ТОЛЬКО парой:
 // поднимаешь тег тут — поднимаешь его же в Cargo.toml, и наоборот.
-const SERVICE_VERSION = 'v2.6.1'
+const SERVICE_VERSION = 'v2.7.7-clod.1'
 // Маркер версии рядом с бинарями: «файлы уже есть» — не значит «нужной
 // версии»; без маркера смена пина не перекачивала бы службу.
 const SERVICE_VERSION_MARKER = path.join(SERVICE_DIR, '.service-version')
 
 const SERVICE_BINARIES = [
-  'clash-verge-service',
-  'clash-verge-service-install',
-  'clash-verge-service-uninstall',
+  'clod-clash-service',
+  'clod-clash-service-install',
+  'clod-clash-service-uninstall',
 ]
 
 function serviceFileInfo(name) {
@@ -578,15 +578,15 @@ async function resolveServiceBundle() {
     files.every(({ targetPath }) => fs.existsSync(targetPath))
   ) {
     log_success(
-      `"clash-verge-service-ipc" ${SERVICE_VERSION} already exists, skipping download`,
+      `"clod-service" ${SERVICE_VERSION} already exists, skipping download`,
     )
     return
   }
 
   const archiveExt = platform === 'win32' ? 'zip' : 'tar.gz'
-  const archiveFile = `clash-verge-service-ipc-${SERVICE_VERSION}-${SIDECAR_HOST}.${archiveExt}`
+  const archiveFile = `clod-service-${SERVICE_VERSION}-${SIDECAR_HOST}.${archiveExt}`
   const downloadURL = `${SERVICE_URL_PREFIX}/${SERVICE_VERSION}/${archiveFile}`
-  const tempDir = path.join(TEMP_DIR, 'clash-verge-service-ipc')
+  const tempDir = path.join(TEMP_DIR, 'clod-service')
   const tempArchive = path.join(tempDir, archiveFile)
 
   await fsp.mkdir(tempDir, { recursive: true })
@@ -600,7 +600,7 @@ async function resolveServiceBundle() {
       zip
         .getEntries()
         .forEach((entry) =>
-          log_debug('"clash-verge-service-ipc" entry:', entry.entryName),
+          log_debug('"clod-service" entry:', entry.entryName),
         )
       zip.extractAllTo(tempDir, true)
     } else {

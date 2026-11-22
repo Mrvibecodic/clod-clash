@@ -8,7 +8,7 @@ use crate::{
 use anyhow::{Context as _, Result, bail};
 use backon::{ConstantBuilder, Retryable as _};
 use clash_verge_logging::{Type, logging};
-use clash_verge_service_ipc::{
+use clod_service::{
     IPC_AUTH_EXPECT, IpcCommand, MIN_REQUIRED_SERVICE_REVISION, OwnerSessionProof, ProtocolInfo, ProtocolVersion,
     ServiceErrorCode, ServiceStatusSnapshot, StageRuntimeOutcome, StartClashRequest,
 };
@@ -251,9 +251,27 @@ fn macos_core_path_in_install_roots<'a>(
     })
 }
 
+/// Служба прежних версий общая с Clash Verge Rev: без него снимается целиком,
+/// при нём из её записей о запуске уходит наше ядро, иначе после перезагрузки
+/// она подняла бы его вторым рядом с нашей службой.
 #[cfg(target_os = "macos")]
-const fn macos_cleanup_translocated_desired_state_shell() -> &'static str {
-    "for f in '/var/root/.local/state/clash-verge-service/desired-state.json' '/var/lib/clash-verge-service/desired-state.json'; do if [ -f \"$f\" ] && /usr/bin/grep -q AppTranslocation \"$f\"; then backup=\"$f.apptranslocation.bak\"; if [ -e \"$backup\" ]; then backup=\"$f.apptranslocation.$(/bin/date +%s).bak\"; fi; /bin/mv \"$f\" \"$backup\"; fi; done"
+const fn macos_retire_legacy_service_shell() -> &'static str {
+    "legacy=io.github.clash-verge-rev.clash-verge-rev.service; \
+plist=\"/Library/LaunchDaemons/$legacy.plist\"; \
+ours='/Clod Clash.app/Contents/MacOS/verge-mihomo'; \
+cvr=0; for d in '/Applications/Clash Verge.app' /Users/*/'Applications/Clash Verge.app'; do if [ -d \"$d\" ]; then cvr=1; fi; done; \
+if [ \"$cvr\" = 1 ]; then \
+held=0; if /usr/bin/pgrep -U root -f \"$ours\" >/dev/null 2>&1; then held=1; /bin/launchctl bootout system \"$plist\" 2>/dev/null || true; fi; \
+/usr/bin/find '/Library/Application Support/clash-verge-service' '/var/root/.local/state/clash-verge-service' -name desired-state.json -type f -exec /usr/bin/grep -l -e 'Clod Clash.app' -e 'io.clodclash.app' {} + 2>/dev/null \
+| while IFS= read -r f; do /bin/mv -f \"$f\" \"$f.clodclash.bak\"; done; \
+/usr/bin/pkill -U root -f \"$ours\" 2>/dev/null || true; \
+if [ \"$held\" = 1 ] && [ -f \"$plist\" ]; then for _ in 1 2 3 4 5; do /bin/launchctl bootstrap system \"$plist\" 2>/dev/null && break; /bin/sleep 1; done; fi; \
+else \
+/bin/launchctl bootout system \"$plist\" 2>/dev/null || true; \
+/usr/bin/pkill -U root -f \"$ours\" 2>/dev/null || true; \
+/bin/rm -f \"$plist\"; \
+/bin/rm -rf \"/Library/PrivilegedHelperTools/$legacy.bundle\" '/Library/Application Support/clash-verge-service' '/var/root/.local/state/clash-verge-service' '/var/run/clash-verge-service'; \
+fi"
 }
 
 #[cfg(target_os = "macos")]
@@ -294,7 +312,7 @@ fn uninstall_service() -> Result<()> {
     use std::os::windows::process::CommandExt as _;
 
     let binary_path = dirs::service_path()?;
-    let uninstall_path = binary_path.with_file_name("clash-verge-service-uninstall.exe");
+    let uninstall_path = binary_path.with_file_name("clod-clash-service-uninstall.exe");
 
     if !uninstall_path.exists() {
         bail!(format!("uninstaller not found: {uninstall_path:?}"));
@@ -333,7 +351,7 @@ fn install_service() -> Result<()> {
     use std::os::windows::process::CommandExt as _;
 
     let binary_path = dirs::service_path()?;
-    let install_path = binary_path.with_file_name("clash-verge-service-install.exe");
+    let install_path = binary_path.with_file_name("clod-clash-service-install.exe");
 
     if !install_path.exists() {
         bail!(format!("installer not found: {install_path:?}"));
@@ -370,13 +388,13 @@ fn install_service() -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-const LINUX_SERVICE_BINARY: &str = "/var/lib/clash-verge-service/bin/clash-verge-service";
+const LINUX_SERVICE_BINARY: &str = "/var/lib/clod-clash-service/bin/clod-clash-service";
 
 #[cfg(target_os = "linux")]
-const LINUX_SERVICE_BIN_DIR: &str = "/var/lib/clash-verge-service/bin";
+const LINUX_SERVICE_BIN_DIR: &str = "/var/lib/clod-clash-service/bin";
 
 #[cfg(target_os = "linux")]
-const LINUX_SERVICE_FCONTEXT: &str = "/var/lib/clash-verge-service/bin(/.*)?";
+const LINUX_SERVICE_FCONTEXT: &str = "/var/lib/clod-clash-service/bin(/.*)?";
 
 #[cfg(target_os = "linux")]
 fn selinux_is_enforcing() -> bool {
@@ -400,7 +418,7 @@ fn selinux_install_prefix_for(enforcing: bool) -> String {
 if command -v semanage >/dev/null 2>&1; then \
 semanage fcontext -a -t bin_t {fcontext} >/dev/null 2>&1 || true; fi; \
 if command -v chcon >/dev/null 2>&1; then chcon -R -t bin_t {dir} >/dev/null 2>&1 || true; fi; \
-systemctl reset-failed clash-verge-service.service >/dev/null 2>&1 || true; "
+systemctl reset-failed clod-clash-service.service >/dev/null 2>&1 || true; "
     )
 }
 
@@ -421,9 +439,9 @@ fn selinux_recovery_tail_for(enforcing: bool) -> String {
 chcon -t bin_t {binary} >/dev/null 2>&1 || true; \
 if command -v semanage >/dev/null 2>&1; then \
 semanage fcontext -a -t bin_t {fcontext} >/dev/null 2>&1 || true; fi; \
-systemctl reset-failed clash-verge-service.service >/dev/null 2>&1 || true; \
-systemctl start clash-verge-service.service >/dev/null 2>&1 || true; \
-if systemctl is-active --quiet clash-verge-service.service; then rc=0; fi; fi; exit $rc"
+systemctl reset-failed clod-clash-service.service >/dev/null 2>&1 || true; \
+systemctl start clod-clash-service.service >/dev/null 2>&1 || true; \
+if systemctl is-active --quiet clod-clash-service.service; then rc=0; fi; fi; exit $rc"
     )
 }
 
@@ -469,7 +487,7 @@ fn exit_status_text(code: Option<i32>) -> String {
 fn uninstall_service() -> Result<()> {
     logging!(info, Type::Service, "uninstall service");
 
-    let uninstall_path = tauri::utils::platform::current_exe()?.with_file_name("clash-verge-service-uninstall");
+    let uninstall_path = tauri::utils::platform::current_exe()?.with_file_name("clod-clash-service-uninstall");
 
     if !uninstall_path.exists() {
         bail!(format!("uninstaller not found: {uninstall_path:?}"));
@@ -512,7 +530,7 @@ fn uninstall_service() -> Result<()> {
 fn install_service() -> Result<()> {
     logging!(info, Type::Service, "install service");
 
-    let install_path = tauri::utils::platform::current_exe()?.with_file_name("clash-verge-service-install");
+    let install_path = tauri::utils::platform::current_exe()?.with_file_name("clod-clash-service-install");
 
     if !install_path.exists() {
         bail!(format!("installer not found: {install_path:?}"));
@@ -570,7 +588,7 @@ fn uninstall_service() -> Result<()> {
     logging!(info, Type::Service, "uninstall service");
 
     let binary_path = dirs::service_path()?;
-    let uninstall_path = binary_path.with_file_name("clash-verge-service-uninstall");
+    let uninstall_path = binary_path.with_file_name("clod-clash-service-uninstall");
 
     if !uninstall_path.exists() {
         bail!(format!("uninstaller not found: {uninstall_path:?}"));
@@ -605,7 +623,7 @@ fn install_service() -> Result<()> {
     logging!(info, Type::Service, "install service");
 
     let binary_path = dirs::service_path()?;
-    let install_path = binary_path.with_file_name("clash-verge-service-install");
+    let install_path = binary_path.with_file_name("clod-clash-service-install");
 
     if !install_path.exists() {
         bail!(format!("installer not found: {install_path:?}"));
@@ -617,8 +635,8 @@ fn install_service() -> Result<()> {
     let prompt = clash_verge_i18n::t!("service.adminInstallPrompt");
     let install_quoted = shell_single_quote(&install_shell);
     let shell = format!(
-        "{}; sudo CLASH_VERGE_SERVICE_GID={gid} {install_quoted}",
-        macos_cleanup_translocated_desired_state_shell()
+        "{}; sudo CLOD_CLASH_SERVICE_GID={gid} {install_quoted}",
+        macos_retire_legacy_service_shell()
     );
     let shell = escape_osascript_double_quoted_string(&shell);
     let command = format!(r#"do shell script "{shell}" with administrator privileges with prompt "{prompt}""#);
@@ -685,7 +703,7 @@ fn sc(command: &str) -> Option<(Option<i32>, std::string::String)> {
     use std::os::windows::process::CommandExt as _;
 
     let output = StdCommand::new("sc.exe")
-        .args([command, "clash_verge_service"])
+        .args([command, "clod_clash_service"])
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
@@ -724,7 +742,7 @@ fn run_start_registered_service() -> bool {
     const SERVICE_ALREADY_RUNNING: i32 = 1056;
 
     let Ok(output) = StdCommand::new("sc.exe")
-        .args(["start", "clash_verge_service"])
+        .args(["start", "clod_clash_service"])
         .creation_flags(CREATE_NO_WINDOW)
         .output()
     else {
@@ -836,11 +854,11 @@ pub async fn service_registration() -> ServiceRegistration {
 
 #[cfg(target_os = "linux")]
 fn read_service_registration() -> ServiceRegistration {
-    if !Path::new("/etc/systemd/system/clash-verge-service.service").exists() {
+    if !Path::new("/etc/systemd/system/clod-clash-service.service").exists() {
         return ServiceRegistration::Missing;
     }
     let Ok(output) = StdCommand::new("systemctl")
-        .args(["is-active", "clash-verge-service.service"])
+        .args(["is-active", "clod-clash-service.service"])
         .output()
     else {
         return ServiceRegistration::Unknown;
@@ -854,9 +872,9 @@ fn read_service_registration() -> ServiceRegistration {
 
 #[cfg(target_os = "macos")]
 fn read_service_registration() -> ServiceRegistration {
-    const LABEL: &str = "io.github.clash-verge-rev.clash-verge-rev.service";
+    const LABEL: &str = "io.clodclash.app.service";
 
-    if !Path::new("/Library/LaunchDaemons/io.github.clash-verge-rev.clash-verge-rev.service.plist").exists() {
+    if !Path::new("/Library/LaunchDaemons/io.clodclash.app.service.plist").exists() {
         return ServiceRegistration::Missing;
     }
     match StdCommand::new("/bin/launchctl")
@@ -878,8 +896,8 @@ fn reinstall_service() -> Result<()> {
     use std::os::windows::process::CommandExt as _;
 
     let binary_path = dirs::service_path()?;
-    let uninstall_path = binary_path.with_file_name("clash-verge-service-uninstall.exe");
-    let install_path = binary_path.with_file_name("clash-verge-service-install.exe");
+    let uninstall_path = binary_path.with_file_name("clod-clash-service-uninstall.exe");
+    let install_path = binary_path.with_file_name("clod-clash-service-install.exe");
 
     if !install_path.exists() {
         bail!(format!("installer not found: {install_path:?}"));
@@ -919,8 +937,8 @@ fn reinstall_service() -> Result<()> {
     logging!(info, Type::Service, "reinstall service");
 
     let exe = tauri::utils::platform::current_exe()?;
-    let uninstall_path = exe.with_file_name("clash-verge-service-uninstall");
-    let install_path = exe.with_file_name("clash-verge-service-install");
+    let uninstall_path = exe.with_file_name("clod-clash-service-uninstall");
+    let install_path = exe.with_file_name("clod-clash-service-install");
 
     if !install_path.exists() {
         bail!(format!("installer not found: {install_path:?}"));
@@ -964,8 +982,8 @@ fn reinstall_service() -> Result<()> {
     logging!(info, Type::Service, "reinstall service");
 
     let binary_path = dirs::service_path()?;
-    let uninstall_path = binary_path.with_file_name("clash-verge-service-uninstall");
-    let install_path = binary_path.with_file_name("clash-verge-service-install");
+    let uninstall_path = binary_path.with_file_name("clod-clash-service-uninstall");
+    let install_path = binary_path.with_file_name("clod-clash-service-install");
 
     if !install_path.exists() {
         bail!(format!("installer not found: {install_path:?}"));
@@ -980,8 +998,8 @@ fn reinstall_service() -> Result<()> {
         shell.push_str(&shell_single_quote(&uninstall_path.to_string_lossy()));
     }
     shell.push_str("; ");
-    shell.push_str(macos_cleanup_translocated_desired_state_shell());
-    shell.push_str("; sudo CLASH_VERGE_SERVICE_GID=");
+    shell.push_str(macos_retire_legacy_service_shell());
+    shell.push_str("; sudo CLOD_CLASH_SERVICE_GID=");
     shell.push_str(&gid.to_string());
     shell.push(' ');
     shell.push_str(&shell_single_quote(&install_path.to_string_lossy()));
@@ -1021,9 +1039,7 @@ fn force_reinstall_service() -> Result<()> {
     })
 }
 
-async fn collect_service_runtime_bundle(
-    config: &serde_yaml_ng::Mapping,
-) -> Result<clash_verge_service_ipc::RuntimeBundle> {
+async fn collect_service_runtime_bundle(config: &serde_yaml_ng::Mapping) -> Result<clod_service::RuntimeBundle> {
     let verge_config = Config::verge().await;
     let clash_core = verge_config.latest_arc().get_valid_clash_core();
     drop(verge_config);
@@ -1086,7 +1102,7 @@ pub(crate) async fn stage_runtime_by_service(config: &serde_yaml_ng::Mapping) ->
         }
     };
 
-    let response = clash_verge_service_ipc::stage_runtime(&credentials, &session, &runtime)
+    let response = clod_service::stage_runtime(&credentials, &session, &runtime)
         .await
         .context(clash_verge_i18n::t!("service.connectFailed"))?;
     if response.code > 0 {
@@ -1118,7 +1134,7 @@ pub(super) async fn start_with_existing_service(config: &serde_yaml_ng::Mapping,
         macos_proxy: None,
     };
 
-    let response = clash_verge_service_ipc::start_clash(&credentials, &request)
+    let response = clod_service::start_clash(&credentials, &request)
         .await
         .context(clash_verge_i18n::t!("service.connectFailed"))?;
 
@@ -1163,7 +1179,7 @@ pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
     logging!(debug, Type::Service, "Получение логов Clash в режиме службы");
 
     let credentials = current_owner_credentials()?;
-    let response = clash_verge_service_ipc::get_clash_logs(&credentials)
+    let response = clod_service::get_clash_logs(&credentials)
         .await
         .context(clash_verge_i18n::t!("service.connectFailed"))?;
 
@@ -1179,12 +1195,17 @@ pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
     }
 
     logging!(debug, Type::Service, "Логи Clash в режиме службы успешно получены");
-    Ok(response.data.unwrap_or_default())
+    Ok(response
+        .data
+        .unwrap_or_default()
+        .into_iter()
+        .map(CompactString::from)
+        .collect())
 }
 
 pub(super) async fn get_clash_log_snapshot_by_service() -> Result<String> {
     let credentials = current_owner_credentials()?;
-    let response = clash_verge_service_ipc::get_clash_log_snapshot(&credentials)
+    let response = clod_service::get_clash_log_snapshot(&credentials)
         .await
         .context(clash_verge_i18n::t!("service.connectFailed"))?;
 
@@ -1206,7 +1227,7 @@ fn text_of_snapshot(data: String) -> String {
 
 pub(super) async fn service_status() -> Result<ServiceStatusSnapshot> {
     let credentials = current_owner_credentials()?;
-    let response = clash_verge_service_ipc::get_status(&credentials)
+    let response = clod_service::get_status(&credentials)
         .await
         .context(clash_verge_i18n::t!("service.connectFailed"))?;
     if response.code > 0 {
@@ -1221,7 +1242,7 @@ pub(super) async fn stop_core_by_service() -> Result<()> {
     the_service_channel_is_there()?;
     let credentials = current_owner_credentials()?;
     let session = active_service_session()?;
-    let response = clash_verge_service_ipc::stop_clash(&credentials, &session)
+    let response = clod_service::stop_clash(&credentials, &session)
         .await
         .context(clash_verge_i18n::t!("service.connectFailed"))?;
 
@@ -1255,7 +1276,7 @@ fn ipc_path_busy(error: &std::io::Error) -> bool {
 }
 
 async fn ipc_path_present() -> std::io::Result<()> {
-    match Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
+    match Path::metadata(clod_service::IPC_PATH.as_ref()) {
         Ok(_) => Ok(()),
         Err(e) if ipc_path_busy(&e) => Ok(()),
         Err(e) => {
@@ -1272,7 +1293,7 @@ async fn ipc_path_present() -> std::io::Result<()> {
 
 pub async fn is_service_available() -> Result<()> {
     ipc_path_present().await?;
-    clash_verge_service_ipc::connect().await?;
+    clod_service::connect().await?;
     Ok(())
 }
 
@@ -1326,7 +1347,7 @@ pub(crate) async fn probe_service() -> ServiceProbe {
     if let Err(e) = ipc_path_present().await {
         return ServiceProbe::Silent(e.to_string());
     }
-    let client = match clash_verge_service_ipc::connect().await {
+    let client = match clod_service::connect().await {
         Ok(client) => client,
         Err(e) => return ServiceProbe::Silent(format!("{e:#}")),
     };
@@ -1385,15 +1406,15 @@ async fn wait_for_service_ipc(manager: &ServiceManager) -> Result<ServiceProbe> 
 }
 
 pub fn is_service_ipc_path_exists() -> bool {
-    match Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
+    match Path::metadata(clod_service::IPC_PATH.as_ref()) {
         Ok(_) => true,
         Err(e) => ipc_path_busy(&e),
     }
 }
 
 impl ServiceManager {
-    pub const fn config() -> clash_verge_service_ipc::IpcConfig {
-        clash_verge_service_ipc::IpcConfig {
+    pub const fn config() -> clod_service::IpcConfig {
+        clod_service::IpcConfig {
             default_timeout: Duration::from_millis(1000),
             retry_delay: Duration::from_millis(500),
             max_retries: 20,
@@ -1655,7 +1676,9 @@ mod ipc_probe_tests {
 mod probe_service_tests {
     use super::{ServiceProbe, ServiceReady, VersionReply, verdict};
     use crate::utils::source_scan::fn_body;
-    use clash_verge_service_ipc::{PROTOCOL_EPOCH, PROTOCOL_REVISION, ProtocolInfo, ProtocolVersion};
+    use clod_service::{
+        MIN_REQUIRED_SERVICE_REVISION, PROTOCOL_EPOCH, PROTOCOL_REVISION, ProtocolInfo, ProtocolVersion,
+    };
     use std::path::{Path, PathBuf};
 
     fn reply(code: u16, epoch: u16, revision: u16, min_client_revision: u16) -> VersionReply {
@@ -1673,28 +1696,35 @@ mod probe_service_tests {
     #[test]
     fn one_version_reply_answers_fitness_and_staging() {
         assert_eq!(
-            verdict(Some(&reply(0, PROTOCOL_EPOCH, 2, 1))),
+            verdict(Some(&reply(0, PROTOCOL_EPOCH, MIN_REQUIRED_SERVICE_REVISION, 1))),
             ServiceProbe::Ready(ServiceReady { staging: true })
         );
         assert_eq!(
-            verdict(Some(&reply(0, PROTOCOL_EPOCH, 1, 1))),
-            ServiceProbe::Ready(ServiceReady { staging: false }),
-            "служба без staging годится — просто идёт путём перезапуска"
+            verdict(Some(&reply(0, PROTOCOL_EPOCH, MIN_REQUIRED_SERVICE_REVISION - 1, 1))),
+            ServiceProbe::Outdated
         );
     }
 
     #[test]
     fn a_service_that_does_not_fit_is_outdated() {
         assert_eq!(
-            verdict(Some(&reply(0, PROTOCOL_EPOCH + 1, 2, 1))),
+            verdict(Some(&reply(0, PROTOCOL_EPOCH + 1, MIN_REQUIRED_SERVICE_REVISION, 1))),
             ServiceProbe::Outdated
         );
         assert_eq!(
-            verdict(Some(&reply(0, PROTOCOL_EPOCH, 2, PROTOCOL_REVISION + 1))),
+            verdict(Some(&reply(
+                0,
+                PROTOCOL_EPOCH,
+                MIN_REQUIRED_SERVICE_REVISION,
+                PROTOCOL_REVISION + 1
+            ))),
             ServiceProbe::Outdated,
             "служба требует клиента новее нашего"
         );
-        assert_eq!(verdict(Some(&reply(1, PROTOCOL_EPOCH, 2, 1))), ServiceProbe::Outdated);
+        assert_eq!(
+            verdict(Some(&reply(1, PROTOCOL_EPOCH, MIN_REQUIRED_SERVICE_REVISION, 1))),
+            ServiceProbe::Outdated
+        );
         let empty = VersionReply {
             code: 0,
             message: String::new(),
@@ -1879,7 +1909,7 @@ mod stopped_service_tests {
 
     fn sc_query(state: &str, exit_code: &str) -> String {
         format!(
-            "\r\nSERVICE_NAME: clash_verge_service\r\n        TYPE               : 10  WIN32_OWN_PROCESS\r\n        STATE              : {state}\r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_SHUTDOWN)\r\n        WIN32_EXIT_CODE    : {exit_code}\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n"
+            "\r\nSERVICE_NAME: clod_clash_service\r\n        TYPE               : 10  WIN32_OWN_PROCESS\r\n        STATE              : {state}\r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_SHUTDOWN)\r\n        WIN32_EXIT_CODE    : {exit_code}\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n"
         )
     }
 
@@ -1903,7 +1933,7 @@ mod stopped_service_tests {
 
     fn sc_qc(start_type: &str) -> String {
         format!(
-            "[SC] QueryServiceConfig SUCCESS\r\n\r\nSERVICE_NAME: clash_verge_service\r\n        TYPE               : 10  WIN32_OWN_PROCESS\r\n        START_TYPE         : {start_type}\r\n        ERROR_CONTROL      : 1   NORMAL\r\n        BINARY_PATH_NAME   : \"C:\\Program Files\\Clod Clash\\clash-verge-service.exe\"\r\n"
+            "[SC] QueryServiceConfig SUCCESS\r\n\r\nSERVICE_NAME: clod_clash_service\r\n        TYPE               : 10  WIN32_OWN_PROCESS\r\n        START_TYPE         : {start_type}\r\n        ERROR_CONTROL      : 1   NORMAL\r\n        BINARY_PATH_NAME   : \"C:\\Program Files\\Clod Clash\\clod-clash-service.exe\"\r\n"
         )
     }
 
@@ -2006,7 +2036,7 @@ mod selinux_tests {
             "правится именно бинарь службы: {tail}"
         );
         assert!(
-            tail.contains("systemctl is-active --quiet clash-verge-service.service"),
+            tail.contains("systemctl is-active --quiet clod-clash-service.service"),
             "успех подтверждается фактом, а не молчанием chcon: {tail}"
         );
         assert!(
@@ -2032,7 +2062,7 @@ mod tests {
     use std::fs;
 
     fn test_dir(name: &str) -> std::io::Result<PathBuf> {
-        let path = std::env::temp_dir().join(format!("clash-verge-service-path-test-{}-{name}", std::process::id()));
+        let path = std::env::temp_dir().join(format!("clod-clash-service-path-test-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path)?;
         Ok(path)

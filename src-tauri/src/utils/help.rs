@@ -474,7 +474,7 @@ pub fn linux_elevator() -> Result<String> {
     path.ok_or_else(|| {
         anyhow::anyhow!(
             "pkexec (polkit) is not installed, so the app cannot ask for administrator rights; install polkit or run \
-             `sudo /usr/bin/clash-verge-service-install` once"
+             `sudo /usr/bin/clod-clash-service-install` once"
         )
     })
 }

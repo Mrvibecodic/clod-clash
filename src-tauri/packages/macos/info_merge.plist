@@ -4,7 +4,7 @@
 <dict>
     <key>AssociatedBundleIdentifiers</key>
     <array>
-        <string>io.github.clash-verge-rev.clash-verge-rev.service</string>
+        <string>io.clodclash.app.service</string>
     </array>
 </dict>
 </plist>

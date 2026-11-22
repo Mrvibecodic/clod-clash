@@ -12,7 +12,7 @@ pub(crate) const CORE_FILE_NAMES: &[&str] = &["verge-mihomo.exe", "verge-mihomo-
 #[cfg(not(windows))]
 pub(crate) const CORE_FILE_NAMES: &[&str] = &["verge-mihomo", "verge-mihomo-alpha"];
 
-const SERVICE_FILE_STEM: &str = "clash-verge-service";
+const SERVICE_FILE_STEM: &str = "clod-clash-service";
 
 fn comparable(path: &Path) -> String {
     let text = path.to_string_lossy();
@@ -35,11 +35,19 @@ fn parent_shields_the_core(parent_name: Option<&std::ffi::OsStr>) -> bool {
     stem == SERVICE_FILE_STEM || (stem.len() >= 15 && SERVICE_FILE_STEM.starts_with(stem.as_str()))
 }
 
+/// Наши ядра: файлы рядом с программой и копии, которые запускает служба.
 fn known_core_paths() -> Vec<String> {
     let mut known = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
         for name in CORE_FILE_NAMES {
             let path = exe.with_file_name(name);
+            known.push(comparable(&path.canonicalize().unwrap_or(path)));
+        }
+    }
+    if let Ok(paths) = clod_service::service_paths() {
+        let cores = paths.core_dir();
+        for name in CORE_FILE_NAMES {
+            let path = cores.join(name);
             known.push(comparable(&path.canonicalize().unwrap_or(path)));
         }
     }
@@ -337,11 +345,12 @@ mod tests {
 
     #[test]
     fn the_services_own_core_is_shielded() {
-        assert!(parent_shields_the_core(Some(OsStr::new("clash-verge-service"))));
-        assert!(parent_shields_the_core(Some(OsStr::new("clash-verge-service.exe"))));
-        assert!(parent_shields_the_core(Some(OsStr::new("Clash-Verge-Service.exe"))));
-        assert!(parent_shields_the_core(Some(OsStr::new("clash-verge-ser"))));
-        assert!(!parent_shields_the_core(Some(OsStr::new("clash-verge-serXXXX"))));
+        assert!(parent_shields_the_core(Some(OsStr::new("clod-clash-service"))));
+        assert!(parent_shields_the_core(Some(OsStr::new("clod-clash-service.exe"))));
+        assert!(parent_shields_the_core(Some(OsStr::new("Clod-Clash-Service.exe"))));
+        assert!(parent_shields_the_core(Some(OsStr::new("clod-clash-serv"))));
+        assert!(!parent_shields_the_core(Some(OsStr::new("clod-clash-servXXXX"))));
+        assert!(!parent_shields_the_core(Some(OsStr::new("clash-verge-service.exe"))));
         assert!(!parent_shields_the_core(Some(OsStr::new("clash"))));
         assert!(!parent_shields_the_core(Some(OsStr::new("systemd"))));
         assert!(!parent_shields_the_core(Some(OsStr::new("explorer.exe"))));

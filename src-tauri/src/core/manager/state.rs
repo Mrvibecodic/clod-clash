@@ -9,7 +9,7 @@ use crate::{
 };
 use anyhow::Result;
 use clash_verge_logging::Type;
-use clash_verge_service_ipc::ServiceLifecycleState;
+use clod_service::ServiceLifecycleState;
 use compact_str::CompactString;
 use log::Level;
 #[cfg(unix)]
@@ -884,7 +884,7 @@ impl CoreManager {
 
     /// clod:stop-proof — успех IPC здесь доказательство: служба убивает
     /// ядро через `tokio::process::Child::kill`, который ждёт смерти, и только
-    /// потом отвечает (`clash-verge-service-ipc`, `CoreManager::stop_core`).
+    /// потом отвечает (`clod-service`, `CoreManager::stop_core`).
     /// Не доказан ОТКАЗ: ошибка IPC значит «служба не ответила», а не «ядро
     /// живо» — служба могла умереть вместе со своим ядром или раньше него.
     /// Тогда смерть ядра проверяется по номеру процесса, который служба

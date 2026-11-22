@@ -1,6 +1,6 @@
 use anyhow::{Context as _, Result};
 use clash_verge_logging::{Type, logging};
-use clash_verge_service_ipc::{RemoteProvider, RuntimeAsset, RuntimeBundle};
+use clod_service::{RemoteProvider, RuntimeAsset, RuntimeBundle};
 use serde_yaml_ng::Value;
 use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
@@ -288,7 +288,7 @@ fn normalized_destination(relative: &Path) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::{UnusableBundle, collect_runtime_bundle, provider_fingerprint};
-    use clash_verge_service_ipc::RuntimeBundle;
+    use clod_service::RuntimeBundle;
     use serde_yaml_ng::{Mapping, Value};
     use std::path::Path;
 

@@ -51,7 +51,7 @@ fn redacted(
 }
 
 const PLUMBING_MODULES: &[&str] = &[
-    "clash_verge_service_ipc",
+    "clod_service",
     "h2",
     "hyper",
     "hyper_util",

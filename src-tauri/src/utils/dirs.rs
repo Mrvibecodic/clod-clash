@@ -149,13 +149,13 @@ pub fn profiles_path() -> Result<PathBuf> {
 #[cfg(target_os = "macos")]
 pub fn service_path() -> Result<PathBuf> {
     let res_dir = app_resources_dir()?;
-    Ok(res_dir.join("clash-verge-service"))
+    Ok(res_dir.join("clod-clash-service"))
 }
 
 #[cfg(windows)]
 pub fn service_path() -> Result<PathBuf> {
     let res_dir = app_resources_dir()?;
-    Ok(res_dir.join("clash-verge-service.exe"))
+    Ok(res_dir.join("clod-clash-service.exe"))
 }
 
 pub fn sidecar_log_dir() -> Result<PathBuf> {
@@ -206,7 +206,7 @@ fn ipc_base_dirs() -> Vec<PathBuf> {
 #[cfg(unix)]
 fn owner_ipc_suffix() -> String {
     crate::core::owner_identity::current_owner_identity()
-        .map(|identity| clash_verge_service_ipc::owner_key(&identity))
+        .map(|identity| clod_service::owner_key(&identity))
         .unwrap_or_else(|_| unsafe { libc::geteuid() }.to_string())
 }
 
@@ -288,7 +288,7 @@ pub fn sidecar_ipc_path() -> Result<PathBuf> {
     let flavor = if cfg!(feature = "verge-dev") { "dev" } else { "release" };
     Ok(PathBuf::from(format!(
         r"\\.\pipe\verge-mihomo-sidecar-{flavor}-{}",
-        clash_verge_service_ipc::owner_key(&identity)
+        clod_service::owner_key(&identity)
     )))
 }
 
@@ -298,7 +298,7 @@ pub fn sidecar_ipc_path() -> Result<PathBuf> {
 /// `external-controller-*` из нашего yaml; подключаться в service-режиме надо
 /// именно сюда, а не к sidecar-пути выше — иначе API ядра недостижим.
 pub fn service_ipc_path() -> Result<PathBuf> {
-    Ok(PathBuf::from(clash_verge_service_ipc::mihomo_ipc_path(
+    Ok(PathBuf::from(clod_service::mihomo_ipc_path(
         &crate::core::owner_identity::current_owner_identity()?,
     )))
 }

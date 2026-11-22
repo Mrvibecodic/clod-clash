@@ -251,7 +251,7 @@ async fn init_verge_config_before_window() -> bool {
 }
 
 async fn init_service_manager() {
-    clash_verge_service_ipc::set_config(Some(ServiceManager::config())).await;
+    clod_service::set_config(Some(ServiceManager::config())).await;
     if is_service_ipc_path_exists() {
         logging_error!(Type::Setup, SERVICE_MANAGER.refresh().await);
     }
