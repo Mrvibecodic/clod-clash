@@ -480,6 +480,32 @@ Var PowerShellExe
 ; (`CLOD_CLASH_INSTDIR`): одноимённое ядро есть и у других программ.
 !define OUR_CORES "$$ours = 'verge-mihomo.exe', 'verge-mihomo-alpha.exe' | ForEach-Object { Join-Path $$env:CLOD_CLASH_INSTDIR $$_ }; $$cores = @(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $$ours -contains $$_.ExecutablePath })"
 
+!define SERVICE_NAME "clod_clash_service"
+; Служба прежних версий — общая с Clash Verge Rev.
+!define LEGACY_SERVICE_NAME "clash_verge_service"
+; 1 — прежнюю службу остановил этот установщик.
+Var LegacyServiceStopped
+
+; $1 — строка удаления Clash Verge Rev, пусто — его нет на компьютере.
+!macro ReadClashVergeUninstall
+  StrCpy $1 ""
+  ${If} ${RunningX64}
+    SetRegView 64
+    ReadRegStr $1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
+    ${If} $1 == ""
+      ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
+    ${EndIf}
+  ${EndIf}
+  ${If} $1 == ""
+    SetRegView 32
+    ReadRegStr $1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
+    ${If} $1 == ""
+      ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
+    ${EndIf}
+  ${EndIf}
+  !insertmacro SetContext
+!macroend
+
 !macro CheckAllVergeProcesses
   !insertmacro FindPowerShell
   ; ExecutablePath процессов всегда длинный: путь установки с короткими
@@ -491,23 +517,24 @@ Var PowerShellExe
   ${EndIf}
   System::Call 'kernel32::SetEnvironmentVariable(t "CLOD_CLASH_INSTDIR", t "$R9")i'
 
-  ; Служба общая с другой программой и держит ядро одной из них за раз:
+  ; Прежняя служба общая с другой программой и держит ядро одной из них за раз:
   ; останавливается, только если держит наше. 10 — наше, 11 — нет, иначе
   ; узнать не удалось, и служба останавливается, чтобы файлы ядра заменились.
-  SimpleSC::ExistsService "clash_verge_service"
+  SimpleSC::ExistsService "${LEGACY_SERVICE_NAME}"
   Pop $R0
   ${If} $R0 == 0
-    nsExec::ExecToLog /TIMEOUT=30000 `"$PowerShellExe" -NoProfile -NonInteractive -Command "${OUR_CORES}; $$svc = (Get-CimInstance Win32_Service -ErrorAction Stop | Where-Object Name -eq 'clash_verge_service').ProcessId; if ($$svc -and ($$cores | Where-Object { $$_.ParentProcessId -eq $$svc })) { exit 10 } else { exit 11 }"`
+    nsExec::ExecToLog /TIMEOUT=30000 `"$PowerShellExe" -NoProfile -NonInteractive -Command "${OUR_CORES}; $$svc = (Get-CimInstance Win32_Service -ErrorAction Stop | Where-Object Name -eq '${LEGACY_SERVICE_NAME}').ProcessId; if ($$svc -and ($$cores | Where-Object { $$_.ParentProcessId -eq $$svc })) { exit 10 } else { exit 11 }"`
     Pop $R0
     ${If} $R0 == 11
-      DetailPrint "${PRODUCTNAME} Service does not run the core of ${PRODUCTNAME}; leaving it as it is"
+      DetailPrint "The previous service does not run the core of ${PRODUCTNAME}; leaving it as it is"
     ${Else}
-      DetailPrint "Stopping ${PRODUCTNAME} Service..."
-      SimpleSC::StopService "clash_verge_service" 1 30
+      DetailPrint "Stopping the previous service..."
+      StrCpy $LegacyServiceStopped "1"
+      SimpleSC::StopService "${LEGACY_SERVICE_NAME}" 1 30
       Pop $R0
       ${If} $R0 != 0
       ${AndIf} $R0 != 1062
-        DetailPrint "Could not stop ${PRODUCTNAME} Service ($R0); falling back to killing it"
+        DetailPrint "Could not stop the previous service ($R0); falling back to killing it"
         !if "${INSTALLMODE}" == "currentUser"
           nsis_tauri_utils::FindProcessCurrentUser "clash-verge-service.exe"
         !else
@@ -533,74 +560,78 @@ Var PowerShellExe
   Pop $R0
 !macroend
 
+; Установщик службы ставит её или обновляет вместе с её копиями ядер и запускает.
+; Ядра передаются с отпечатками: из папки, куда пишет пользователь, без них служба
+; копию не берёт.
 !macro EnsureVergeService
-  SimpleSC::ExistsService "clash_verge_service"
-  Pop $0
-
-  ${If} $0 == 0
-    DetailPrint "Starting ${PRODUCTNAME} Service..."
-    SimpleSC::StartService "clash_verge_service" "" 30
+  ${If} ${FileExists} "$INSTDIR\resources\clod-clash-service-install.exe"
+    DetailPrint "Installing ${PRODUCTNAME} Service..."
+    nsExec::ExecToLog /TIMEOUT=120000 `"$PowerShellExe" -NoProfile -NonInteractive -Command "$$dir = $$env:CLOD_CLASH_INSTDIR; $$list = @('--install-service'); foreach ($$name in 'verge-mihomo.exe', 'verge-mihomo-alpha.exe') { $$core = Join-Path $$dir $$name; if (Test-Path -LiteralPath $$core) { $$list += '--install-core', $$core, '--sha256', (Get-FileHash -LiteralPath $$core -Algorithm SHA256).Hash.ToLowerInvariant() } }; & (Join-Path $$dir 'resources\clod-clash-service-install.exe') @list; exit $$LASTEXITCODE"`
     Pop $0
     ${If} $0 != 0
-    ${AndIf} $0 != 1056
-      DetailPrint "Could not start ${PRODUCTNAME} Service ($0); the app will offer to repair it"
+      DetailPrint "Service installation failed ($0); the app will offer to install it later"
     ${EndIf}
   ${Else}
-    ${If} ${FileExists} "$INSTDIR\resources\clash-verge-service-install.exe"
-      DetailPrint "Installing ${PRODUCTNAME} Service..."
-      nsExec::ExecToLog /TIMEOUT=60000 '"$INSTDIR\resources\clash-verge-service-install.exe"'
+    DetailPrint "Service installer not found; skipping service setup"
+  ${EndIf}
+!macroend
+
+; Прежняя служба снимается, если она наша. Если она осталась Clash Verge Rev —
+; из её записи о запуске убирается наше ядро, чтобы после перезагрузки она не
+; подняла его вторым рядом с нашей службой.
+!macro RemoveLegacyService
+  !insertmacro FindPowerShell
+  !insertmacro ReadClashVergeUninstall
+  SimpleSC::ExistsService "${LEGACY_SERVICE_NAME}"
+  Pop $0
+  ${If} $0 == 0
+    ${If} $1 == ""
+      DetailPrint "Removing the previous service..."
+      SimpleSC::StopService "${LEGACY_SERVICE_NAME}" 1 30
+      Pop $0
+      SimpleSC::RemoveService "${LEGACY_SERVICE_NAME}"
       Pop $0
       ${If} $0 != 0
-        DetailPrint "Service installation failed ($0); the app will offer to install it later"
+        DetailPrint "Could not remove the previous service ($0)"
       ${EndIf}
     ${Else}
-      DetailPrint "Service installer not found; skipping service setup"
+      DetailPrint "The previous service belongs to Clash Verge Rev; forgetting the core of ${PRODUCTNAME} in it"
+      nsExec::ExecToLog /TIMEOUT=30000 `"$PowerShellExe" -NoProfile -NonInteractive -Command "$$root = Join-Path $$env:ProgramData 'clash-verge-service'; $$ours = ($$env:CLOD_CLASH_INSTDIR).TrimEnd('\') + '\'; Get-ChildItem -LiteralPath $$root -Recurse -Filter 'desired-state.json' -File -ErrorAction SilentlyContinue | ForEach-Object { $$path = (Get-Content -LiteralPath $$_.FullName -Raw | ConvertFrom-Json).last_clash_config.core_config.core_path; if ($$path -and $$path.StartsWith($$ours, [StringComparison]::OrdinalIgnoreCase)) { Move-Item -LiteralPath $$_.FullName -Destination ($$_.FullName + '.clodclash.bak') -Force } }"`
+      Pop $0
+      ${If} $LegacyServiceStopped == "1"
+        SimpleSC::StartService "${LEGACY_SERVICE_NAME}" "" 30
+        Pop $0
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+  ${If} $1 == ""
+    ReadEnvStr $2 ProgramData
+    ${If} $2 != ""
+    ${AndIf} ${FileExists} "$2\clash-verge-service\*.*"
+      RMDir /r "$2\clash-verge-service"
     ${EndIf}
   ${EndIf}
 !macroend
 
 !macro RemoveVergeService
-  ; Пока установлена другая программа с той же службой (запись удаления
-  ; «Clash Verge»), служба остаётся ей.
-  StrCpy $1 ""
-  ${If} ${RunningX64}
-    SetRegView 64
-    ReadRegStr $1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
-    ${If} $1 == ""
-      ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
+  ${If} ${FileExists} "$INSTDIR\resources\clod-clash-service-uninstall.exe"
+    DetailPrint "Removing ${PRODUCTNAME} Service..."
+    nsExec::ExecToLog /TIMEOUT=120000 '"$INSTDIR\resources\clod-clash-service-uninstall.exe"'
+    Pop $0
+    ${If} $0 != 0
+      DetailPrint "Could not remove ${PRODUCTNAME} Service ($0)"
     ${EndIf}
-  ${EndIf}
-  ${If} $1 == ""
-    SetRegView 32
-    ReadRegStr $1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
-    ${If} $1 == ""
-      ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge" "UninstallString"
-    ${EndIf}
-  ${EndIf}
-  !insertmacro SetContext
-
-  SimpleSC::ExistsService "clash_verge_service"
-  Pop $0
-
-  ${If} $1 != ""
-  ${AndIf} $0 == 0
-    DetailPrint "Another program still uses ${PRODUCTNAME} Service; leaving it registered"
-  ${ElseIf} $0 == 0
-    DetailPrint "Stopping ${PRODUCTNAME} Service..."
-    SimpleSC::StopService "clash_verge_service" 1 30
+  ${Else}
+    SimpleSC::ExistsService "${SERVICE_NAME}"
     Pop $0
     ${If} $0 == 0
-    ${OrIf} $0 == 1062
-      DetailPrint "Removing ${PRODUCTNAME} Service..."
-      SimpleSC::RemoveService "clash_verge_service"
+      SimpleSC::StopService "${SERVICE_NAME}" 1 30
       Pop $0
-      ${If} $0 != 0
-        DetailPrint "Could not remove ${PRODUCTNAME} Service ($0)"
-      ${EndIf}
-    ${Else}
-      DetailPrint "Could not stop ${PRODUCTNAME} Service ($0); leaving it registered"
+      SimpleSC::RemoveService "${SERVICE_NAME}"
+      Pop $0
     ${EndIf}
   ${EndIf}
+  !insertmacro RemoveLegacyService
 !macroend
 
 Section EarlyChecks
@@ -839,6 +870,7 @@ Section Install
   {{/each}}
 
   !insertmacro EnsureVergeService
+  !insertmacro RemoveLegacyService
 
   {{#each file_associations as |association| ~}}
     {{#each association.ext as |ext| ~}}
