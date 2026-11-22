@@ -60,13 +60,18 @@ pub enum UpdateMethod {
     Unavailable,
 }
 
-/// Решение одно на все места: на Windows работающий файл ядра переименованием не
-/// подменить, там только служба.
-const fn update_method(windows: bool, service_mode: bool, core_dir_writable: bool) -> UpdateMethod {
-    if !windows && core_dir_writable {
-        UpdateMethod::App
-    } else if service_mode {
+/// Решение одно на все места: под службой работает её копия ядра, а не файл
+/// программы. На Windows и Linux под службой ядро обновляет само себя через
+/// службу (обновится её копия; замена файла программы до службы не дошла бы).
+/// На macOS копию у службы сверяют с ядром программы, и обновлённая ядром копия
+/// ушла бы при починке службы — там ядро обновляет только приложение, а служба
+/// после этого просит одну починку. На Windows работающий файл ядра
+/// переименованием не подменить.
+const fn update_method(windows: bool, macos: bool, service_mode: bool, core_dir_writable: bool) -> UpdateMethod {
+    if service_mode && !macos {
         UpdateMethod::Core
+    } else if !windows && core_dir_writable {
+        UpdateMethod::App
     } else {
         UpdateMethod::Unavailable
     }
@@ -250,7 +255,12 @@ async fn current_update_method() -> UpdateMethod {
         crate::core::manager::RunningMode::Service
     );
     let core_dir_writable = replaceable_core_file().await.is_some();
-    update_method(cfg!(windows), service_mode, core_dir_writable)
+    update_method(
+        cfg!(windows),
+        cfg!(target_os = "macos"),
+        service_mode,
+        core_dir_writable,
+    )
 }
 
 pub async fn status() -> CoreUpdaterStatus {
@@ -442,9 +452,9 @@ async fn write_executable(path: &Path, data: &[u8]) -> Result<()> {
 }
 
 /// Файл встроенного ядра, который приложение может заменить само: папка
-/// доступна на запись, и это тот самый файл, который запускает и приложение, и
-/// служба. У копии, запущенной macOS из временного места (транслокация), путь
-/// службы ведёт в другую установку — чужую заменять нельзя.
+/// доступна на запись, и это тот самый файл, который запускает приложение. У
+/// копии, запущенной macOS из временного места (транслокация), путь ядра ведёт
+/// в другую установку — чужую заменять нельзя.
 async fn replaceable_core_file() -> Option<PathBuf> {
     let path = crate::core::service::bundled_core_path().await.ok()?;
     let started_from = std::env::current_exe().ok()?.with_file_name(path.file_name()?);
@@ -867,22 +877,25 @@ mod tests {
     }
 
     #[test]
-    fn the_app_updates_the_core_wherever_it_may_write_the_file() {
+    fn the_core_is_updated_by_whoever_runs_it() {
         use UpdateMethod::{App, Core, Unavailable};
-        for (windows, service, writable, expected) in [
-            (false, false, true, App),
-            (false, true, true, App),
-            (false, true, false, Core),
-            (false, false, false, Unavailable),
-            (true, true, true, Core),
-            (true, true, false, Core),
-            (true, false, true, Unavailable),
-            (true, false, false, Unavailable),
+        for (windows, macos, service, writable, expected) in [
+            (false, false, false, true, App),
+            (false, false, true, true, Core),
+            (false, false, true, false, Core),
+            (false, false, false, false, Unavailable),
+            (false, true, true, true, App),
+            (false, true, true, false, Unavailable),
+            (false, true, false, false, Unavailable),
+            (true, false, true, true, Core),
+            (true, false, true, false, Core),
+            (true, false, false, true, Unavailable),
+            (true, false, false, false, Unavailable),
         ] {
             assert_eq!(
-                update_method(windows, service, writable),
+                update_method(windows, macos, service, writable),
                 expected,
-                "windows={windows} service={service} writable={writable}"
+                "windows={windows} macos={macos} service={service} writable={writable}"
             );
         }
     }

@@ -1361,6 +1361,13 @@ pub(crate) async fn probe_service() -> ServiceProbe {
         Err(e) => Err(e.to_string()),
     };
     let probe = verdict(reply.as_ref().ok());
+    let probe = match probe {
+        ServiceProbe::Ready(_) if !service_has_the_bundled_core().await => {
+            logging!(info, Type::Service, "the service needs a reinstall to run the core");
+            ServiceProbe::Outdated
+        }
+        other => other,
+    };
     if probe == ServiceProbe::Outdated {
         match &reply {
             Ok(reply) => logging!(
@@ -1375,6 +1382,81 @@ pub(crate) async fn probe_service() -> ServiceProbe {
         }
     }
     probe
+}
+
+/// Служба запускает свою копию ядра, а не файл программы. Без копии запуск под
+/// службой не пройдёт; на macOS копию ещё и сверяют по отпечатку: обновление
+/// программы её не перекладывает, и под службой работало бы прежнее ядро.
+/// Не удалось узнать — переустановку не требуем.
+async fn service_has_the_bundled_core() -> bool {
+    let Ok(path) = bundled_core_path().await else {
+        return true;
+    };
+    let Some(name) = path.file_name().map(|name| name.to_string_lossy().into_owned()) else {
+        return true;
+    };
+    #[cfg(target_os = "macos")]
+    let Some(sha256) = core_file_sha256(&path).await.map(Some) else {
+        return true;
+    };
+    #[cfg(not(target_os = "macos"))]
+    let sha256: Option<String> = None;
+    let key = format!("{name}:{}", sha256.as_deref().unwrap_or_default());
+    if let Some(known) = CORE_COPY_CHECK.lock().as_ref()
+        && known.0 == key
+        && (known.1 || known.2.elapsed() < CORE_COPY_RECHECK_AFTER)
+    {
+        return known.1;
+    }
+    let requirements = [clod_service::CoreRequirement { name, sha256 }];
+    let Ok(status) = clod_service::inspect_installation(&requirements).await else {
+        return true;
+    };
+    let copy = status.cores.iter().find(|core| core.name == requirements[0].name);
+    let has = copy.is_some_and(|core| core.availability == clod_service::CoreAvailability::Ready);
+    if !has {
+        logging!(
+            info,
+            Type::Service,
+            "the service copy of {} is not usable: {:?}",
+            requirements[0].name,
+            copy.map(|core| &core.availability)
+        );
+    }
+    *CORE_COPY_CHECK.lock() = Some((key, has, Instant::now()));
+    has
+}
+
+/// Итог последней сверки копии ядра у службы: подтверждённую пару не спрашиваем
+/// снова, отказ — не чаще раза в минуту (служба при каждой сверке читает копию).
+static CORE_COPY_CHECK: Mutex<Option<(String, bool, Instant)>> = parking_lot::const_mutex(None);
+const CORE_COPY_RECHECK_AFTER: Duration = Duration::from_secs(60);
+
+/// После установки, переустановки или удаления службы копию сверяем заново.
+fn forget_core_copy_check() {
+    *CORE_COPY_CHECK.lock() = None;
+}
+
+/// Отпечаток пересчитывается только при смене файла (размер, время изменения).
+#[cfg(any(target_os = "macos", test))]
+async fn core_file_sha256(path: &Path) -> Option<String> {
+    use sha2::{Digest as _, Sha256};
+    type Known = (PathBuf, u64, std::time::SystemTime, String);
+    static KNOWN: Mutex<Option<Known>> = parking_lot::const_mutex(None);
+
+    let metadata = tokio::fs::metadata(path).await.ok()?;
+    let modified = metadata.modified().ok()?;
+    if let Some((known_path, len, time, sha256)) = KNOWN.lock().as_ref()
+        && known_path == path
+        && *len == metadata.len()
+        && *time == modified
+    {
+        return Some(sha256.clone());
+    }
+    let bytes = tokio::fs::read(path).await.ok()?;
+    let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    *KNOWN.lock() = Some((path.to_path_buf(), metadata.len(), modified, sha256.clone()));
+    Some(sha256)
 }
 
 async fn wait_for_service_ipc(manager: &ServiceManager) -> Result<ServiceProbe> {
@@ -1622,6 +1704,9 @@ async fn run_service_command(
         operation()
     });
 
+    defer! {
+        forget_core_copy_check();
+    }
     match tokio::time::timeout(timing::SERVICE_ELEVATION_WAIT, task).await {
         Ok(Ok(result)) => result.with_context(|| format!("{label} failed")),
         Ok(Err(join_error)) => Err(anyhow::Error::new(join_error).context(format!("{label} failed"))),
@@ -1674,7 +1759,7 @@ mod ipc_probe_tests {
 
 #[cfg(test)]
 mod probe_service_tests {
-    use super::{ServiceProbe, ServiceReady, VersionReply, verdict};
+    use super::{ServiceProbe, ServiceReady, VersionReply, core_file_sha256, verdict};
     use crate::utils::source_scan::fn_body;
     use clod_service::{
         MIN_REQUIRED_SERVICE_REVISION, PROTOCOL_EPOCH, PROTOCOL_REVISION, ProtocolInfo, ProtocolVersion,
@@ -1691,6 +1776,26 @@ mod probe_service_tests {
                 min_client_revision,
             }),
         }
+    }
+
+    #[tokio::test]
+    async fn the_core_digest_follows_the_file() -> anyhow::Result<()> {
+        let path = std::env::temp_dir().join(format!("clod-core-digest-{}", std::process::id()));
+        std::fs::write(&path, b"first")?;
+        let first = core_file_sha256(&path).await;
+        std::fs::write(&path, b"second core")?;
+        let second = core_file_sha256(&path).await;
+        std::fs::remove_file(&path)?;
+        assert_eq!(
+            first.as_deref(),
+            Some("a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e")
+        );
+        assert_eq!(
+            second.as_deref(),
+            Some("8219c1b08f91e00f4a6bcc36f53315d12bf65be4af0e4f6bbee4fc94475018aa")
+        );
+        assert_eq!(core_file_sha256(&path).await, None);
+        Ok(())
     }
 
     #[test]
