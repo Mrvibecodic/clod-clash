@@ -49,13 +49,16 @@ The core is updated together with the app. To update it separately, use the **Up
 the same window; each core is updated from its own releases (Clod Core from clod-core, Mihomo from
 MetaCubeX).
 
-- If the program folder is writable (usually on macOS), the app updates the core itself:
+- On Windows and Linux, when the core runs under the background service (TUN), the core updates
+  itself through the service. Stock Mihomo on Windows leaves an extra copy of itself after an update,
+  which holds the port until the computer restarts — the button warns about this in advance.
+- Otherwise, if the program folder is writable (usually on macOS), the app updates the core itself:
   it downloads it, verifies the checksum, swaps the file, and if the new core fails to start,
-  restores the previous one. A stopped core can't be updated this way.
-- Otherwise the core updates itself through the background service. Without the service (on Windows,
-  on Linux from a package) the button shows a hint: the core will be updated together with the app.
-  Stock Mihomo on Windows leaves an extra copy of itself after an update, which holds the port until
-  the computer restarts — the button warns about this in advance.
+  restores the previous one. A stopped core can't be updated this way. The background service runs
+  its own copy of the core, so on macOS with TUN on the app asks once to repair the service
+  (administrator password) — the same happens after the app itself is updated.
+- In all other cases (the program folder isn't writable, and on Windows and Linux the core isn't
+  under the service either) the button shows a hint: the core will be updated together with the app.
 
 ## Subscription
 
