@@ -596,7 +596,7 @@ Var LegacyServiceStopped
       ${EndIf}
     ${Else}
       DetailPrint "The previous service belongs to Clash Verge Rev; forgetting the core of ${PRODUCTNAME} in it"
-      nsExec::ExecToLog /TIMEOUT=30000 `"$PowerShellExe" -NoProfile -NonInteractive -Command "$$root = Join-Path $$env:ProgramData 'clash-verge-service'; $$ours = ($$env:CLOD_CLASH_INSTDIR).TrimEnd('\') + '\'; Get-ChildItem -LiteralPath $$root -Recurse -Filter 'desired-state.json' -File -ErrorAction SilentlyContinue | ForEach-Object { $$path = (Get-Content -LiteralPath $$_.FullName -Raw | ConvertFrom-Json).last_clash_config.core_config.core_path; if ($$path -and $$path.StartsWith($$ours, [StringComparison]::OrdinalIgnoreCase)) { Move-Item -LiteralPath $$_.FullName -Destination ($$_.FullName + '.clodclash.bak') -Force } }"`
+      nsExec::ExecToLog /TIMEOUT=30000 `"$PowerShellExe" -NoProfile -NonInteractive -Command "$$root = Join-Path $$env:ProgramData 'clash-verge-service'; $$ours = ($$env:CLOD_CLASH_INSTDIR).TrimEnd('\') + '\'; $$escaped = $$ours.Replace('\', '\\'); Get-ChildItem -LiteralPath $$root -Recurse -Filter 'desired-state.json' -File -ErrorAction SilentlyContinue | ForEach-Object { $$raw = Get-Content -LiteralPath $$_.FullName -Raw; $$path = ''; try { $$path = [string]($$raw | ConvertFrom-Json).last_clash_config.core_config.core_path } catch { }; $$path = $$path -replace '^\\\\\?\\(UNC\\)?', ''; if ($$path.StartsWith($$ours, [StringComparison]::OrdinalIgnoreCase) -or $$raw.IndexOf($$escaped, [StringComparison]::OrdinalIgnoreCase) -ge 0) { Move-Item -LiteralPath $$_.FullName -Destination ($$_.FullName + '.clodclash.bak') -Force } }"`
       Pop $0
       ${If} $LegacyServiceStopped == "1"
         SimpleSC::StartService "${LEGACY_SERVICE_NAME}" "" 30

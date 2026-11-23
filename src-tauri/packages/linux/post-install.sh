@@ -27,23 +27,37 @@ install_tun_service() {
 # уходит наше ядро (иначе после перезагрузки оно поднялось бы вторым), без него
 # служба снимается.
 forget_our_core_in_legacy_service() {
-    ours=$(find /var/lib/clash-verge-service -name desired-state.json -type f \
-        -exec grep -l 'io.clodclash.app' {} + 2>/dev/null)
+    state=/var/lib/clash-verge-service
+    # Путь к ядру у обоих пакетов одинаковый (/usr/bin/verge-mihomo): наше узнаётся
+    # по записи службы о том, из какой папки данных пришёл последний запуск.
+    key=""
+    if grep -qs 'io.clodclash.app' "$state/active-owner.json"; then
+        key=$(sed -n 's/.*"owner_key"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$state/active-owner.json" | head -n 1)
+    fi
+    ours=$(find "$state" -name desired-state.json -type f -exec grep -l 'io.clodclash.app' {} + 2>/dev/null)
+    if [ -n "$key" ]; then
+        ours=$(printf '%s\n%s\n%s\n' "$ours" "$state/active-owner.json" "$state/users/$key/desired-state.json" | grep . | sort -u)
+    fi
     [ -n "$ours" ] || return 0
-    # Останавливается, только если сейчас держит наше ядро: ядро службы — от root,
-    # с нашей папкой данных в командной строке, её процесс — родитель.
+    # Останавливается, только если сейчас держит наше ядро: ядро от root, его родитель —
+    # процесс службы, в командной строке — папка этой записи или наша папка данных.
     held=0
-    for pid in $(pgrep -u root -f 'io.clodclash.app' 2>/dev/null); do
+    for pid in $(pgrep -u root -f verge-mihomo 2>/dev/null); do
         parent=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
         [ -n "$parent" ] || continue
-        if [ "$(ps -o comm= -p "$parent" 2>/dev/null)" = clash-verge-ser ]; then
-            held=1
+        [ "$(ps -o comm= -p "$parent" 2>/dev/null)" = clash-verge-ser ] || continue
+        cmd=$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null)
+        case "$cmd" in *io.clodclash.app*) held=1 ;; esac
+        if [ -n "$key" ]; then
+            case "$cmd" in *"$state/users/$key/"*) held=1 ;; esac
         fi
     done
     if [ "$held" = 1 ]; then
         systemctl stop clash-verge-service.service >/dev/null 2>&1 || true
     fi
-    printf '%s\n' "$ours" | while IFS= read -r f; do mv -f "$f" "$f.clodclash.bak"; done
+    printf '%s\n' "$ours" | while IFS= read -r f; do
+        [ -f "$f" ] && mv -f "$f" "$f.clodclash.bak"
+    done
     if [ "$held" = 1 ]; then
         systemctl start clash-verge-service.service >/dev/null 2>&1 || true
     fi
