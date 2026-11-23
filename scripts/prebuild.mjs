@@ -599,9 +599,7 @@ async function resolveServiceBundle() {
       const zip = new AdmZip(tempArchive)
       zip
         .getEntries()
-        .forEach((entry) =>
-          log_debug('"clod-service" entry:', entry.entryName),
-        )
+        .forEach((entry) => log_debug('"clod-service" entry:', entry.entryName))
       zip.extractAllTo(tempDir, true)
     } else {
       await extract({ cwd: tempDir, file: tempArchive })
