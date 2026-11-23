@@ -278,6 +278,35 @@ fn macos_core_path_in_install_roots<'a>(
     })
 }
 
+/// Установщик службы и её файлы запускаются из папки программы: метку
+/// карантина с них снимаем до запуска установщика. Копии ядер служба пишет в
+/// новые файлы, метка на них не переходит.
+#[cfg(target_os = "macos")]
+fn macos_unquarantine_shell(install_path: &Path) -> String {
+    let quoted: String = install_path
+        .parent()
+        .map(|dir| format!(" {}", shell_single_quote(&dir.to_string_lossy())))
+        .unwrap_or_default();
+    format!("/usr/bin/xattr -dr com.apple.quarantine{quoted} 2>/dev/null || true")
+}
+
+/// `pkill -f` сравнивает по расширенному регулярному выражению: путь с
+/// `(`, `+`, `[` (`Clod Clash (1).app`) иначе не совпал бы сам с собой.
+#[cfg(any(target_os = "macos", test))]
+fn ere_literal(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if matches!(
+            ch,
+            '.' | '[' | ']' | '(' | ')' | '{' | '}' | '*' | '+' | '?' | '^' | '$' | '|' | '\\'
+        ) {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+    escaped
+}
+
 /// Служба прежних версий общая с Clash Verge Rev: без него снимается целиком,
 /// при нём из её записей о запуске уходит наше ядро, иначе после перезагрузки
 /// она подняла бы его вторым рядом с нашей службой.
@@ -303,11 +332,22 @@ fi"
 
 #[cfg(target_os = "macos")]
 fn macos_force_stop_core_shell() -> String {
-    use crate::config::IVerge;
-
-    let mut parts: Vec<String> = IVerge::VALID_CLASH_CORES
+    // Только наши ядра, по пути: ядра Clash Verge Rev от root называются так же.
+    let mut ours = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        ours.push(exe.with_file_name("verge-mihomo"));
+    }
+    if let Ok(paths) = clod_service::service_paths() {
+        ours.push(paths.core_dir().join("verge-mihomo"));
+    }
+    let mut parts: Vec<String> = ours
         .iter()
-        .map(|core| format!("/usr/bin/pkill -U root -x {core} 2>/dev/null || true"))
+        .map(|path| {
+            format!(
+                "/usr/bin/pkill -U root -f {} 2>/dev/null || true",
+                shell_single_quote(&ere_literal(&path.to_string_lossy()))
+            )
+        })
         .collect();
 
     if let Ok(ipc) = dirs::sidecar_ipc_path()
@@ -675,8 +715,9 @@ fn install_service() -> Result<()> {
     let prompt = clash_verge_i18n::t!("service.adminInstallPrompt");
     let install_quoted = shell_single_quote(&install_shell);
     let shell = format!(
-        "{}; sudo CLOD_CLASH_SERVICE_GID={gid} {install_quoted}{}",
+        "{}; {}; sudo CLOD_CLASH_SERVICE_GID={gid} {install_quoted}{}",
         macos_retire_legacy_service_shell(),
+        macos_unquarantine_shell(&install_path),
         quoted_core_install_arguments()
     );
     let shell = escape_osascript_double_quoted_string(&shell);
@@ -1046,6 +1087,8 @@ fn reinstall_service() -> Result<()> {
     }
     shell.push_str("; ");
     shell.push_str(macos_retire_legacy_service_shell());
+    shell.push_str("; ");
+    shell.push_str(&macos_unquarantine_shell(&install_path));
     shell.push_str("; sudo CLOD_CLASH_SERVICE_GID=");
     shell.push_str(&gid.to_string());
     shell.push(' ');
@@ -1868,8 +1911,8 @@ mod ipc_probe_tests {
 #[cfg(test)]
 mod probe_service_tests {
     use super::{
-        ServiceProbe, ServiceReady, VersionReply, core_file_sha256, core_install_arguments_for, running_generation,
-        session_is_gone, verdict,
+        ServiceProbe, ServiceReady, VersionReply, core_file_sha256, core_install_arguments_for, ere_literal,
+        running_generation, session_is_gone, verdict,
     };
     use crate::utils::source_scan::fn_body;
     use clod_service::{
@@ -1887,6 +1930,15 @@ mod probe_service_tests {
                 min_client_revision,
             }),
         }
+    }
+
+    #[test]
+    fn a_core_path_is_matched_by_pkill_literally() {
+        assert_eq!(
+            ere_literal("/Applications/Clod Clash (1).app/Contents/MacOS/verge-mihomo"),
+            r"/Applications/Clod Clash \(1\)\.app/Contents/MacOS/verge-mihomo"
+        );
+        assert_eq!(ere_literal(r"a+b[c]$^|?*{}\"), r"a\+b\[c\]\$\^\|\?\*\{\}\\");
     }
 
     #[tokio::test]
