@@ -7,12 +7,12 @@ install_tun_service() {
     command -v systemctl >/dev/null 2>&1 || return 0
     [ -d /run/systemd/system ] || return 0
     if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null)" = "Enforcing" ]; then
-        mkdir -p /var/lib/clod-clash-service/bin >/dev/null 2>&1 || true
+        mkdir -p /var/lib/clod-clash-service/bin /var/lib/clod-clash-service/cores >/dev/null 2>&1 || true
         if command -v semanage >/dev/null 2>&1; then
-            semanage fcontext -a -t bin_t '/var/lib/clod-clash-service/bin(/.*)?' >/dev/null 2>&1 || true
+            semanage fcontext -a -t bin_t '/var/lib/clod-clash-service/(bin|cores)(/.*)?' >/dev/null 2>&1 || true
         fi
         if command -v chcon >/dev/null 2>&1; then
-            chcon -R -t bin_t /var/lib/clod-clash-service/bin >/dev/null 2>&1 || true
+            chcon -R -t bin_t /var/lib/clod-clash-service/bin /var/lib/clod-clash-service/cores >/dev/null 2>&1 || true
         fi
     fi
     systemctl reset-failed clod-clash-service.service >/dev/null 2>&1 || true

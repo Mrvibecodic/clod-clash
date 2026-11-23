@@ -472,8 +472,12 @@ const LINUX_SERVICE_BINARY: &str = "/var/lib/clod-clash-service/bin/clod-clash-s
 #[cfg(target_os = "linux")]
 const LINUX_SERVICE_BIN_DIR: &str = "/var/lib/clod-clash-service/bin";
 
+/// Копии ядер, которые запускает служба, — исполняемые так же, как она сама.
 #[cfg(target_os = "linux")]
-const LINUX_SERVICE_FCONTEXT: &str = "/var/lib/clod-clash-service/bin(/.*)?";
+const LINUX_SERVICE_CORE_DIR: &str = "/var/lib/clod-clash-service/cores";
+
+#[cfg(target_os = "linux")]
+const LINUX_SERVICE_FCONTEXT: &str = "/var/lib/clod-clash-service/(bin|cores)(/.*)?";
 
 #[cfg(target_os = "linux")]
 fn selinux_is_enforcing() -> bool {
@@ -491,12 +495,13 @@ fn selinux_install_prefix_for(enforcing: bool) -> String {
         return String::new();
     }
     let dir = shell_single_quote(LINUX_SERVICE_BIN_DIR);
+    let cores = shell_single_quote(LINUX_SERVICE_CORE_DIR);
     let fcontext = shell_single_quote(LINUX_SERVICE_FCONTEXT);
     format!(
-        "mkdir -p {dir} >/dev/null 2>&1 || true; \
+        "mkdir -p {dir} {cores} >/dev/null 2>&1 || true; \
 if command -v semanage >/dev/null 2>&1; then \
 semanage fcontext -a -t bin_t {fcontext} >/dev/null 2>&1 || true; fi; \
-if command -v chcon >/dev/null 2>&1; then chcon -R -t bin_t {dir} >/dev/null 2>&1 || true; fi; \
+if command -v chcon >/dev/null 2>&1; then chcon -R -t bin_t {dir} {cores} >/dev/null 2>&1 || true; fi; \
 systemctl reset-failed clod-clash-service.service >/dev/null 2>&1 || true; "
     )
 }
@@ -2295,8 +2300,8 @@ mod stopped_service_tests {
 #[cfg(all(test, target_os = "linux"))]
 mod selinux_tests {
     use super::{
-        LINUX_SERVICE_BIN_DIR, LINUX_SERVICE_BINARY, pkexec_itself_failed, selinux_install_prefix_for,
-        selinux_recovery_tail_for,
+        LINUX_SERVICE_BIN_DIR, LINUX_SERVICE_BINARY, LINUX_SERVICE_CORE_DIR, pkexec_itself_failed,
+        selinux_install_prefix_for, selinux_recovery_tail_for,
     };
 
     #[test]
@@ -2316,6 +2321,10 @@ mod selinux_tests {
         assert!(
             prefix.contains(LINUX_SERVICE_BIN_DIR),
             "правится каталог службы, а не что-то ещё: {prefix}"
+        );
+        assert!(
+            prefix.contains(LINUX_SERVICE_CORE_DIR),
+            "копии ядер служба тоже запускает — их каталог размечается вместе с ней: {prefix}"
         );
         assert!(
             prefix.contains("systemctl reset-failed"),
