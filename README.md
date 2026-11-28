@@ -101,6 +101,7 @@
 | Windows x64 | установщик `.exe` — ставит приложение, службу для TUN и правило брандмауэра для ядер. Есть портативный `.zip`: работает без установки, но сама не обновляется — новую версию берите со страницы загрузки |
 | macOS 11+ (Apple Silicon и Intel) | `.dmg`. Сборка без сертификата Apple: первый запуск разрешается в «Системные настройки → Конфиденциальность и безопасность». Или одной командой в «Терминале»: `curl -fsSL https://mrvibecodic.github.io/clod-clash/install-macos.sh \| bash` |
 | Linux x86_64 | `.deb` или `.rpm`. На системах с systemd пакет сразу регистрирует службу для TUN |
+| Arch Linux x86_64 | Пакет сообщества [`clod-clash-bin`](https://aur.archlinux.org/packages/clod-clash-bin) из AUR. Например, через yay: `yay -S clod-clash-bin` |
 
 Подробно — в разделе [«Установка»](https://mrvibecodic.github.io/clod-clash/ru/docs/user/install/).
 
